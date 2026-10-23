@@ -36,7 +36,10 @@ Two stores implement the same `BasaStore` contract (`src/app/store/types.ts`); `
 
 Roles: self-registration is limited to `candidate` / `employer` (onboarding screen, rules-enforced). `admin` is a Firebase custom claim read from the ID token; it is never writable by the client.
 
+Registration is handled by the authenticated `/api/register` route, which derives the UID and email from the verified Firebase ID token and creates role/profile records with the Admin SDK. Firestore clients cannot create their own user-role document.
+
 Design decisions worth knowing:
 - New skill claims are always **Self-reported**. Peer/mentor/assessed labels come from other people, never from the candidate's own form.
 - Reporters cannot write to jobs, so `reportCount` is not incremented client-side. Add a Cloud Function trigger to maintain it, or count pending reports in the admin view.
-- Candidate profiles are readable by employers only when `popiaVisibility` allows it.
+- Candidate profiles are readable by employers only when `popiaVisibility` allows it and, for `employers_only`, the candidate has applied to that employer.
+- Candidate contact details live in `candidatePrivateProfiles`; employers receive access only in the same valid shortlist transition that updates an application. Existing legacy contact fields are moved on the candidate's next sign-in.

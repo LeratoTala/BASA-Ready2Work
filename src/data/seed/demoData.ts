@@ -332,7 +332,7 @@ export const INITIAL_APPLICATIONS: Application[] = [
       missingSkills: [],
       reasons: [
         'Perfect skill match: 1 of 1 required skills.',
-        'High evidence credibility: Skill is officially Task-assessed (Score 92/100).',
+        'Stronger evidence: Skill has a recorded task assessment.',
         'Immediate availability fits weekend schedule.',
       ],
       improvementTips: [],

@@ -10,7 +10,7 @@ interface Props {
   claims: SkillClaim[];
   matchBreakdown: MatchBreakdown;
   hasApplied: boolean;
-  onApply: (jobId: string) => void;
+  onApply: (jobId: string) => void | Promise<unknown>;
   onReport: (jobId: string, title: string, reason: string) => void;
 }
 
@@ -26,19 +26,30 @@ export const OpportunityDetailModal: React.FC<Props> = ({
   onReport,
 }) => {
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const [showApplyPreview, setShowApplyPreview] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
   const [reportReason, setReportReason] = useState('');
   const [reportSuccess, setReportSuccess] = useState(false);
   const [applyError, setApplyError] = useState<string | null>(null);
+  const [isSubmittingApplication, setIsSubmittingApplication] = useState(false);
 
   if (!isOpen || !job) return null;
 
   const handleApplyClick = () => {
     setApplyError(null);
+    setShowApplyPreview(true);
+  };
+
+  const handleConfirmApplication = async () => {
+    setIsSubmittingApplication(true);
+    setApplyError(null);
     try {
-      onApply(job.id);
+      await onApply(job.id);
+      setShowApplyPreview(false);
     } catch (err: any) {
       setApplyError(err.message || 'Failed to submit application.');
+    } finally {
+      setIsSubmittingApplication(false);
     }
   };
 
@@ -107,6 +118,11 @@ export const OpportunityDetailModal: React.FC<Props> = ({
               <span className="font-medium text-white">{job.applicationDeadline}</span>
             </div>
           </div>
+        </div>
+
+        <div className="px-6 py-2.5 bg-red-50 border-b border-red-200 text-xs text-red-900 flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0" />
+          Never pay to get a job. Report any listing that asks for an upfront fee.
         </div>
 
         {/* Explainable Match Score Banner */}
@@ -281,6 +297,44 @@ export const OpportunityDetailModal: React.FC<Props> = ({
             <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-medium">
               {applyError}
             </div>
+          )}
+
+          {showApplyPreview && (
+            <section className="border border-amber-300 bg-amber-50 p-4 space-y-3" aria-labelledby="application-preview-title">
+              <div>
+                <h4 id="application-preview-title" className="font-bold text-stone-900 text-sm">What this employer will see</h4>
+                <p className="text-stone-700 mt-1">This application shares the following with {job.employerName}:</p>
+              </div>
+              <ul className="list-disc pl-5 text-stone-700 space-y-1">
+                <li>{candidate.fullName}, {candidate.headline || 'your profile headline'}, broad area ({candidate.locationArea}), and availability</li>
+                <li>Your match score and the skills that match or are missing</li>
+                {candidate.popiaVisibility === 'private' ? (
+                  <li>Your Skill Passport and evidence are private and will not be shared</li>
+                ) : (
+                  <li>Your skill labels, evidence titles and descriptions allowed by your Skill Passport visibility</li>
+                )}
+              </ul>
+              <p className="text-stone-700">
+                Your email and phone number stay private unless this employer shortlists you. You can change Skill Passport visibility in your profile.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowApplyPreview(false)}
+                  className="px-3 py-2 text-xs font-semibold text-stone-700 border border-stone-300 bg-white"
+                >
+                  Go back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmApplication}
+                  disabled={isSubmittingApplication}
+                  className="px-3 py-2 text-xs font-semibold text-white bg-amber-700 hover:bg-amber-800"
+                >
+                  {isSubmittingApplication ? 'Submitting…' : 'Confirm and apply'}
+                </button>
+              </div>
+            </section>
           )}
         </div>
 

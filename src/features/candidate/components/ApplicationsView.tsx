@@ -164,7 +164,7 @@ export const ApplicationsView: React.FC<Props> = ({ applications, onWithdraw }) 
                     <div className="flex items-center gap-2">
                       <FileCheck className="w-4 h-4 text-emerald-600" />
                       <span>
-                        Work completed & verified. Official payment confirmed via South African banking EFT.
+                        The employer marked this work complete. Payment is recorded separately and may not be confirmed.
                       </span>
                     </div>
                   </div>

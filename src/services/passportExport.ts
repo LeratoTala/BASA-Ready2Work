@@ -2,32 +2,27 @@ import { jsPDF } from 'jspdf';
 import { CandidateProfile, SkillClaim } from '../domain/types';
 
 export function generateLinkedInSummary(candidate: CandidateProfile, claims: SkillClaim[]): string {
-  const passportUrl = `https://basa-ready2work.gov.za/passport/${candidate.uid}`;
-
   const skillsBlock = claims
     .map((c) => {
       const assessmentTag =
         c.verificationStatus === 'Task-assessed'
-          ? ' [Task-assessed · Rubric Certified]'
+          ? ' [Task-assessed]'
           : c.verificationStatus === 'Peer-endorsed'
-          ? ' [Peer-endorsed by Industry Reference]'
+          ? ' [Peer-endorsed]'
           : ` [${c.verificationStatus}]`;
       return `• ${c.skillName}${assessmentTag}\n  Evidence: ${c.evidenceTitle} - ${c.evidenceDescription}`;
     })
     .join('\n\n');
 
-  return `🌟 Official BASA: Ready2Work Skill Passport
+  return `BASA: Ready2Work Skills and Evidence Summary
 👤 ${candidate.fullName} | ${candidate.headline}
 📍 Location: ${candidate.locationArea} (South Africa)
 ⏱️ Availability: ${candidate.availability.replace('_', ' ').toUpperCase()}
 
-I'm pleased to share my verified skills on the BASA platform, turning practical and informal experience into credible evidence for entry-level work:
+I'm sharing my recorded skills and evidence for entry-level work:
 
-✅ Verified Capabilities & Evidence:
-${skillsBlock || '• Hands-on practical vocational skills.'}
-
-🛡️ Credential ID: ${candidate.uid.toUpperCase()}
-🔗 Verify My Full Skill Passport: ${passportUrl}
+Skills and evidence:
+${skillsBlock || 'No skill claims recorded yet.'}
 
 #SkillsFirst #Ready2Work #SouthAfrica #YouthEmployment #VocationalSkills #POPIA`;
 }
@@ -58,20 +53,16 @@ export function generatePassportPdf(candidate: CandidateProfile, claims: SkillCl
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(245, 158, 11); // Amber
-  doc.text('OFFICIAL VERIFIED SKILL PASSPORT · SOUTH AFRICA', 14, 22);
+  doc.text('SKILLS AND EVIDENCE SUMMARY · SOUTH AFRICA', 14, 22);
 
   doc.setFontSize(8);
   doc.setTextColor(161, 161, 170);
   doc.text('Skills → Evidence → Work · Section 3.3 Honest Verification Framework', 14, 29);
 
-  // Passport ID on top right
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
   doc.setTextColor(255, 255, 255);
-  doc.text(`PASSPORT ID: ${candidate.uid.toUpperCase()}`, pageWidth - 14, 15, { align: 'right' });
-  doc.setFont('helvetica', 'normal');
   doc.text(`Issued: ${new Date().toLocaleDateString('en-ZA')}`, pageWidth - 14, 22, { align: 'right' });
-  doc.text(`Status: ACTIVE & VERIFIED`, pageWidth - 14, 29, { align: 'right' });
 
   // Candidate Overview Section
   let currentY = 50;
@@ -91,7 +82,7 @@ export function generatePassportPdf(candidate: CandidateProfile, claims: SkillCl
   doc.setFontSize(9);
   doc.setTextColor(100, 116, 139);
   doc.text(
-    `Location Area: ${candidate.locationArea}  |  Availability: ${candidate.availability.replace('_', ' ').toUpperCase()}  |  Phone: +27 82 ••• ••02 (POPIA Protected)`,
+    `Location Area: ${candidate.locationArea}  |  Availability: ${candidate.availability.replace('_', ' ').toUpperCase()}`,
     14,
     currentY
   );
@@ -114,13 +105,13 @@ export function generatePassportPdf(candidate: CandidateProfile, claims: SkillCl
 
   const summaryLines = doc.splitTextToSize(
     candidate.experienceSummary ||
-      'Candidate brings reliable hands-on vocational capabilities and verified task experience.',
+      'No experience summary provided.',
     pageWidth - 28
   );
   doc.text(summaryLines, 14, currentY);
   currentY += summaryLines.length * 5 + 6;
 
-  // Verified Evidence Section Header
+  // Evidence Section Header
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(24, 24, 27);
@@ -171,12 +162,12 @@ export function generatePassportPdf(candidate: CandidateProfile, claims: SkillCl
     // Footnote of card
     doc.setFontSize(7.5);
     doc.setTextColor(100, 116, 139);
-    const endorserOrAssessor = claim.assessmentId
-      ? 'Assessor Verified: Grade 92/100 (Soweto Skills Hub)'
+    const evidenceRecord = claim.assessmentId
+      ? `Assessment record: ${claim.assessmentId}`
       : claim.peerEndorserName
-      ? `Endorsed by: ${claim.peerEndorserName}`
-      : 'Self-reported informal claim';
-    doc.text(endorserOrAssessor, 18, currentY + 24);
+      ? `Peer listed: ${claim.peerEndorserName}`
+      : 'Candidate-entered evidence';
+    doc.text(evidenceRecord, 18, currentY + 24);
 
     currentY += 32;
   });
@@ -190,7 +181,7 @@ export function generatePassportPdf(candidate: CandidateProfile, claims: SkillCl
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   doc.setTextColor(30, 41, 59);
-  doc.text('SOUTH AFRICA POPIA COMPLIANT CREDENTIAL', 18, footerY + 6);
+  doc.text('BASA SKILLS AND EVIDENCE SUMMARY', 18, footerY + 6);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
@@ -201,17 +192,13 @@ export function generatePassportPdf(candidate: CandidateProfile, claims: SkillCl
     footerY + 11
   );
   doc.text(
-    'Contact details are masked under South Africa Protection of Personal Information Act (POPIA). Zero upfront fee guarantee.',
+    'Contact details are not included. Never pay to get a job; report upfront fee requests.',
     18,
     footerY + 15
   );
-  doc.text(
-    `Online Verification: https://basa-ready2work.gov.za/passport/${candidate.uid}`,
-    18,
-    footerY + 19
-  );
+  doc.text('Verification labels describe recorded evidence and do not guarantee work outcomes.', 18, footerY + 19);
 
   // Save the PDF
-  const filename = `BASA_Skill_Passport_${candidate.fullName.replace(/\s+/g, '_')}.pdf`;
+  const filename = `BASA_Skills_Evidence_${candidate.fullName.replace(/\s+/g, '_')}.pdf`;
   doc.save(filename);
 }

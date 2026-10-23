@@ -38,6 +38,11 @@ function flag(key: string, fallback: boolean): boolean {
   return value === 'true' || value === '1';
 }
 
+function positiveInteger(key: string, fallback: number): number {
+  const value = Number.parseInt(read(key), 10);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
 export const env = {
   firebase: {
     apiKey: read('VITE_FIREBASE_API_KEY'),
@@ -52,5 +57,6 @@ export const env = {
   apiBaseUrl: read('VITE_API_BASE_URL'),
   /** Seed fictional demo data and expose the demo tour / persona switcher. Never enable in production. */
   enableDemoData: flag('VITE_ENABLE_DEMO_DATA', false),
+  minimumUserAge: positiveInteger('VITE_MINIMUM_USER_AGE', 18),
   isProduction: import.meta.env.PROD,
 } as const;

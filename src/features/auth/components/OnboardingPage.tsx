@@ -5,7 +5,8 @@ import type { Role } from '../../../domain/types';
 interface Props {
   displayName: string;
   email: string;
-  onComplete: (displayName: string, email: string, role: Role) => void;
+  minimumAge: number;
+  onComplete: (displayName: string, email: string, role: Role, minimumAgeConfirmed: boolean) => void;
   onSignOut: () => void;
 }
 
@@ -17,14 +18,15 @@ const OPTIONS: { role: SelfAssignableRole; title: string; description: string; i
 ];
 
 /** Shown once, after first sign-in, so a person can choose how they will use BASA. */
-export const OnboardingPage: React.FC<Props> = ({ displayName, email, onComplete, onSignOut }) => {
+export const OnboardingPage: React.FC<Props> = ({ displayName, email, minimumAge, onComplete, onSignOut }) => {
   const [name, setName] = useState(displayName);
   const [role, setRole] = useState<SelfAssignableRole>('candidate');
+  const [minimumAgeConfirmed, setMinimumAgeConfirmed] = useState(false);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onComplete(name.trim(), email, role);
+    onComplete(name.trim(), email, role, minimumAgeConfirmed);
   };
 
   return (
@@ -64,6 +66,17 @@ export const OnboardingPage: React.FC<Props> = ({ displayName, email, onComplete
             </label>
           ))}
         </fieldset>
+
+        <label className="flex items-start gap-2 text-xs text-stone-700">
+          <input
+            type="checkbox"
+            required
+            checked={minimumAgeConfirmed}
+            onChange={(event) => setMinimumAgeConfirmed(event.target.checked)}
+            className="mt-0.5"
+          />
+          <span>I confirm I am at least {minimumAge} years old. BASA stores this confirmation only, not my date of birth.</span>
+        </label>
 
         <button type="submit" className="w-full rounded-lg bg-stone-900 text-white py-2.5 text-sm font-semibold hover:bg-stone-800">
           Continue

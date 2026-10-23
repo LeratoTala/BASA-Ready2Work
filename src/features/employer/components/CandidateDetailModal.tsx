@@ -30,7 +30,7 @@ export const CandidateDetailModal: React.FC<Props> = ({
   onUpdateStatus,
 }) => {
   const [employerNotes, setEmployerNotes] = useState(application?.employerNotes || '');
-  const [confirmPayout, setConfirmPayout] = useState(true);
+  const [confirmPayout, setConfirmPayout] = useState(false);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
@@ -195,7 +195,7 @@ export const CandidateDetailModal: React.FC<Props> = ({
                   {claim.assessmentId && (
                     <p className="text-emerald-700 font-semibold text-[11px] pt-1 flex items-center gap-1">
                       <ShieldCheck className="w-3.5 h-3.5" />
-                      Assessor Certified · Soweto Skills Hub Rubric Grade 92/100
+                      Assessment record: {claim.assessmentId}
                     </p>
                   )}
                 </div>
@@ -206,7 +206,7 @@ export const CandidateDetailModal: React.FC<Props> = ({
           {/* Employer Private Review Notes */}
           <div className="space-y-1.5">
             <label className="block font-bold text-stone-900 uppercase tracking-wider text-[11px]">
-              Employer Review Notes & Payout Confirmation
+              Employer Review Notes
             </label>
             <textarea
               rows={2}
@@ -216,6 +216,18 @@ export const CandidateDetailModal: React.FC<Props> = ({
               className="w-full text-xs p-2.5 border border-stone-300 rounded-lg"
             />
           </div>
+
+          {allowedTransitions.includes('completed') && (
+            <label className="flex items-start gap-2 p-3 bg-stone-50 border border-stone-200 text-xs text-stone-700">
+              <input
+                type="checkbox"
+                checked={confirmPayout}
+                onChange={(event) => setConfirmPayout(event.target.checked)}
+                className="mt-0.5"
+              />
+              <span>I confirm payment was sent. Leave unchecked if payment has not been confirmed; work completion is recorded separately.</span>
+            </label>
+          )}
 
           {statusError && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs font-semibold">

@@ -13,6 +13,7 @@ ARG VITE_FIREBASE_STORAGE_BUCKET
 ARG VITE_FIREBASE_MESSAGING_SENDER_ID
 ARG VITE_FIREBASE_FIRESTORE_DATABASE_ID
 ARG VITE_API_BASE_URL
+ARG VITE_MINIMUM_USER_AGE=18
 ENV VITE_ENABLE_DEMO_DATA=false
 RUN npm run build
 
@@ -23,6 +24,8 @@ COPY package*.json ./
 RUN npm ci
 COPY --from=build /app/dist ./dist
 COPY server ./server
+COPY src/domain ./src/domain
+COPY src/config ./src/config
 COPY tsconfig.json ./
 USER node
 EXPOSE 3000

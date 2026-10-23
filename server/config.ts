@@ -19,6 +19,7 @@ export const serverConfig = {
     .map((o) => o.trim())
     .filter(Boolean),
   gemini: {
+    enabled: process.env.GEMINI_ENABLED === 'true',
     apiKey: (process.env.GEMINI_API_KEY ?? '').trim(),
     model: (process.env.GEMINI_MODEL ?? '').trim(),
     timeoutMs: int(process.env.GEMINI_TIMEOUT_MS, 8000),
@@ -37,4 +38,6 @@ export const serverConfig = {
 } as const;
 
 export const isProduction = serverConfig.nodeEnv === 'production';
-export const aiEnabled = serverConfig.gemini.apiKey.length > 10 && serverConfig.gemini.model.length > 0;
+export const aiEnabled = serverConfig.gemini.enabled
+  && serverConfig.gemini.apiKey.length > 10
+  && serverConfig.gemini.model.length > 0;

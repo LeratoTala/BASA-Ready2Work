@@ -18,9 +18,11 @@ node scripts/set-admin-claim.mjs you@example.com
 ## 3. Deploy the app (Google Cloud Run, serves web + API)
 ```bash
 gcloud run deploy basa-ready2work --source . --region <region> --allow-unauthenticated \
-  --set-env-vars GEMINI_MODEL=<model> --set-secrets GEMINI_API_KEY=<secret>:latest
+  --service-account <runtime-service-account> \
+  --set-env-vars FIREBASE_PROJECT_ID=<project-id>
 ```
-Pass the `VITE_*` values as Docker build args (they are public identifiers baked into the client bundle).
+Pass the `VITE_*` values, including `VITE_MINIMUM_USER_AGE`, as Docker build args (they are public configuration baked into the client bundle).
+The runtime service account needs the Firebase Admin permissions required to verify ID tokens and create user/profile documents. AI drafting stays disabled unless `GEMINI_ENABLED=true`; review the provider's current data-use terms before enabling it and configure its API key as a managed secret.
 Any host that runs Node 20+ works: `npm ci && npm run build && npm start`.
 
 ## 4. Desktop and mobile

@@ -2,36 +2,25 @@ import React, { useState } from 'react';
 import {
   Flame,
   Shield,
-  Award,
   Building2,
   User,
   ArrowRight,
-  CheckCircle2,
-  Sparkles,
   Lock,
-  LogIn,
   AlertCircle,
-  HelpCircle,
 } from 'lucide-react';
-import { Role, User as UserType } from '../../../domain/types';
+import { User as UserType } from '../../../domain/types';
 
 interface Props {
   onSignInWithGoogle: () => Promise<any>;
   onSelectDemoUser: (uid: string) => void;
-  onRegister: (name: string, email: string, role: Role) => void;
   demoUsers: UserType[];
 }
 
 export const SignInPage: React.FC<Props> = ({
   onSignInWithGoogle,
   onSelectDemoUser,
-  onRegister,
   demoUsers,
 }) => {
-  const [authMode, setAuthMode] = useState<'signin' | 'register'>('signin');
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [role, setRole] = useState<Role>('candidate');
   const [isLoadingGoogle, setIsLoadingGoogle] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -48,12 +37,6 @@ export const SignInPage: React.FC<Props> = ({
     } finally {
       setIsLoadingGoogle(false);
     }
-  };
-
-  const handleRegisterSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!fullName.trim() || !email.trim()) return;
-    onRegister(fullName.trim(), email.trim(), role);
   };
 
   return (
@@ -92,7 +75,7 @@ export const SignInPage: React.FC<Props> = ({
               <Lock className="w-6 h-6 text-amber-600" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-stone-900">
-              {authMode === 'signin' ? 'Sign In to BASA' : 'Create an Account'}
+              Sign in to BASA
             </h1>
             <p className="text-xs text-stone-500 max-w-xs mx-auto">
               Please sign in to access your Skill Passport, opportunities, and verified applicant dossiers.
@@ -133,6 +116,10 @@ export const SignInPage: React.FC<Props> = ({
             <span>{isLoadingGoogle ? 'Signing in with Google...' : 'Continue with Google Account'}</span>
           </button>
 
+          <p className="text-center text-xs text-stone-500">
+            New to BASA? Continue with Google, then choose whether you are looking for work or offering work.
+          </p>
+
           <div className="relative flex py-1 items-center">
             <div className="flex-grow border-t border-stone-200" />
             <span className="flex-shrink mx-3 text-stone-400 text-[11px] uppercase tracking-wider">
@@ -142,7 +129,7 @@ export const SignInPage: React.FC<Props> = ({
           </div>
 
           {/* 1-Click Role-Based Demo Sign In */}
-          {authMode === 'signin' && demoUsers.length > 0 && (
+          {demoUsers.length > 0 && (
             <div className="space-y-2">
               <span className="block text-[11px] font-semibold text-stone-500 uppercase tracking-wider">
                 Select a verified persona to test:
@@ -190,88 +177,7 @@ export const SignInPage: React.FC<Props> = ({
                 );
               })}
 
-              <div className="pt-2 text-center">
-                <button
-                  onClick={() => setAuthMode('register')}
-                  className="text-xs text-amber-800 hover:underline font-semibold cursor-pointer"
-                >
-                  Need to register a custom candidate or employer profile? Click here →
-                </button>
-              </div>
             </div>
-          )}
-
-          {/* Custom Registration Form */}
-          {authMode === 'register' && (
-            <form onSubmit={handleRegisterSubmit} className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold text-stone-700 mb-1">Full Name or Business Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Sipho Dlamini or Kasi Grocers"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full p-2.5 border border-stone-300 rounded-lg text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-stone-700 mb-1">Email Address</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="name@kasimail.co.za"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-2.5 border border-stone-300 rounded-lg text-xs"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-stone-700 mb-1">Select Account Type</label>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setRole('candidate')}
-                    className={`p-2.5 rounded-lg border text-center font-semibold cursor-pointer ${
-                      role === 'candidate'
-                        ? 'bg-amber-50 border-amber-500 text-amber-900 ring-1 ring-amber-500'
-                        : 'border-stone-200 text-stone-700 hover:bg-stone-50'
-                    }`}
-                  >
-                    Candidate (Jobseeker)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRole('employer')}
-                    className={`p-2.5 rounded-lg border text-center font-semibold cursor-pointer ${
-                      role === 'employer'
-                        ? 'bg-amber-50 border-amber-500 text-amber-900 ring-1 ring-amber-500'
-                        : 'border-stone-200 text-stone-700 hover:bg-stone-50'
-                    }`}
-                  >
-                    Employer (Hiring)
-                  </button>
-                </div>
-              </div>
-
-              <div className="pt-2 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setAuthMode('signin')}
-                  className="text-stone-500 hover:text-stone-800"
-                >
-                  ← Back to Sign In
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg shadow-xs"
-                >
-                  Complete Registration
-                </button>
-              </div>
-            </form>
           )}
         </div>
       </div>

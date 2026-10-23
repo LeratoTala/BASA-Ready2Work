@@ -68,6 +68,7 @@ The repo is not yet marked as production-ready; the remaining work is primarily 
 ## Configuration (no hard-coded values)
 
 - **Environment:** every URL, key, limit and feature flag is in `.env` (documented in `.env.example`).
+- **AI CV drafting:** disabled by default; only enable with `GEMINI_ENABLED=true` after reviewing the provider's current data-use terms.
 - **Product tunables:** scoring weights, evidence scores, locations, defaults and storage keys are in `src/config/`.
 - **Business rules:** pure, tested functions in `src/domain/`.
 

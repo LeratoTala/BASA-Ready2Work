@@ -23,6 +23,8 @@ import {
 } from '../../../domain/types';
 
 interface Props {
+  assessorId: string;
+  assessorName: string;
   claims: SkillClaim[];
   candidateProfiles: Record<string, CandidateProfile>;
   assessments: AssessmentRecord[];
@@ -34,6 +36,8 @@ interface Props {
 }
 
 export const AdminDashboard: React.FC<Props> = ({
+  assessorId,
+  assessorName,
   claims,
   candidateProfiles,
   assessments,
@@ -114,8 +118,8 @@ export const AdminDashboard: React.FC<Props> = ({
         rubricVersion: 'v1.0',
         score: totalScore,
         criteria,
-        assessorId: 'admin-nomsa',
-        assessorName: 'Nomsa Dlamini (Certified Assessor)',
+        assessorId,
+        assessorName,
         decision,
         feedback: assessorFeedback,
       },
@@ -137,7 +141,7 @@ export const AdminDashboard: React.FC<Props> = ({
           <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 bg-amber-950/60 border border-amber-800 px-2 py-0.5 rounded">
             Admin & Technical Assessor Workspace
           </span>
-          <span className="text-xs text-stone-400">Assessor: Nomsa Dlamini</span>
+          <span className="text-xs text-stone-400">Assessor: {assessorName}</span>
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-white">
           Quality Control, Rubrics & Moderation

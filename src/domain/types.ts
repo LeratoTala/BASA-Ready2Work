@@ -28,6 +28,7 @@ export interface User {
   role: Role;
   createdAt: string;
   accountStatus: 'active' | 'suspended';
+  minimumAgeConfirmed?: boolean;
 }
 
 export interface CandidateProfile {

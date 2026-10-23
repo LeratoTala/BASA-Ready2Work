@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { GoogleGenAI } from '@google/genai';
 import { aiEnabled, serverConfig } from '../config';
 import { verifyIdToken } from '../middleware/verifyIdToken';
+import { buildCvDraftPrompt } from '../aiPrompt';
 
 const ai = aiEnabled
   ? new GoogleGenAI({ apiKey: serverConfig.gemini.apiKey })
@@ -29,9 +30,6 @@ cvDraftRouter.post('/cv-draft', verifyIdToken, async (req, res) => {
   const { maxFieldChars, maxSkills } = serverConfig.limits;
   const body = (req.body ?? {}) as Record<string, unknown>;
 
-  const fullName = text(body.fullName, 200);
-  const headline = text(body.headline, 200);
-  const locationArea = text(body.locationArea, 200);
   const experienceNotes = text(body.experienceNotes, maxFieldChars);
   const skills = Array.isArray(body.skills)
     ? body.skills.slice(0, maxSkills).map((s) => text(s, 200)).filter(Boolean)
@@ -43,19 +41,9 @@ cvDraftRouter.post('/cv-draft', verifyIdToken, async (req, res) => {
     });
   }
 
-  const fallback = buildFallbackDraft(locationArea, experienceNotes, skills);
+  const fallback = buildFallbackDraft('', experienceNotes, skills);
   if (!ai) return res.json({ draft: fallback, source: 'template' });
-
-  const prompt = [
-    `Candidate name: ${fullName || 'Candidate'}`,
-    `Headline: ${headline || 'Not provided'}`,
-    `Broad location: ${locationArea || serverConfig.region}`,
-    `Skills and claims: ${skills.join(', ') || 'None provided'}`,
-    'Informal experience notes (verbatim from the candidate):',
-    `"""${experienceNotes || 'None provided'}"""`,
-    '',
-    'Write a 2-3 sentence professional summary and 3 bullet points using only the facts above.',
-  ].join('\n');
+  const prompt = buildCvDraftPrompt(experienceNotes, skills);
 
   try {
     const response = await Promise.race([
@@ -80,7 +68,7 @@ cvDraftRouter.post('/cv-draft', verifyIdToken, async (req, res) => {
     const draft = response.text?.trim();
     return res.json(draft ? { draft, source: 'ai' } : { draft: fallback, source: 'template' });
   } catch (err) {
-    console.warn('AI draft failed; returning template draft.', err instanceof Error ? err.message : err);
+    console.warn('AI draft failed; returning template draft.');
     return res.json({ draft: fallback, source: 'template' });
   }
 });

@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { aiEnabled, isProduction, serverConfig } from './config';
 import { rateLimit } from './rateLimit';
 import { cvDraftRouter } from './routes/cvDraft';
+import { registerRouter } from './routes/register';
+import { applyRouter } from './routes/apply';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.resolve(dirname, '..', 'dist');
@@ -28,7 +30,7 @@ async function main() {
       if (origin && serverConfig.allowedOrigins.includes(origin)) {
         res.setHeader('Access-Control-Allow-Origin', origin);
         res.setHeader('Vary', 'Origin');
-        res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+        res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
         res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
       }
       if (req.method === 'OPTIONS') return res.sendStatus(204);
@@ -40,6 +42,8 @@ async function main() {
   app.use(
     '/api',
     rateLimit(serverConfig.rateLimit.windowMs, serverConfig.rateLimit.maxRequests),
+    registerRouter,
+    applyRouter,
     cvDraftRouter
   );
 

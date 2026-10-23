@@ -38,8 +38,7 @@ export const AICVDrafterModal: React.FC<Props> = ({
     setSuccessSaved(false);
 
     try {
-      // Attach the Firebase ID token so the server can verify the caller (Phase 2b).
-      // In demo mode (no Firebase) the token will be an empty string and the server skips verification.
+      // Attach the Firebase ID token so the server can verify the caller.
       let idToken = '';
       if (!env.enableDemoData) {
         try {
@@ -58,9 +57,6 @@ export const AICVDrafterModal: React.FC<Props> = ({
           ...(idToken ? { Authorization: `Bearer ${idToken}` } : {}),
         },
         body: JSON.stringify({
-          fullName: candidate.fullName,
-          headline: headline,
-          locationArea: candidate.locationArea,
           skills: claims.map((c) => `${c.skillName} (${c.verificationStatus})`),
           experienceNotes: experienceNotes,
         }),
@@ -119,6 +115,10 @@ export const AICVDrafterModal: React.FC<Props> = ({
             <strong>Strict Fact-Checking Guardrail (Test Case T-10):</strong> The model is constrained to ONLY use the facts and skills you provide below. It will never invent unearned university degrees or imaginary corporate titles.
           </div>
         </div>
+
+        <p className="px-6 py-2 text-xs text-stone-600 bg-stone-50 border-b border-stone-200">
+          Only your skill claims and experience notes are sent for drafting. Leave out names, contact details and ID numbers.
+        </p>
 
         {/* Form Body */}
         <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">

@@ -12,6 +12,7 @@ describe('application status transitions (T-12)', () => {
   it('rejects skipping stages', () => {
     assert.equal(isValidTransition('submitted', 'selected'), false);
     assert.equal(isValidTransition('under_review', 'completed'), false);
+    assert.equal(isValidTransition('selected', 'not_selected'), false);
   });
 
   it('treats terminal states as final', () => {

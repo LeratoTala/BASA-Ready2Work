@@ -46,11 +46,14 @@ export const NEW_ACCOUNT_DEFAULTS = {
 export const COLLECTIONS = {
   users: 'users',
   candidateProfiles: 'candidateProfiles',
+  candidatePrivateProfiles: 'candidatePrivateProfiles',
   employerProfiles: 'employerProfiles',
   skillClaims: 'skillClaims',
   assessments: 'assessments',
   jobs: 'jobs',
   applications: 'applications',
+  employerCandidateAccess: 'employerCandidateAccess',
+  employerCandidateContactAccess: 'employerCandidateContactAccess',
   workRecords: 'workRecords',
   reports: 'reports',
 } as const;

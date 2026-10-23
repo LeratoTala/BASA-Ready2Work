@@ -109,7 +109,7 @@ export function calculateMatchScore(
   }
 
   if (E >= EVIDENCE_THRESHOLDS.high) {
-    reasons.push(`High evidence credibility: One or more matched skills are officially task-assessed or mentor-reviewed.`);
+    reasons.push(`Stronger evidence: One or more matched skills are task-assessed or mentor-reviewed.`);
   } else if (E >= EVIDENCE_THRESHOLDS.medium) {
     reasons.push(`Peer-supported evidence: Your claims are backed by community references or peer endorsements.`);
   } else {

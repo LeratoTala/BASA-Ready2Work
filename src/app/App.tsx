@@ -66,6 +66,7 @@ export default function App() {
       <OnboardingPage
         displayName={store.authIdentity.displayName}
         email={store.authIdentity.email}
+        minimumAge={env.minimumUserAge}
         onComplete={store.registerUser}
         onSignOut={store.signOutUser}
       />
@@ -78,7 +79,6 @@ export default function App() {
       <SignInPage
         onSignInWithGoogle={store.signInWithGoogle}
         onSelectDemoUser={handleSwitchUser}
-        onRegister={store.registerUser}
         demoUsers={env.enableDemoData ? store.users : []}
       />
     );
@@ -107,8 +107,8 @@ export default function App() {
     setSelectedJobForModal({ job, breakdown: calculated });
   };
 
-  const handleApplyToJob = (jobId: string) => {
-    store.applyToJob(jobId);
+  const handleApplyToJob = async (jobId: string) => {
+    await store.applyToJob(jobId);
     if (selectedJobForModal) {
       setSelectedJobForModal(null);
     }
@@ -286,9 +286,9 @@ export default function App() {
               <div className="space-y-4">
                 <div className="bg-white rounded-xl border border-stone-200 p-6 flex items-center justify-between">
                   <div>
-                    <h2 className="text-xl font-bold text-stone-900">Your Verified Skill Passport</h2>
+                    <h2 className="text-xl font-bold text-stone-900">Your Skill Passport</h2>
                     <p className="text-xs text-stone-500 mt-1">
-                      Portable, shareable, and authenticated credential for South African employers.
+                      Your skills, evidence and honest verification labels in one place.
                     </p>
                   </div>
                   <button
@@ -401,6 +401,7 @@ export default function App() {
           <>
             {activeTab === 'profile' && (
               <AssessorProfilePage
+                assessorName={currentUser.displayName}
                 assessments={store.assessments}
                 claims={store.skillClaims}
               />
@@ -408,6 +409,8 @@ export default function App() {
 
             {activeTab !== 'profile' && (
               <AdminDashboard
+                assessorId={currentUser.uid}
+                assessorName={currentUser.displayName}
                 claims={store.skillClaims}
                 candidateProfiles={store.candidateProfiles}
                 assessments={store.assessments}

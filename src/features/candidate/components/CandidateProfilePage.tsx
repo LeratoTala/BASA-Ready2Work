@@ -45,7 +45,9 @@ export const CandidateProfilePage: React.FC<Props> = ({
   const [experienceSummary, setExperienceSummary] = useState(candidate.experienceSummary);
   const [availability, setAvailability] = useState(candidate.availability);
   const [phone, setPhone] = useState(candidate.phone || '');
-  const [popiaVisibility, setPopiaVisibility] = useState(candidate.popiaVisibility);
+  const [popiaVisibility, setPopiaVisibility] = useState<'employers_only' | 'private'>(
+    candidate.popiaVisibility === 'private' ? 'private' : 'employers_only'
+  );
   const [saveSuccess, setSaveSuccess] = useState(false);
 
   const candidateWorkRecords = workRecords.filter((w) => w.candidateId === candidate.uid);
@@ -232,8 +234,7 @@ export const CandidateProfilePage: React.FC<Props> = ({
                 onChange={(e) => setPopiaVisibility(e.target.value as any)}
                 className="w-full p-2.5 border border-stone-300 rounded-lg text-xs bg-white text-stone-800"
               >
-                <option value="public_link">Public Shareable Link</option>
-                <option value="employers_only">Shortlisted Employers Only</option>
+                <option value="employers_only">Employers I apply to</option>
                 <option value="private">Private (Hidden)</option>
               </select>
             </div>
@@ -259,7 +260,7 @@ export const CandidateProfilePage: React.FC<Props> = ({
 
       {/* Main Profile Content: Two Columns */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Summary & Verified Skill Passport Trail */}
+        {/* Left Column: Summary & Skill Passport Trail */}
         <div className="lg:col-span-2 space-y-6">
           {/* Summary */}
           <div className="bg-white rounded-2xl border border-stone-200 p-6 shadow-xs space-y-2">
@@ -271,13 +272,13 @@ export const CandidateProfilePage: React.FC<Props> = ({
             </p>
           </div>
 
-          {/* Verified Skills & Evidence Trail */}
+          {/* Skills & Evidence Trail */}
           <div className="bg-white rounded-2xl border border-stone-200 p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-stone-100 pb-3">
               <div>
-                <h3 className="font-bold text-base text-stone-900">Verified Skill Passport Trail</h3>
+                <h3 className="font-bold text-base text-stone-900">Skill Passport Trail</h3>
                 <p className="text-xs text-stone-500">
-                  Honest verification levels backed by practical tests and contractor endorsements.
+                  Each label describes the evidence recorded for a skill claim.
                 </p>
               </div>
               <button
@@ -315,7 +316,7 @@ export const CandidateProfilePage: React.FC<Props> = ({
                     {claim.assessmentId && (
                       <p className="text-emerald-700 font-semibold text-[11px] pt-1 flex items-center gap-1">
                         <ShieldCheck className="w-3.5 h-3.5" />
-                        Assessor Certified · Soweto Skills Hub Grade 92/100
+                        Assessment record: {claim.assessmentId}
                       </p>
                     )}
                   </div>
@@ -331,7 +332,7 @@ export const CandidateProfilePage: React.FC<Props> = ({
               Verified Work Completion Records
             </h3>
             <p className="text-xs text-stone-500">
-              Official records of completed tasks with confirmed payments in ZAR.
+              Employer-reported work completion and payment status, recorded separately.
             </p>
 
             {candidateWorkRecords.length === 0 ? (
@@ -348,11 +349,11 @@ export const CandidateProfilePage: React.FC<Props> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-stone-900 text-sm">{w.jobTitle}</span>
                       <span className="font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded text-[11px]">
-                        R{w.amountZAR} Paid via EFT
+                        {w.payoutConfirmed ? `Employer reports R${w.amountZAR} paid` : 'Payment not confirmed'}
                       </span>
                     </div>
                     <p className="text-stone-700">
-                      Employer: <strong>{w.employerName}</strong> · Confirmed on {new Date(w.confirmedAt).toLocaleDateString()}
+                      Employer: <strong>{w.employerName}</strong> · Work recorded on {new Date(w.confirmedAt).toLocaleDateString()}
                     </p>
                     <p className="text-stone-600 italic bg-white p-2.5 rounded border border-emerald-200">
                       &ldquo;{w.feedback}&rdquo;
@@ -397,7 +398,7 @@ export const CandidateProfilePage: React.FC<Props> = ({
           <div className="bg-stone-900 text-white rounded-2xl p-6 shadow-md border border-stone-800 space-y-3 text-xs">
             <h3 className="font-bold text-white text-sm">Downloadable Credentials</h3>
             <p className="text-stone-300">
-              Export your verified Skill Passport as a standardized A4 PDF or a LinkedIn-ready summary.
+              Export your skills and evidence as a PDF or editable LinkedIn summary.
             </p>
             <div className="pt-1 space-y-2">
               <button

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Award, CheckCircle2, FileText, Sparkles, HelpCircle, ShieldCheck, Users, Upload, AlertCircle } from 'lucide-react';
+import { Plus, Award, CheckCircle2, FileText, Sparkles, HelpCircle, ShieldCheck, Upload, AlertCircle } from 'lucide-react';
 import { CandidateProfile, SkillClaim, VerificationStatus } from '../../../domain/types';
 import { SKILL_DEFINITIONS } from '../../../domain/skillCatalogue';
 import { VerificationBadge } from '../../../shared/components/VerificationBadge';
@@ -26,8 +26,6 @@ export const SkillsAndEvidence: React.FC<Props> = ({
   const [evidenceType, setEvidenceType] = useState<'photo_video' | 'client_review' | 'reference_note' | 'work_sample' | 'practical_demo'>('reference_note');
   const [evidenceTitle, setEvidenceTitle] = useState('');
   const [evidenceDescription, setEvidenceDescription] = useState('');
-  const [peerName, setPeerName] = useState('');
-  const [peerContact, setPeerContact] = useState('');
   const [notification, setNotification] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -42,12 +40,7 @@ export const SkillsAndEvidence: React.FC<Props> = ({
       skillName = def?.name || 'Practical Skill';
     }
 
-    // Determine honest verification status:
-    // If peer endorser name provided, initial status is "Peer-endorsed", otherwise "Self-reported"
-    let status: VerificationStatus = 'Self-reported';
-    if (peerName.trim()) {
-      status = 'Peer-endorsed';
-    }
+    const status: VerificationStatus = 'Self-reported';
 
     onAddClaim({
       candidateId: candidate.uid,
@@ -57,18 +50,14 @@ export const SkillsAndEvidence: React.FC<Props> = ({
       evidenceType,
       evidenceTitle: evidenceTitle || `${skillName} Practical Experience`,
       evidenceDescription: evidenceDescription || 'Completed practical hands-on tasks.',
-      evidenceUrlOrText: peerContact ? `Contact: ${peerContact}` : 'Evidence logged locally in BASA.',
+      evidenceUrlOrText: 'Evidence logged locally in BASA.',
       verificationStatus: status,
-      peerEndorserName: peerName.trim() || undefined,
-      peerEndorserContact: peerContact.trim() || undefined,
     });
 
     setNotification(`Skill claim for "${skillName}" recorded as ${status}.`);
     setShowAddForm(false);
     setEvidenceTitle('');
     setEvidenceDescription('');
-    setPeerName('');
-    setPeerContact('');
     setCustomSkillName('');
 
     setTimeout(() => setNotification(null), 4000);
@@ -216,30 +205,6 @@ export const SkillsAndEvidence: React.FC<Props> = ({
               />
             </div>
 
-            {/* Peer Reference Section */}
-            <div className="bg-stone-50 rounded-lg p-3 border border-stone-200 space-y-2">
-              <span className="font-semibold text-stone-800 flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-amber-600" />
-                Peer or Contractor Endorsement (Optional - Upgrades status to "Peer-endorsed")
-              </span>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <input
-                  type="text"
-                  placeholder="Endorser Name (e.g. Sipho, Master Electrician)"
-                  value={peerName}
-                  onChange={(e) => setPeerName(e.target.value)}
-                  className="border border-stone-300 rounded p-2 bg-white text-xs"
-                />
-                <input
-                  type="text"
-                  placeholder="Contact Cell or Business (e.g. +27 82 000 0000)"
-                  value={peerContact}
-                  onChange={(e) => setPeerContact(e.target.value)}
-                  className="border border-stone-300 rounded p-2 bg-white text-xs"
-                />
-              </div>
-            </div>
-
             <div className="pt-2 flex justify-end gap-2">
               <button
                 type="button"
@@ -295,7 +260,7 @@ export const SkillsAndEvidence: React.FC<Props> = ({
           <div className="bg-white rounded-xl border border-stone-200 p-8 text-center space-y-2">
             <p className="text-sm font-semibold text-stone-700">No skill claims recorded yet</p>
             <p className="text-xs text-stone-500">
-              Click &quot;Add Skill Claim&quot; above to start building your verified Skill Passport.
+              Add a skill you want to record in your Skill Passport.
             </p>
           </div>
         ) : (

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut, type User as FirebaseUser } from 'firebase/auth';
 import {
   collection,
+  deleteField,
   doc,
   onSnapshot,
   query,
@@ -27,12 +28,12 @@ import type {
   WorkRecord,
 } from '../../domain/types';
 import { applicationId, isValidTransition } from '../../domain/applicationStatus';
-import { calculateMatchScore } from '../../domain/matching';
-import { COLLECTIONS, NEW_ACCOUNT_DEFAULTS } from '../../config/app';
+import { COLLECTIONS } from '../../config/app';
 import { friendlyFirebaseError, getFirebase } from '../../services/firebase';
 import type { SyncState } from '../../services/syncService';
 import { useLocalPrefs } from './useLocalPrefs';
 import type { BasaStore } from './types';
+import { env } from '../../config/env';
 
 const nowIso = () => new Date().toISOString();
 
@@ -143,7 +144,6 @@ export function useFirestoreStore(): BasaStore {
 
   const needsOnboarding = Boolean(firebaseUser && !hasAdminClaim && userDocLoaded && !userDoc);
 
-  // Suspended accounts are signed out.
   useEffect(() => {
     if (userDoc?.accountStatus === 'suspended') {
       setLastError('This account has been suspended. Please contact support.');
@@ -181,7 +181,42 @@ export function useFirestoreStore(): BasaStore {
       unsubs.push(
         onSnapshot(
           doc(db, COLLECTIONS.candidateProfiles, uid),
-          (snap) => setCandidateProfiles(snap.exists() ? { [uid]: snap.data() as CandidateProfile } : {}),
+          (snap) => {
+            if (!snap.exists()) {
+              setCandidateProfiles({});
+              return;
+            }
+            const { phone, contactEmail, ...publicProfile } = snap.data() as CandidateProfile;
+            if (phone !== undefined || contactEmail !== undefined) {
+              const migration = writeBatch(db);
+              migration.set(
+                doc(db, COLLECTIONS.candidatePrivateProfiles, uid),
+                { uid, ...(phone !== undefined ? { phone } : {}), ...(contactEmail !== undefined ? { contactEmail } : {}) },
+                { merge: true }
+              );
+              migration.update(doc(db, COLLECTIONS.candidateProfiles, uid), {
+                phone: deleteField(),
+                contactEmail: deleteField(),
+              });
+              fire(migration.commit());
+            }
+            setCandidateProfiles((prev) => ({
+              ...prev,
+              [uid]: { ...prev[uid], ...publicProfile } as CandidateProfile,
+            }));
+          },
+          reportError
+        )
+      );
+      unsubs.push(
+        onSnapshot(
+          doc(db, COLLECTIONS.candidatePrivateProfiles, uid),
+          (snap) => {
+            if (snap.exists()) setCandidateProfiles((prev) => ({
+              ...prev,
+              [uid]: { ...prev[uid], ...snap.data() } as CandidateProfile,
+            }));
+          },
           reportError
         )
       );
@@ -215,6 +250,14 @@ export function useFirestoreStore(): BasaStore {
     () => (role === 'employer' ? [...new Set(applications.map((a) => a.candidateId))].sort().join(',') : ''),
     [role, applications]
   );
+  const contactCandidateKey = useMemo(
+    () => (role === 'employer'
+      ? [...new Set(applications
+          .filter((application) => ['shortlisted', 'selected', 'completed'].includes(application.status))
+          .map((application) => application.candidateId))].sort().join(',')
+      : ''),
+    [role, applications]
+  );
   const applicantSubs = useRef<Unsubscribe[]>([]);
   useEffect(() => {
     applicantSubs.current.forEach((unsub) => unsub());
@@ -225,7 +268,10 @@ export function useFirestoreStore(): BasaStore {
         onSnapshot(
           doc(db, COLLECTIONS.candidateProfiles, candidateId),
           (snap) => {
-            if (snap.exists()) setCandidateProfiles((prev) => ({ ...prev, [candidateId]: snap.data() as CandidateProfile }));
+            if (snap.exists()) setCandidateProfiles((prev) => ({
+              ...prev,
+              [candidateId]: { ...prev[candidateId], ...snap.data() } as CandidateProfile,
+            }));
           },
           () => undefined // private profiles are expected to be unreadable
         ),
@@ -239,12 +285,26 @@ export function useFirestoreStore(): BasaStore {
           () => undefined
         )
       );
+      if (contactCandidateKey.split(',').includes(candidateId)) {
+        applicantSubs.current.push(
+          onSnapshot(
+            doc(db, COLLECTIONS.candidatePrivateProfiles, candidateId),
+            (snap) => {
+              if (snap.exists()) setCandidateProfiles((prev) => ({
+                ...prev,
+                [candidateId]: { ...prev[candidateId], ...snap.data() } as CandidateProfile,
+              }));
+            },
+            () => undefined
+          )
+        );
+      }
     }
     return () => {
       applicantSubs.current.forEach((unsub) => unsub());
       applicantSubs.current = [];
     };
-  }, [db, role, applicantKey]);
+  }, [db, role, applicantKey, contactCandidateKey]);
 
   // ---- helpers ----
   const requireUser = (): User => {
@@ -269,7 +329,7 @@ export function useFirestoreStore(): BasaStore {
   };
 
   /** Onboarding: signed-in person picks candidate or employer. Admin is never self-assignable. */
-  const registerUser = (displayName: string, email: string, newRole: Role): User => {
+  const registerUser = (displayName: string, email: string, newRole: Role, minimumAgeConfirmed = false): User => {
     if (!firebaseUser) throw new Error('Please sign in first.');
     if (newRole === 'admin') throw new Error('Admin access cannot be self-assigned.');
     const newUser: User = {
@@ -279,40 +339,18 @@ export function useFirestoreStore(): BasaStore {
       role: newRole,
       createdAt: nowIso(),
       accountStatus: 'active',
+      minimumAgeConfirmed,
     };
-    fire(
-      (async () => {
-        // Sequential: profile rules look up the user's role, so the user doc must exist first.
-        await setDoc(doc(db, COLLECTIONS.users, newUser.uid), clean(newUser));
-        if (newRole === 'candidate') {
-          const profile: CandidateProfile = {
-            uid: newUser.uid,
-            fullName: newUser.displayName,
-            headline: NEW_ACCOUNT_DEFAULTS.candidate.headline,
-            experienceSummary: NEW_ACCOUNT_DEFAULTS.candidate.experienceSummary,
-            skillIds: [],
-            contactEmail: newUser.email,
-            locationArea: NEW_ACCOUNT_DEFAULTS.candidate.locationArea,
-            availability: NEW_ACCOUNT_DEFAULTS.candidate.availability,
-            popiaVisibility: NEW_ACCOUNT_DEFAULTS.candidate.popiaVisibility,
-            updatedAt: nowIso(),
-          };
-          await setDoc(doc(db, COLLECTIONS.candidateProfiles, newUser.uid), clean(profile));
-        } else {
-          const profile: EmployerProfile = {
-            uid: newUser.uid,
-            businessName: newUser.displayName,
-            industry: NEW_ACCOUNT_DEFAULTS.employer.industry,
-            description: NEW_ACCOUNT_DEFAULTS.employer.description,
-            locationArea: NEW_ACCOUNT_DEFAULTS.employer.locationArea,
-            verificationStatus: NEW_ACCOUNT_DEFAULTS.employer.verificationStatus,
-            contactEmail: newUser.email,
-            createdAt: nowIso(),
-          };
-          await setDoc(doc(db, COLLECTIONS.employerProfiles, newUser.uid), clean(profile));
-        }
-      })()
-    );
+    fire((async () => {
+      const token = await firebaseUser.getIdToken();
+      const response = await fetch(`${env.apiBaseUrl}/api/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ displayName: newUser.displayName, role: newRole, minimumAgeConfirmed }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not create your account. Please try again.');
+    })());
     return newUser;
   };
 
@@ -322,8 +360,22 @@ export function useFirestoreStore(): BasaStore {
     if (user.role !== 'candidate' || user.uid !== profileUid) {
       throw new Error('Permission denied: You can only update your own candidate profile.');
     }
-    const next = { ...(candidateProfiles[profileUid] ?? {}), ...updates, uid: profileUid, updatedAt: nowIso() };
-    fire(setDoc(doc(db, COLLECTIONS.candidateProfiles, profileUid), clean(next), { merge: true }));
+    const currentProfile = candidateProfiles[profileUid] ?? ({} as CandidateProfile);
+    const { phone, contactEmail, ...publicUpdates } = updates;
+    const next = { ...currentProfile, ...publicUpdates, uid: profileUid, updatedAt: nowIso() };
+    fire(setDoc(doc(db, COLLECTIONS.candidateProfiles, profileUid), {
+      ...clean(next),
+      phone: deleteField(),
+      contactEmail: deleteField(),
+    }, { merge: true }));
+    const privateProfile: Record<string, string> = { uid: profileUid };
+    if (phone !== undefined) privateProfile.phone = phone;
+    else if (currentProfile.phone !== undefined) privateProfile.phone = currentProfile.phone;
+    if (contactEmail !== undefined) privateProfile.contactEmail = contactEmail;
+    else if (currentProfile.contactEmail !== undefined) privateProfile.contactEmail = currentProfile.contactEmail;
+    if (Object.keys(privateProfile).length > 1) {
+      fire(setDoc(doc(db, COLLECTIONS.candidatePrivateProfiles, profileUid), privateProfile, { merge: true }));
+    }
   };
 
   const updateEmployerProfile = (profileUid: string, updates: Partial<EmployerProfile>) => {
@@ -401,7 +453,7 @@ export function useFirestoreStore(): BasaStore {
   };
 
   // ---- applications ----
-  const applyToJob = (jobId: string): Application => {
+  const applyToJob = async (jobId: string): Promise<Application> => {
     const user = requireUser();
     if (user.role !== 'candidate') throw new Error('Only registered candidates can apply for jobs.');
     const job = jobs.find((j) => j.id === jobId);
@@ -414,27 +466,15 @@ export function useFirestoreStore(): BasaStore {
     const profile = candidateProfiles[user.uid];
     if (!profile) throw new Error('Please complete your profile before applying.');
 
-    const breakdown = calculateMatchScore(job, profile, skillClaims.filter((c) => c.candidateId === user.uid));
-    const now = nowIso();
-    const newApp: Application = {
-      id,
-      jobId: job.id,
-      jobTitle: job.title,
-      employerId: job.employerId,
-      employerName: job.employerName,
-      candidateId: user.uid,
-      candidateName: profile.fullName,
-      candidateHeadline: profile.headline,
-      candidateLocation: profile.locationArea,
-      candidateAvailability: profile.availability,
-      status: 'submitted',
-      matchScore: breakdown.totalScore,
-      matchBreakdown: breakdown,
-      submittedAt: now,
-      updatedAt: now,
-    };
-    fire(setDoc(doc(db, COLLECTIONS.applications, id), clean(newApp)));
-    return newApp;
+    const token = await firebaseUser!.getIdToken();
+    const response = await fetch(`${env.apiBaseUrl}/api/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ jobId }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'Could not submit your application. Please try again.');
+    return result.application as Application;
   };
 
   const updateApplicationStatus = (
@@ -461,6 +501,19 @@ export function useFirestoreStore(): BasaStore {
     const update: Record<string, unknown> = { status: newStatus, updatedAt: nowIso() };
     if (user.role === 'employer' && employerNotes !== undefined) update.employerNotes = employerNotes;
     batch.update(doc(db, COLLECTIONS.applications, appId), update);
+
+    if (newStatus === 'shortlisted' && user.role === 'employer') {
+      batch.set(
+        doc(db, COLLECTIONS.employerCandidateContactAccess, app.employerId, 'candidates', app.candidateId),
+        {
+          candidateId: app.candidateId,
+          employerId: app.employerId,
+          applicationId: app.id,
+          grantedAt: nowIso(),
+        },
+        { merge: true }
+      );
+    }
 
     if (newStatus === 'completed' && user.role === 'employer') {
       const job = jobs.find((j) => j.id === app.jobId);

@@ -8,7 +8,6 @@ import {
   FileText,
   Printer,
   ShieldCheck,
-  ExternalLink,
   Linkedin,
 } from 'lucide-react';
 import { CandidateProfile, SkillClaim } from '../../../domain/types';
@@ -47,13 +46,6 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
     }
   };
 
-  const handleOpenLinkedIn = () => {
-    handleCopyLinkedIn();
-    const passportUrl = `https://basa-ready2work.gov.za/passport/${candidate.uid}`;
-    const shareUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(passportUrl)}`;
-    window.open(shareUrl, '_blank', 'noopener,noreferrer');
-  };
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
       <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-stone-200 overflow-hidden my-6">
@@ -66,10 +58,10 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
               </span>
             </div>
             <h3 className="text-xl font-bold tracking-tight text-white mt-1">
-              Export Verified Skill Passport
+              Export Skills and Evidence
             </h3>
             <p className="text-xs text-stone-400">
-              Download a standardized official PDF or share directly on LinkedIn.
+              Download a PDF summary or copy an editable LinkedIn summary.
             </p>
           </div>
           <button onClick={onClose} className="text-stone-400 hover:text-white p-1 rounded">
@@ -111,29 +103,24 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
                 <div className="flex items-start justify-between">
                   <div>
                     <h4 className="font-bold text-stone-900 text-sm">
-                      Official BASA Vocational Credential (A4 Format)
+                      BASA Skills and Evidence Summary (A4 Format)
                     </h4>
                     <p className="text-stone-500 text-xs">
-                      Includes passport ID ({candidate.uid.toUpperCase()}), honest verification stamps,
-                      assessor rubric grades, and POPIA protection notice.
+                      Includes your profile summary and the evidence labels recorded for each claim.
                     </p>
                   </div>
-                  <span className="bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold px-2 py-0.5 rounded text-[11px]">
-                    Verified
-                  </span>
                 </div>
 
                 {/* Preview Box */}
                 <div className="bg-white border border-stone-200 rounded p-4 text-[11px] font-mono text-stone-700 space-y-1.5 shadow-xs">
                   <div className="text-stone-900 font-bold border-b border-stone-100 pb-1 flex justify-between">
-                    <span>BASA: READY2WORK · VOCATIONAL SKILL PASSPORT</span>
-                    <span>ID: {candidate.uid.toUpperCase()}</span>
+                    <span>BASA: READY2WORK · SKILLS AND EVIDENCE</span>
                   </div>
                   <p>Candidate: {candidate.fullName}</p>
                   <p>Headline: {candidate.headline}</p>
                   <p>Location: {candidate.locationArea} (South Africa)</p>
                   <div className="pt-1 text-stone-600">
-                    <p className="font-semibold text-stone-800">Verified Evidence Summary ({claims.length} Skills):</p>
+                    <p className="font-semibold text-stone-800">Recorded claims ({claims.length}):</p>
                     {claims.map((c, i) => (
                       <p key={c.id}>
                         {i + 1}. {c.skillName} — [{c.verificationStatus}]
@@ -141,7 +128,7 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
                     ))}
                   </div>
                   <p className="pt-1 text-[10px] text-stone-400">
-                    Compliant with South African POPIA · Zero Upfront Fee Guarantee
+                    Never pay to get a job. Report listings that request an upfront fee.
                   </p>
                 </div>
               </div>
@@ -164,7 +151,7 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
                     className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold shadow-xs transition-colors cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>{isGeneratingPdf ? 'Generating PDF...' : 'Download Official PDF'}</span>
+                    <span>{isGeneratingPdf ? 'Generating PDF...' : 'Download PDF'}</span>
                   </button>
                 </div>
               </div>
@@ -176,8 +163,7 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
               <div className="bg-blue-50/60 border border-blue-200/60 rounded-lg p-3 text-xs text-blue-900 flex items-start gap-2">
                 <Linkedin className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
                 <div>
-                  <strong>LinkedIn-Optimized Post & Profile Format:</strong> Formatted with verified credentials,
-                  honest evidence badges, hashtags, and your direct verification URL. You can customize the wording before copying.
+                  <strong>Editable LinkedIn summary:</strong> Includes your recorded claims and their current evidence labels. Review the text before sharing.
                 </div>
               </div>
 
@@ -201,7 +187,7 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
                     </span>
                   ) : (
                     <span className="text-stone-500 text-xs">
-                      Copy the text or open LinkedIn share window directly.
+                      Copy the text and choose whether to share it.
                     </span>
                   )}
                 </div>
@@ -215,14 +201,6 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
                     <span>{copied ? 'Copied' : 'Copy Text'}</span>
                   </button>
 
-                  <button
-                    onClick={handleOpenLinkedIn}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#0077b5] hover:bg-[#006097] text-white font-semibold shadow-xs transition-colors cursor-pointer"
-                  >
-                    <Linkedin className="w-3.5 h-3.5" />
-                    <span>Copy & Open LinkedIn</span>
-                    <ExternalLink className="w-3 h-3 ml-0.5" />
-                  </button>
                 </div>
               </div>
             </div>
@@ -233,7 +211,7 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
         <div className="bg-stone-50 px-6 py-3 border-t border-stone-200 flex items-center justify-between text-xs text-stone-500">
           <div className="flex items-center gap-1.5">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>South Africa POPIA Privacy Compliant Credential</span>
+            <span>Contact details are excluded from these exports.</span>
           </div>
           <button onClick={onClose} className="text-stone-600 hover:text-stone-900 font-medium">
             Done

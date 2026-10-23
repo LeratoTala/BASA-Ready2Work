@@ -221,6 +221,7 @@ export function useDemoStore() {
     }
     const newClaim: SkillClaim = {
       ...claim,
+      verificationStatus: 'Self-reported',
       id: `claim-${Date.now()}`,
       createdAt: new Date().toISOString(),
     };
@@ -321,7 +322,7 @@ export function useDemoStore() {
   };
 
   // Apply to Job
-  const applyToJob = (jobId: string) => {
+  const applyToJob = async (jobId: string) => {
     if (!currentUser) throw new Error('Authentication required');
     if (currentUser.role !== 'candidate') {
       throw new Error('Only registered candidates can apply for jobs.');

@@ -1,11 +1,12 @@
 import type { NextFunction, Request, Response } from 'express';
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
+import { getFirestore } from 'firebase-admin/firestore';
 import { serverConfig } from '../config';
 
 /** Lazily initialise the Admin SDK once. Uses Application Default Credentials on Cloud Run,
  *  or a service-account key file path in GOOGLE_APPLICATION_CREDENTIALS locally. */
-function getAdminAuth() {
+function getAdminApp() {
   if (getApps().length === 0) {
     // If a service-account JSON path is provided via env, use it explicitly.
     // Otherwise fall back to Application Default Credentials (Cloud Run / GCE).
@@ -16,7 +17,15 @@ function getAdminAuth() {
         : { projectId: serverConfig.firebaseProjectId }
     );
   }
-  return getAuth();
+  return getApps()[0];
+}
+
+function getAdminAuth() {
+  return getAuth(getAdminApp());
+}
+
+export function getAdminFirestore() {
+  return getFirestore(getAdminApp());
 }
 
 /**
@@ -45,7 +54,8 @@ export async function verifyIdToken(req: Request, res: Response, next: NextFunct
   try {
     const decoded = await getAdminAuth().verifyIdToken(idToken, /* checkRevoked */ true);
     // Attach uid so route handlers can log or scope the request without re-decoding.
-    (req as Request & { uid: string }).uid = decoded.uid;
+    (req as Request & { uid: string; tokenEmail?: string }).uid = decoded.uid;
+    (req as Request & { uid: string; tokenEmail?: string }).tokenEmail = decoded.email;
     return next();
   } catch (err) {
     const code = (err as { code?: string }).code ?? '';

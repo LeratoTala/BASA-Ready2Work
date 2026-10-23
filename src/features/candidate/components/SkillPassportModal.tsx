@@ -1,6 +1,6 @@
 import { maskEmail, maskPhone, NOT_PROVIDED } from '../../../shared/maskContact';
 import React, { useState } from 'react';
-import { X, QrCode, Share2, Check, Download, ShieldCheck, ExternalLink, Calendar, MapPin, Award, Linkedin, FileText } from 'lucide-react';
+import { X, Download, ShieldCheck, MapPin, Award, Linkedin } from 'lucide-react';
 import { CandidateProfile, SkillClaim } from '../../../domain/types';
 import { VerificationBadge } from '../../../shared/components/VerificationBadge';
 import { generatePassportPdf } from '../../../services/passportExport';
@@ -14,18 +14,9 @@ interface Props {
 }
 
 export const SkillPassportModal: React.FC<Props> = ({ isOpen, onClose, candidate, claims, onOpenExport }) => {
-  const [copied, setCopied] = useState(false);
   const [maskContact, setMaskContact] = useState(candidate.popiaVisibility !== 'public_link');
 
   if (!isOpen) return null;
-
-  const passportUrl = `https://basa-ready2work.gov.za/passport/${candidate.uid}`;
-
-  const handleCopyLink = () => {
-    navigator.clipboard?.writeText(passportUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const taskAssessedCount = claims.filter((c) => c.verificationStatus === 'Task-assessed').length;
   const peerEndorsedCount = claims.filter((c) => c.verificationStatus === 'Peer-endorsed').length;
@@ -39,9 +30,8 @@ export const SkillPassportModal: React.FC<Props> = ({ isOpen, onClose, candidate
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 bg-amber-950/60 border border-amber-800 px-2 py-0.5 rounded">
-                  Official BASA Skill Passport
+                  BASA Skill Passport
                 </span>
-                <span className="text-xs text-stone-400">ID: {candidate.uid.toUpperCase()}</span>
               </div>
               <h3 className="text-2xl font-bold tracking-tight text-white">{candidate.fullName}</h3>
               <p className="text-sm text-stone-300 font-medium">{candidate.headline}</p>
@@ -84,7 +74,7 @@ export const SkillPassportModal: React.FC<Props> = ({ isOpen, onClose, candidate
           <div className="flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
             <span>
-              POPIA Privacy Shield: <strong>{maskContact ? 'Contacts Protected' : 'Public Contact'}</strong>
+              Contact display: <strong>{maskContact ? 'Masked' : 'Visible in this preview'}</strong>
             </span>
           </div>
           <label className="flex items-center gap-1.5 cursor-pointer text-stone-600 hover:text-stone-900">
@@ -102,7 +92,7 @@ export const SkillPassportModal: React.FC<Props> = ({ isOpen, onClose, candidate
         <div className="p-6 space-y-6 max-h-[55vh] overflow-y-auto">
           <div>
             <h4 className="text-xs font-bold uppercase tracking-wider text-stone-500 mb-3">
-              Verified Abilities & Evidence Trail
+              Skills & Evidence Trail
             </h4>
 
             {claims.length === 0 ? (
@@ -167,50 +157,11 @@ export const SkillPassportModal: React.FC<Props> = ({ isOpen, onClose, candidate
             </p>
           </div>
 
-          {/* QR Code Simulation */}
-          <div className="bg-stone-50 border border-stone-200 rounded-lg p-4 flex items-center justify-between gap-4">
-            <div className="space-y-1">
-              <h5 className="text-xs font-bold text-stone-900">Shareable QR Verification</h5>
-              <p className="text-xs text-stone-500">
-                Employers can scan this QR code on a mobile device to view verified skills without login.
-              </p>
-              <div className="pt-2 flex items-center gap-2">
-                <button
-                  onClick={handleCopyLink}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded bg-stone-900 text-white hover:bg-stone-800 transition-colors"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Share2 className="w-3.5 h-3.5" />}
-                  <span>{copied ? 'Link Copied!' : 'Copy Passport URL'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Simulated 2D QR Pattern */}
-            <div className="w-20 h-20 bg-white border border-stone-300 rounded p-1.5 flex flex-col justify-between shrink-0 shadow-xs">
-              <div className="flex justify-between">
-                <div className="w-5 h-5 bg-stone-900 rounded-xs flex items-center justify-center">
-                  <div className="w-2.5 h-2.5 bg-white" />
-                </div>
-                <div className="w-5 h-5 bg-stone-900 rounded-xs flex items-center justify-center">
-                  <div className="w-2.5 h-2.5 bg-white" />
-                </div>
-              </div>
-              <div className="flex items-center justify-center">
-                <QrCode className="w-6 h-6 text-stone-800" />
-              </div>
-              <div className="flex justify-between">
-                <div className="w-5 h-5 bg-stone-900 rounded-xs flex items-center justify-center">
-                  <div className="w-2.5 h-2.5 bg-white" />
-                </div>
-                <div className="w-2.5 h-2.5 bg-stone-900 ml-auto" />
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}
         <div className="bg-stone-50 px-6 py-3.5 border-t border-stone-200 flex flex-wrap items-center justify-between gap-3 text-xs text-stone-500">
-          <span>Official BASA: Ready2Work Credential v1.0</span>
+          <span>BASA: Ready2Work · Skills and evidence summary</span>
           <div className="flex items-center gap-2">
             {onOpenExport && (
               <button
@@ -226,7 +177,7 @@ export const SkillPassportModal: React.FC<Props> = ({ isOpen, onClose, candidate
               className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-semibold shadow-xs transition-colors cursor-pointer"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Download Official PDF</span>
+              <span>Download PDF</span>
             </button>
           </div>
         </div>

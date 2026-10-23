@@ -32,7 +32,41 @@ service cloud.firestore {
       return (from == 'submitted'    && to in ['under_review', 'withdrawn'])
           || (from == 'under_review' && to in ['shortlisted', 'not_selected', 'withdrawn'])
           || (from == 'shortlisted'  && to in ['selected', 'not_selected', 'withdrawn'])
-          || (from == 'selected'     && to in ['completed', 'not_selected', 'withdrawn']);
+          || (from == 'selected'     && to in ['completed', 'withdrawn']);
+    }
+
+    function isSubmittedApplicationFor(appId, candidateId, employerId) {
+      let appPath = /databases/$(database)/documents/applications/$(appId);
+      return existsAfter(appPath)
+        && getAfter(appPath).data.jobId + '_' + candidateId == appId
+        && getAfter(appPath).data.candidateId == candidateId
+        && getAfter(appPath).data.employerId == employerId
+        && getAfter(appPath).data.status == 'submitted';
+    }
+
+    function hasEmployerCandidateAccess(candidateId) {
+      return hasRole('employer')
+        && exists(/databases/$(database)/documents/employerCandidateAccess/$(request.auth.uid)/candidates/$(candidateId));
+    }
+
+    function hasShortlistContactAccess(candidateId) {
+      let accessPath = /databases/$(database)/documents/employerCandidateContactAccess/$(request.auth.uid)/candidates/$(candidateId);
+      return hasRole('employer')
+        && exists(accessPath)
+        && get(accessPath).data.candidateId == candidateId
+        && exists(/databases/$(database)/documents/applications/$(get(accessPath).data.applicationId))
+        && get(/databases/$(database)/documents/applications/$(get(accessPath).data.applicationId)).data.status in ['shortlisted', 'selected', 'completed'];
+    }
+
+    function validShortlistTransition(appId, candidateId, employerId) {
+      let appPath = /databases/$(database)/documents/applications/$(appId);
+      return exists(appPath)
+        && get(appPath).data.status == 'under_review'
+        && get(appPath).data.candidateId == candidateId
+        && get(appPath).data.employerId == employerId
+        && getAfter(appPath).data.status == 'shortlisted'
+        && getAfter(appPath).data.candidateId == candidateId
+        && getAfter(appPath).data.employerId == employerId;
     }
 
     // ---------- default deny ----------
@@ -43,10 +77,7 @@ service cloud.firestore {
     // ---------- users ----------
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin();
-      allow create: if isOwner(uid)
-        && incoming().uid == uid
-        && incoming().role in ['candidate', 'employer']
-        && incoming().accountStatus == 'active';
+      allow create: if false;
       // Role and account status are immutable for the user; only admins (server-side) change them.
       allow update: if (isOwner(uid) && changedKeys().hasOnly(['displayName', 'email'])) || isAdmin();
       allow delete: if isAdmin();
@@ -55,13 +86,29 @@ service cloud.firestore {
     // ---------- candidate profiles ----------
     match /candidateProfiles/{uid} {
       allow read: if isOwner(uid) || isAdmin()
-        || (hasRole('employer') && resource.data.popiaVisibility in ['public_link', 'employers_only']);
+        || (!resource.data.keys().hasAny(['phone', 'contactEmail'])
+          && hasEmployerCandidateAccess(uid)
+          && resource.data.popiaVisibility in ['public_link', 'employers_only']);
       allow create: if isOwner(uid) && hasRole('candidate')
         && incoming().uid == uid
+        && !incoming().keys().hasAny(['phone', 'contactEmail'])
         && incoming().popiaVisibility in ['public_link', 'employers_only', 'private'];
       allow update: if isOwner(uid) && hasRole('candidate')
         && incoming().uid == uid
+        && !incoming().keys().hasAny(['phone', 'contactEmail'])
         && incoming().popiaVisibility in ['public_link', 'employers_only', 'private'];
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // Contact details are stored separately because Firestore rules cannot redact document fields.
+    match /candidatePrivateProfiles/{uid} {
+      allow read: if isOwner(uid) || isAdmin() || hasShortlistContactAccess(uid);
+      allow create, update: if isOwner(uid) && hasRole('candidate')
+        && incoming().uid == uid
+        && incoming().keys().hasOnly(['uid', 'phone', 'contactEmail'])
+        && incoming().keys().hasAll(['uid'])
+        && (!('phone' in incoming()) || incoming().phone is string)
+        && (!('contactEmail' in incoming()) || incoming().contactEmail is string);
       allow delete: if isOwner(uid) || isAdmin();
     }
 
@@ -81,7 +128,8 @@ service cloud.firestore {
     match /skillClaims/{claimId} {
       allow read: if isAdmin()
         || (signedIn() && resource.data.candidateId == request.auth.uid)
-        || (hasRole('employer') && get(/databases/$(database)/documents/candidateProfiles/$(resource.data.candidateId)).data.popiaVisibility != 'private');
+        || (hasEmployerCandidateAccess(resource.data.candidateId)
+          && get(/databases/$(database)/documents/candidateProfiles/$(resource.data.candidateId)).data.popiaVisibility in ['public_link', 'employers_only']);
       allow create: if hasRole('candidate')
         && incoming().candidateId == request.auth.uid
         && incoming().verificationStatus == 'Self-reported'
@@ -124,12 +172,7 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (signedIn() && (resource.data.candidateId == request.auth.uid || resource.data.employerId == request.auth.uid));
 
-      allow create: if hasRole('candidate')
-        && incoming().candidateId == request.auth.uid
-        && applicationId == incoming().jobId + '_' + request.auth.uid
-        && incoming().status == 'submitted'
-        && get(/databases/$(database)/documents/jobs/$(incoming().jobId)).data.status == 'open'
-        && incoming().employerId == get(/databases/$(database)/documents/jobs/$(incoming().jobId)).data.employerId;
+      allow create: if false;
 
       allow update: if
         // Candidate: withdraw only.
@@ -146,13 +189,62 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Access is granted atomically with a valid application and is used to gate employer-only profiles/evidence.
+    match /employerCandidateAccess/{employerId}/candidates/{candidateId} {
+      allow read: if isAdmin() || isOwner(employerId) || isOwner(candidateId);
+      allow create, update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // Shortlist decisions are the only operation that grants an employer contact access.
+    match /employerCandidateContactAccess/{employerId}/candidates/{candidateId} {
+      allow read: if isAdmin() || isOwner(employerId) || isOwner(candidateId);
+      allow create, update: if hasRole('employer') && isOwner(employerId)
+        && incoming().keys().hasOnly(['candidateId', 'employerId', 'applicationId', 'grantedAt'])
+        && incoming().keys().hasAll(['candidateId', 'employerId', 'applicationId', 'grantedAt'])
+        && incoming().candidateId == candidateId
+        && incoming().employerId == employerId
+        && incoming().applicationId is string
+        && validShortlistTransition(incoming().applicationId, candidateId, employerId)
+        && incoming().grantedAt is string;
+      allow delete: if isAdmin();
+    }
+
     // ---------- work records ----------
     match /workRecords/{recordId} {
       allow read: if isAdmin()
         || (signedIn() && (resource.data.candidateId == request.auth.uid || resource.data.employerId == request.auth.uid));
-      allow create: if hasRole('employer') && incoming().employerId == request.auth.uid;
-      allow update: if (hasRole('employer') && resource.data.employerId == request.auth.uid
-        && incoming().employerId == resource.data.employerId) || isAdmin();
+      allow create: if hasRole('employer')
+        && incoming().keys().hasOnly([
+          'id', 'applicationId', 'jobId', 'jobTitle', 'candidateId', 'candidateName',
+          'employerId', 'employerName', 'completionStatus', 'employerConfirmed',
+          'payoutConfirmed', 'amountZAR', 'feedback', 'confirmedAt'
+        ])
+        && incoming().keys().hasAll([
+          'id', 'applicationId', 'jobId', 'jobTitle', 'candidateId', 'candidateName',
+          'employerId', 'employerName', 'completionStatus', 'employerConfirmed',
+          'payoutConfirmed', 'amountZAR', 'feedback', 'confirmedAt'
+        ])
+        && incoming().id == recordId
+        && incoming().applicationId is string
+        && exists(/databases/$(database)/documents/applications/$(incoming().applicationId))
+        && get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.status == 'selected'
+        && getAfter(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.status == 'completed'
+        && get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.employerId == request.auth.uid
+        && incoming().employerId == request.auth.uid
+        && incoming().jobId == get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.jobId
+        && incoming().jobTitle == get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.jobTitle
+        && incoming().candidateId == get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.candidateId
+        && incoming().candidateName == get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.candidateName
+        && incoming().employerName == get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.employerName
+        && incoming().completionStatus == 'completed'
+        && incoming().employerConfirmed == true
+        && incoming().payoutConfirmed is bool
+        && incoming().amountZAR is number
+        && incoming().amountZAR == get(/databases/$(database)/documents/jobs/$(incoming().jobId)).data.compensationAmount
+        && incoming().feedback is string
+        && incoming().confirmedAt is string;
+      allow update: if false;
       allow delete: if isAdmin();
     }
 

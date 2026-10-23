@@ -25,11 +25,46 @@
         "experienceSummary": { "type": "string" },
         "locationArea": { "type": "string" },
         "availability": { "type": "string", "enum": ["immediate", "part_time", "full_time", "weekends"] },
-        "phone": { "type": "string" },
         "popiaVisibility": { "type": "string", "enum": ["public_link", "employers_only", "private"] },
         "updatedAt": { "type": "string" }
       },
       "required": ["uid", "fullName", "headline", "locationArea", "availability"]
+    },
+    "CandidatePrivateProfile": {
+      "title": "CandidatePrivateProfile",
+      "description": "Candidate contact details, private until owner or shortlisted employer access",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "phone": { "type": "string" },
+        "contactEmail": { "type": "string", "format": "email" }
+      },
+      "required": ["uid"]
+    },
+    "EmployerCandidateAccess": {
+      "title": "EmployerCandidateAccess",
+      "description": "Candidate-authorized employer access created with an application",
+      "type": "object",
+      "properties": {
+        "candidateId": { "type": "string" },
+        "employerId": { "type": "string" },
+        "applicationIds": { "type": "array", "items": { "type": "string" } },
+        "latestApplicationId": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["candidateId", "employerId", "applicationIds", "latestApplicationId"]
+    },
+    "EmployerCandidateContactAccess": {
+      "title": "EmployerCandidateContactAccess",
+      "description": "Employer contact access granted by a valid shortlist transition",
+      "type": "object",
+      "properties": {
+        "candidateId": { "type": "string" },
+        "employerId": { "type": "string" },
+        "applicationId": { "type": "string" },
+        "grantedAt": { "type": "string" }
+      },
+      "required": ["candidateId", "employerId", "applicationId", "grantedAt"]
     },
     "EmployerProfile": {
       "title": "EmployerProfile",
@@ -177,7 +212,19 @@
     },
     "/candidateProfiles/{candidateId}": {
       "schema": { "$ref": "#/entities/CandidateProfile" },
-      "description": "Candidate profile documents"
+      "description": "Employer-shareable candidate profile fields; contact details are stored separately"
+    },
+    "/candidatePrivateProfiles/{candidateId}": {
+      "schema": { "$ref": "#/entities/CandidatePrivateProfile" },
+      "description": "Owner-private contact details; available to employers only after a valid shortlist"
+    },
+    "/employerCandidateAccess/{employerId}/candidates/{candidateId}": {
+      "schema": { "$ref": "#/entities/EmployerCandidateAccess" },
+      "description": "Candidate-authorized profile and evidence access following an application"
+    },
+    "/employerCandidateContactAccess/{employerId}/candidates/{candidateId}": {
+      "schema": { "$ref": "#/entities/EmployerCandidateContactAccess" },
+      "description": "Shortlist-scoped employer access to candidate contact details"
     },
     "/employerProfiles/{employerId}": {
       "schema": { "$ref": "#/entities/EmployerProfile" },

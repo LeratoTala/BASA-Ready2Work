@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShieldCheck, X, Eye, Info } from 'lucide-react';
+import { ShieldCheck, X } from 'lucide-react';
 
 interface Props {
   visibility: 'public_link' | 'employers_only' | 'private';
@@ -10,6 +10,7 @@ interface Props {
 export const PopiaBanner: React.FC<Props> = ({ visibility, onUpdateVisibility, isCandidate = false }) => {
   const [expanded, setExpanded] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const selectedVisibility = visibility === 'private' ? 'private' : 'employers_only';
 
   if (dismissed) return null;
 
@@ -19,7 +20,7 @@ export const PopiaBanner: React.FC<Props> = ({ visibility, onUpdateVisibility, i
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
           <span>
-            <strong className="text-stone-900">POPIA Privacy Baseline:</strong> We protect personal info. Broad locations only (no GPS tracking), phone & email masked until shortlisted.
+            <strong className="text-stone-900">Your privacy:</strong> Your contact details stay private until an employer shortlists you.
           </span>
           <button
             onClick={() => setExpanded(!expanded)}
@@ -33,12 +34,11 @@ export const PopiaBanner: React.FC<Props> = ({ visibility, onUpdateVisibility, i
           <div className="flex items-center gap-2">
             <span className="text-stone-500">Passport Sharing:</span>
             <select
-              value={visibility}
+              value={selectedVisibility}
               onChange={(e) => onUpdateVisibility(e.target.value as any)}
               className="bg-white border border-stone-300 rounded px-2 py-0.5 text-xs text-stone-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
             >
-              <option value="public_link">Public Link (Shareable QR)</option>
-              <option value="employers_only">Shortlisted Employers Only</option>
+              <option value="employers_only">Employers I apply to</option>
               <option value="private">Private (Hidden)</option>
             </select>
           </div>
@@ -55,18 +55,22 @@ export const PopiaBanner: React.FC<Props> = ({ visibility, onUpdateVisibility, i
 
       {expanded && (
         <div className="bg-stone-100 border-t border-stone-200 px-4 py-3 text-xs text-stone-600">
-          <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <div>
-              <p className="font-semibold text-stone-800 mb-1">1. Minimal & Broad Location</p>
-              <p>We only store township or suburb areas (e.g., Soweto, Khayelitsha, CBD). No fine-grained GPS tracking is recorded.</p>
+              <p className="font-semibold text-stone-800 mb-1">What we collect and why</p>
+              <p>Your name, email, role, broad area, availability, skills and chosen evidence help run profiles, matching, applications and safety reviews. We do not collect precise GPS or identity documents.</p>
             </div>
             <div>
-              <p className="font-semibold text-stone-800 mb-1">2. Contact Masking</p>
-              <p>Employers only access your phone and direct contact details once they officially move your application to Shortlisted.</p>
+              <p className="font-semibold text-stone-800 mb-1">Who can see your information</p>
+              <p>You can see your own profile. An employer can see an application and allowed skill evidence only after you apply. Your private contact details are available only to that employer after shortlisting.</p>
             </div>
             <div>
-              <p className="font-semibold text-stone-800 mb-1">3. Right to Correction & Deletion</p>
-              <p>Under South Africa's POPIA act, you can update your evidence claims or purge your profile and work logs at any time.</p>
+              <p className="font-semibold text-stone-800 mb-1">How we use data</p>
+              <p>We use information only to provide BASA features. We do not sell it, use it for advertising, or share it for unrelated profiling. AI drafting is off by default; BASA must review a provider's data-use terms before enabling it.</p>
+            </div>
+            <div>
+              <p className="font-semibold text-stone-800 mb-1">Correct or delete your data</p>
+              <p>Update your profile and claims in BASA. To request account deletion, contact the BASA service operator. The operator must review related work and safety records under the retention policy before deleting them.</p>
             </div>
           </div>
         </div>

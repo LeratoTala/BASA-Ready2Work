@@ -5,7 +5,7 @@ export const VALID_STATUS_TRANSITIONS: Record<ApplicationStatus, ApplicationStat
   submitted: ['under_review', 'withdrawn'],
   under_review: ['shortlisted', 'not_selected', 'withdrawn'],
   shortlisted: ['selected', 'not_selected', 'withdrawn'],
-  selected: ['completed', 'not_selected', 'withdrawn'],
+  selected: ['completed', 'withdrawn'],
   not_selected: [],
   completed: [],
   withdrawn: [],
