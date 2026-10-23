@@ -1,0 +1,166 @@
+rules_version = '2';
+
+// BASA: Ready2Work - Firestore Security Rules
+// Principles: default deny, trusted roles, no hard-coded identities.
+//  - Admin/assessor status comes ONLY from the `admin` custom claim (see scripts/set-admin-claim.mjs).
+//  - Users may self-register as candidate or employer, but never as admin.
+//  - Candidates cannot touch verification labels or assessment results.
+//  - Employers only see applications for their own jobs.
+//  - Application status changes follow the same transitions as src/domain/applicationStatus.ts.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function hasRole(role) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().role == role
+        && userDoc().accountStatus == 'active';
+    }
+
+    function incoming() { return request.resource.data; }
+    function changedKeys() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    function validTransition(from, to) {
+      return (from == 'submitted'    && to in ['under_review', 'withdrawn'])
+          || (from == 'under_review' && to in ['shortlisted', 'not_selected', 'withdrawn'])
+          || (from == 'shortlisted'  && to in ['selected', 'not_selected', 'withdrawn'])
+          || (from == 'selected'     && to in ['completed', 'not_selected', 'withdrawn']);
+    }
+
+    // ---------- default deny ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ---------- users ----------
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid)
+        && incoming().uid == uid
+        && incoming().role in ['candidate', 'employer']
+        && incoming().accountStatus == 'active';
+      // Role and account status are immutable for the user; only admins (server-side) change them.
+      allow update: if (isOwner(uid) && changedKeys().hasOnly(['displayName', 'email'])) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------- candidate profiles ----------
+    match /candidateProfiles/{uid} {
+      allow read: if isOwner(uid) || isAdmin()
+        || (hasRole('employer') && resource.data.popiaVisibility in ['public_link', 'employers_only']);
+      allow create: if isOwner(uid) && hasRole('candidate')
+        && incoming().uid == uid
+        && incoming().popiaVisibility in ['public_link', 'employers_only', 'private'];
+      allow update: if isOwner(uid) && hasRole('candidate')
+        && incoming().uid == uid
+        && incoming().popiaVisibility in ['public_link', 'employers_only', 'private'];
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // ---------- employer profiles ----------
+    match /employerProfiles/{uid} {
+      allow read: if signedIn();
+      allow create: if isOwner(uid) && hasRole('employer')
+        && incoming().uid == uid
+        && incoming().verificationStatus == 'pending';
+      allow update: if (isOwner(uid) && hasRole('employer')
+        && incoming().uid == uid
+        && incoming().verificationStatus == resource.data.verificationStatus) || isAdmin();
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // ---------- skill claims ----------
+    match /skillClaims/{claimId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.candidateId == request.auth.uid)
+        || (hasRole('employer') && get(/databases/$(database)/documents/candidateProfiles/$(resource.data.candidateId)).data.popiaVisibility != 'private');
+      allow create: if hasRole('candidate')
+        && incoming().candidateId == request.auth.uid
+        && incoming().verificationStatus == 'Self-reported'
+        && !('assessmentId' in incoming());
+      // Candidates may edit their evidence text but never labels or assessment links.
+      allow update: if (hasRole('candidate')
+        && resource.data.candidateId == request.auth.uid
+        && !changedKeys().hasAny(['verificationStatus', 'assessmentId', 'candidateId'])) || isAdmin();
+      allow delete: if (signedIn() && resource.data.candidateId == request.auth.uid) || isAdmin();
+    }
+
+    // ---------- assessments (assessors only write) ----------
+    match /assessments/{assessmentId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.candidateId == request.auth.uid);
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ---------- jobs ----------
+    match /jobs/{jobId} {
+      allow read: if signedIn();
+      allow create: if hasRole('employer')
+        && incoming().employerId == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().reportCount == 0
+        && incoming().employerVerified == (get(/databases/$(database)/documents/employerProfiles/$(request.auth.uid)).data.verificationStatus == 'verified')
+        && incoming().compensationCurrency == 'ZAR'
+        && incoming().compensationUnit in ['hourly', 'daily', 'fixed']
+        && incoming().compensationAmount is number
+        && incoming().compensationAmount >= 0;
+      allow update: if (isOwner(resource.data.employerId)
+        && !changedKeys().hasAny(['employerId', 'reportCount'])
+        && incoming().status in ['open', 'closed']
+        && resource.data.status != 'flagged') || isAdmin();
+      allow delete: if isOwner(resource.data.employerId) || isAdmin();
+    }
+
+    // ---------- applications ----------
+    // Document id MUST be "<jobId>_<candidateId>": one application per candidate per job.
+    match /applications/{applicationId} {
+      allow read: if isAdmin()
+        || (signedIn() && (resource.data.candidateId == request.auth.uid || resource.data.employerId == request.auth.uid));
+
+      allow create: if hasRole('candidate')
+        && incoming().candidateId == request.auth.uid
+        && applicationId == incoming().jobId + '_' + request.auth.uid
+        && incoming().status == 'submitted'
+        && get(/databases/$(database)/documents/jobs/$(incoming().jobId)).data.status == 'open'
+        && incoming().employerId == get(/databases/$(database)/documents/jobs/$(incoming().jobId)).data.employerId;
+
+      allow update: if
+        // Candidate: withdraw only.
+        (isOwner(resource.data.candidateId)
+          && changedKeys().hasOnly(['status', 'updatedAt'])
+          && incoming().status == 'withdrawn'
+          && validTransition(resource.data.status, 'withdrawn'))
+        // Employer: move through valid transitions on own jobs.
+        || (isOwner(resource.data.employerId) && hasRole('employer')
+          && changedKeys().hasOnly(['status', 'updatedAt', 'employerNotes'])
+          && incoming().status != 'withdrawn'
+          && validTransition(resource.data.status, incoming().status))
+        || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------- work records ----------
+    match /workRecords/{recordId} {
+      allow read: if isAdmin()
+        || (signedIn() && (resource.data.candidateId == request.auth.uid || resource.data.employerId == request.auth.uid));
+      allow create: if hasRole('employer') && incoming().employerId == request.auth.uid;
+      allow update: if (hasRole('employer') && resource.data.employerId == request.auth.uid
+        && incoming().employerId == resource.data.employerId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------- moderation reports ----------
+    match /reports/{reportId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.reporterId == request.auth.uid);
+      allow create: if signedIn() && incoming().reporterId == request.auth.uid && incoming().status == 'pending';
+      allow update, delete: if isAdmin();
+    }
+  }
+}
