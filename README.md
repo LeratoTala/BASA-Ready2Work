@@ -10,7 +10,7 @@
 |---|---|
 | **Candidate** | Record skills with evidence, build a Skill Passport with honest verification labels, see explainable job matches, apply once per job, track status. |
 | **Employer** | Post jobs with clear ZAR pay terms, review applicants and allowed evidence, move applications through valid status transitions. |
-| **Assessor / Admin** | Grade practical demos against rubrics, moderate reported listings, view pilot metrics. |
+| **Assessor / Admin** | Grade practical demos against 100-pt rubrics, verify and moderate job listings and pay terms, review peer endorsements, and track pilot metrics. |
 
 **Verification labels** (never conflated): Self-reported · Peer-endorsed · Task-assessed · Mentor-reviewed.
 **Matching** is rules-based and explainable: `M = 0.50·S + 0.25·E + 0.15·A + 0.10·L`. It aids decisions; it never makes them.
@@ -44,7 +44,7 @@ Try it with fictional data and no backend: set `VITE_ENABLE_DEMO_DATA=true` in `
 
 ## Current status
 
-This repository is an MVP-level working web app for BASA: Ready2Work. The core product flow is implemented: role-based onboarding, candidate and employer dashboards, explainable matching, application status handling, admin/assessor views, Firebase-backed persistence, optional demo mode, Express API for AI-assisted CV drafting, in-app notifications center (R1 / FR-15), and POPIA-compliant private evidence storage.
+This repository is an MVP-level working web app for BASA: Ready2Work. The core product flow is implemented: role-based onboarding, candidate and employer dashboards, explainable matching, application status handling, admin/assessor workspace, live job verification and moderation, Firebase-backed persistence, optional demo mode, Express API for AI-assisted CV drafting, in-app notifications center (R1 / FR-15), location-aware distance filters without GPS tracking (R2 / FR-16), verification flows with micro-task rubrics, peer endorsements, and mentor reviews (R3 / FR-19), and POPIA-compliant private evidence storage.
 
 The repo is not yet marked as production-ready; the remaining work is primarily validation, security hardening, and launch-readiness tasks such as emulator verification, App Check, and privacy/deletion controls.
 
@@ -62,7 +62,7 @@ The repo is not yet marked as production-ready; the remaining work is primarily 
 | `npm run build` | Production client build to `dist/` |
 | `npm start` | Serve build + API in production mode |
 | `npm run typecheck` | TypeScript check |
-| `npm test` | Unit tests (matching engine, status rules) |
+| `npm test` | Unit & domain tests (60 tests across 17 suites: matching, location, notifications, rubrics, verification) |
 | `npm run test:rules` | Firestore security-rules tests (needs emulator; see `tests/rules/`) |
 
 ## Configuration (no hard-coded values)
