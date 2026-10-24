@@ -80,6 +80,10 @@ export default function App() {
     return (
       <SignInPage
         onSignInWithGoogle={store.signInWithGoogle}
+        onSignInWithEmail={store.signInWithEmail}
+        onSignInWithApple={store.signInWithApple}
+        onSendPhoneOtp={store.sendPhoneOtp}
+        onVerifyPhoneOtp={store.verifyPhoneOtp}
         onSelectDemoUser={handleSwitchUser}
         demoUsers={env.enableDemoData ? store.users : []}
       />

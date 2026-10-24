@@ -196,6 +196,73 @@ export function useDemoStore() {
     throw new Error('Google sign-in is disabled in demo mode. Pick a demo persona instead.');
   };
 
+  let demoPendingPhone: string | null = null;
+
+  const signInWithEmail = async (
+    email: string,
+    _pass: string,
+    _isSignUp = false,
+    displayName?: string
+  ): Promise<unknown> => {
+    const existing = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
+    if (existing) {
+      setCurrentUser(existing);
+      saveStored(STORAGE_KEYS.currentUser, existing);
+      return existing;
+    }
+    const newUid = `user-${Date.now()}`;
+    const newUser: User = {
+      uid: newUid,
+      displayName: displayName || email.split('@')[0],
+      email: email.trim(),
+      role: 'candidate',
+      createdAt: new Date().toISOString(),
+      accountStatus: 'active',
+      minimumAgeConfirmed: true,
+    };
+    setUsers((prev) => [...prev, newUser]);
+    setCurrentUser(newUser);
+    saveStored(STORAGE_KEYS.currentUser, newUser);
+    return newUser;
+  };
+
+  const signInWithApple = async (): Promise<unknown> => {
+    const appleUser = users.find((u) => u.role === 'candidate') || users[0];
+    setCurrentUser(appleUser);
+    saveStored(STORAGE_KEYS.currentUser, appleUser);
+    return appleUser;
+  };
+
+  const sendPhoneOtp = async (phoneNumber: string): Promise<boolean> => {
+    demoPendingPhone = phoneNumber.trim();
+    return true;
+  };
+
+  const verifyPhoneOtp = async (_code: string): Promise<unknown> => {
+    const phone = demoPendingPhone || '0820000000';
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const existing = users.find((u) => u.email.includes(cleanPhone));
+    if (existing) {
+      setCurrentUser(existing);
+      saveStored(STORAGE_KEYS.currentUser, existing);
+      return existing;
+    }
+    const newUid = `user-phone-${Date.now()}`;
+    const newUser: User = {
+      uid: newUid,
+      displayName: `User (${phone})`,
+      email: `${cleanPhone}@phone.basa.app`,
+      role: 'candidate',
+      createdAt: new Date().toISOString(),
+      accountStatus: 'active',
+      minimumAgeConfirmed: true,
+    };
+    setUsers((prev) => [...prev, newUser]);
+    setCurrentUser(newUser);
+    saveStored(STORAGE_KEYS.currentUser, newUser);
+    return newUser;
+  };
+
   const signOutUser = async () => {
     setCurrentUser(null);
     removeStored(STORAGE_KEYS.currentUser);
@@ -892,6 +959,10 @@ export function useDemoStore() {
     isOnline,
     triggerSync,
     signInWithGoogle,
+    signInWithEmail,
+    signInWithApple,
+    sendPhoneOtp,
+    verifyPhoneOtp,
     signOutUser,
     authLoading,
     needsOnboarding,

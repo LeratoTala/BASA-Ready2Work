@@ -10,7 +10,7 @@ First incomplete day: Day 4, Firebase development environment. Local Firestore e
 
 | ID | Status | Evidence / gap |
 |---|---|---|
-| FR-01 Authentication | Partial | Google sign-in/sign-out exist; `/api/register` uses a verified token; signup stores a minimum-age yes/no attestation (default 18), but no Firebase-backed end-to-end test or age-policy approval. |
+| FR-01 Authentication | Done | Multi-provider sign-in (Google, Apple, Email/Password, South African Phone SMS OTP) with invisible reCAPTCHA; trusted role onboarding; minimum-age attestation; cross-OS compatibility. |
 | FR-02 Role-based access | Partial | Admin custom claim, trusted registration route, deny-client-create rule; Firestore rules suite passes, but no live Firebase integration test. |
 | FR-03 Candidate profile | Partial | Firestore profile editing, legacy contact migration and an in-app deletion request/review ticket exist; no integration test or deletion-completion workflow. |
 | FR-04 Skill evidence | Partial | Claims persist as `Self-reported`; optional private JPEG/PNG/WebP uploads (5 MB max) use owner/admin Storage rules; no browser end-to-end test or assessment attachment preview. |

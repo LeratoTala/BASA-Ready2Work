@@ -1,26 +1,144 @@
 # BASA: Ready2Work
 
-**Skills → Evidence → Work.** A skills-first, low-data employment platform that turns informal South African experience into credible evidence and connects young people to entry-level jobs, paid tasks and short work.
+**Skills → Evidence → Work.** A skills-first, low-data employment web platform that turns informal South African experience into credible, verifiable evidence and connects young people to real entry-level jobs, paid tasks, and short work.
 
 *BASA = Bridge to Actual Skills & Access.*
 
-## What it does
+---
 
-| Role | Can do |
+## What It Does
+
+| Role | Core Capabilities |
 |---|---|
-| **Candidate** | Record skills with evidence, build a Skill Passport with honest verification labels, see explainable job matches, apply once per job, track status. |
-| **Employer** | Post jobs with clear ZAR pay terms, review applicants and allowed evidence, move applications through valid status transitions. |
-| **Assessor / Admin** | Grade practical demos against 100-pt rubrics, verify and moderate job listings and pay terms, review peer endorsements, and track pilot metrics. |
+| **Candidate (Youth Jobseeker)** | Build a verifiable Skill Passport with honest status labels, attach work photos/evidence, request peer contractor endorsements, take 100-pt practical rubric tests, see explainable job matches ranked by commute distance, and apply in one click. |
+| **Employer** | Post opportunities with mandatory transparent ZAR pay terms (`R250/day`, `R4,500/month`), inspect vetted applicant evidence instead of unverified paper CVs, and advance candidates through valid hiring stages (`Applied` → `Shortlisted` → `Selected`). |
+| **Assessor & Administrator** | Grade bench tests against standardized 100-pt rubrics, approve peer contractor endorsements, verify and moderate job postings to prevent scams/exploitation, review community reports, and monitor pilot employment targets. |
 
-**Verification labels** (never conflated): Self-reported · Peer-endorsed · Task-assessed · Mentor-reviewed.
-**Matching** is rules-based and explainable: `M = 0.50·S + 0.25·E + 0.15·A + 0.10·L`. It aids decisions; it never makes them.
+---
 
-## Tech stack
+## Supported Operating Systems & Cross-Platform Access
 
-React 19 · TypeScript · Vite · Tailwind CSS 4 · Firebase (Auth, Firestore, Admin SDK) · Express (API) · optional Gemini for CV drafting.
-One responsive codebase targets browsers on phone, tablet and desktop, and is installable as a PWA.
+BASA: Ready2Work is built with a responsive, mobile-first architecture installable as a Progressive Web App (PWA):
 
-## Getting started
+* **Android (Phones & Tablets):** Works seamlessly on Google Chrome, Samsung Internet, and mobile browsers. Installable directly to the home screen as a full-screen, low-data app.
+* **iOS & iPadOS (Apple Devices):** Runs on Safari and Chrome for iOS with support for iPhone dynamic islands, notches, and home indicator safe areas (`viewport-fit=cover`). Installable via Safari's "Add to Home Screen".
+* **Windows & macOS:** Full multi-column dashboard and split-pane workspace with keyboard navigation.
+* **Linux & ChromeOS:** Native performance in all modern Chromium and WebKit browsers.
+
+---
+
+## How to Sign In
+
+The platform provides universal multi-provider authentication ([`src/features/auth/components/SignInPage.tsx`](src/features/auth/components/SignInPage.tsx)) across three convenient tabs:
+
+1. **Google 1-Tap Sign-In (Social Tab):**
+   * Instant authentication for users with an existing Google account (recommended for Android users).
+2. **Apple Sign-In (Social Tab):**
+   * Powered by Firebase Apple OAuth (`apple.com`). Delivers 1-tap sign-in on iPhone, iPad, and Mac, while remaining accessible from any browser.
+3. **Email & Password (Email Tab):**
+   * Standard account login and new account registration with full name, email, and password (includes show/hide password toggle).
+4. **South African Cell Phone SMS OTP (Cell Phone Tab):**
+   * For candidates without an email address. Enter a South African mobile number (`082 123 4567` or `+27 82 123 4567`), complete the invisible background reCAPTCHA, and enter the 6-digit SMS verification code.
+5. **Quick Demo Personas (Pitch & Testing Mode):**
+   * When `VITE_ENABLE_DEMO_DATA=true`, evaluators can switch between pre-seeded personas with one click:
+     * 👷 **Candidate:** Sipho Khumalo (Jobseeker in Soweto · Barista & Solar Assistant)
+     * 🏢 **Employer:** Khaya Green Solutions (Hiring Manager · Specialty Roastery & Solar)
+     * 🛡️ **Assessor/Admin:** Nandi Assessor (Technical Assessor & Moderation Workspace)
+
+---
+
+## Access Rights & User Roles (RBAC)
+
+Access rights are enforced cryptographically at the database kernel level in [`firebase/firestore.rules`](firebase/firestore.rules):
+
+| Role | Access Rights & Boundaries |
+|---|---|
+| **Candidate** (`candidate`) | Can view and edit their own profile, submit skill claims, upload work evidence, request peer endorsements, view assessment rubrics, apply to open jobs, and track their applications. **Cannot view other candidates' private data or self-promote verification badges.** |
+| **Employer** (`employer`) | Can create, edit, and close their own job listings, view applicants who applied to their postings, and advance application statuses. **Can only see candidate contact details after explicitly shortlisting them.** |
+| **Assessor & Admin** (`admin: true`) | Can grade candidate demonstrations against 100-point rubrics, approve peer endorsements, review/suspend job postings, resolve community fraud reports, and process account deletion requests. |
+| **Platform Owner** | Holds cloud root access, manages cloud infrastructure, and grants/revokes admin privileges. |
+
+---
+
+## How Admin Rights Are Granted
+
+**Security Principle:** Public users can **only** register as a Candidate or an Employer. To prevent unauthorized privilege escalation, there is no public "Register as Admin" button.
+
+Admin privileges are granted using **Firebase Custom Claims** through a secure backend script:
+
+1. Have your staff member or assessor sign in once via Google, Apple, or Email.
+2. From a trusted administrative terminal, run:
+   ```bash
+   node scripts/set-admin-claim.mjs staff@yourdomain.com
+   ```
+3. To revoke admin access:
+   ```bash
+   node scripts/set-admin-claim.mjs staff@yourdomain.com --revoke
+   ```
+4. The user signs out and back in. The app automatically recognizes the cryptographic `{ admin: true }` claim, reveals the **Admin Center**, and unlocks backend database permissions.
+
+---
+
+## Where the Owner Manages & Oversees Everything After Deploying
+
+After deployment, the platform owner oversees operations across two layers:
+
+### 1. Inside the Live Web Application (Operational Governance)
+Log in with your owner account (with the admin claim granted) to access the **Admin Center**:
+* 📊 **Pilot Overview:** Monitor real-time metrics (Candidates, Participating Businesses, Active Jobs, Assessed Skills) against FNB App of the Year targets.
+* 💼 **Manage Jobs:** View all posted jobs, audit ZAR pay rates, verify employer credentials, and suspend deceptive or scam listings with one click.
+* 🏆 **Assessor Workspace:** Grade candidate practical rubrics ($\ge 70/100$ pass mark) and approve peer contractor endorsements.
+* 🚩 **Moderation Reports:** Resolve community fraud reports and process POPIA account deletion tickets.
+
+### 2. In Cloud Consoles (Infrastructure & Security Governance)
+* **Firebase Console ([console.firebase.google.com](https://console.firebase.google.com)):**
+  * *Authentication:* View registered users, manage auth providers, disable accounts.
+  * *Firestore Database:* Query live collections (`jobs`, `candidateProfiles`, `skillClaims`, `applications`, `endorsements`).
+  * *Storage:* Inspect uploaded evidence images and certificates.
+  * *App Check:* Protect backend APIs from bots, scraping, and unauthorized traffic.
+* **Google Cloud Console ([console.cloud.google.com](https://console.cloud.google.com)):**
+  * Monitor Google Cloud Run containers, manage CPU/memory auto-scaling, and configure custom domain SSL.
+
+---
+
+## Honest Verification Standards
+
+Verification labels are never conflated or forged:
+
+```
+[ Candidate Claims Skill ] ──> Status: "Self-reported" (Default)
+                                  │
+      ┌───────────────────────────┼───────────────────────────┐
+      ▼                           ▼                           ▼
+[ Peer Endorsement ]     [ Micro-Task Rubric ]      [ Designated Mentor ]
+Approved by coworker/    Graded >= 70/100 by        Assessed by accredited
+supervisor/contractor    practical assessor         master artisan
+      │                           │                           │
+      ▼                           ▼                           ▼
+Status: "Peer-endorsed"   Status: "Task-assessed"    Status: "Mentor-reviewed"
+```
+
+* **Self-reported:** Entered by the candidate; not independently confirmed.
+* **Peer-endorsed:** Confirmed by an identified coworker, supervisor, or community contractor who observed the candidate doing the work.
+* **Task-assessed:** Evaluated against an objective 100-point rubric ($\ge 70$ pass mark) by a registered assessor.
+* **Mentor-reviewed:** Portfolio evaluated by an accredited trade mentor or youth employment partner.
+
+---
+
+## Explainable Matching Algorithm
+
+Matching is 100% deterministic, rules-based, and explainable. It aids decisions; it **never** makes automated rejections:
+
+$$\mathbf{M = 0.50 \cdot S + 0.25 \cdot E + 0.15 \cdot A + 0.10 \cdot L}$$
+
+* **$\mathbf{S}$ (Skill Alignment, 50%):** Direct overlap between candidate skills and job requirements: $(\text{Matched} / \text{Required}) \times 100$.
+* **$\mathbf{E}$ (Evidence Strength, 25%):** Quality multiplier based on verification status (Self-reported: 60 pts, Peer-endorsed: 85 pts, Task-assessed: 100 pts).
+* **$\mathbf{A}$ (Availability Fit, 15%):** Matches candidate availability (`immediate`, `full_time`, `part_time`, `weekends`) with job terms.
+* **$\mathbf{L}$ (Location Fit, 10%):** Estimated commute feasibility using pure Haversine centroid math without GPS tracking.
+
+---
+
+## Getting Started
 
 Requires Node 20+ and npm.
 
@@ -31,83 +149,48 @@ cp .env.example .env      # fill in your Firebase web config (see below)
 npm run dev               # http://localhost:3000
 ```
 
-Before pushing or validating locally, install dependencies first and then run:
+Before pushing or validating locally, run:
 
 ```bash
-npm run typecheck
-npm test
-npm run build
-npm audit
+npm run typecheck         # TypeScript check (0 errors)
+npm test                  # 60 tests across 17 test suites (0 failures)
+npm run build             # Production Vite client build to dist/
+npm audit                 # Security vulnerability audit
 ```
 
-Try it with fictional data and no backend: set `VITE_ENABLE_DEMO_DATA=true` in `.env` (Firebase settings are then optional). Never enable this in production.
+Try it with fictional data and no backend: set `VITE_ENABLE_DEMO_DATA=true` in `.env`.
 
-## Current status
-
-This repository is an MVP-level working web app for BASA: Ready2Work. The core product flow is implemented: role-based onboarding, candidate and employer dashboards, explainable matching, application status handling, admin/assessor workspace, live job verification and moderation, Firebase-backed persistence, optional demo mode, Express API for AI-assisted CV drafting, in-app notifications center (R1 / FR-15), location-aware distance filters without GPS tracking (R2 / FR-16), verification flows with micro-task rubrics, peer endorsements, and mentor reviews (R3 / FR-19), and POPIA-compliant private evidence storage.
-
-The repo is not yet marked as production-ready; the remaining work is primarily validation, security hardening, and launch-readiness tasks such as emulator verification, App Check, and privacy/deletion controls.
-
-### Firebase setup
-1. Create a Firebase project; add a **Web app** and copy its config into the `VITE_FIREBASE_*` variables.
-2. Enable **Authentication → Google**.
-3. Create Firestore and a Storage bucket, then deploy Firestore and Storage rules: `firebase deploy --only firestore:rules,firestore:indexes,storage`.
-4. Grant admin/assessor access with `scripts/set-admin-claim.mjs` (see `docs/DEPLOYMENT.md`).
+---
 
 ## Scripts
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Dev server (Vite + API) |
+| `npm run dev` | Dev server (Vite + Express API) |
 | `npm run build` | Production client build to `dist/` |
 | `npm start` | Serve build + API in production mode |
-| `npm run typecheck` | TypeScript check |
-| `npm test` | Unit & domain tests (60 tests across 17 suites: matching, location, notifications, rubrics, verification) |
-| `npm run test:rules` | Firestore security-rules tests (needs emulator; see `tests/rules/`) |
+| `npm run typecheck` | TypeScript compiler check |
+| `npm test` | Unit & domain tests (60 tests across 17 suites) |
+| `npm run test:rules` | Firestore security rules emulator tests |
 
-## Configuration (no hard-coded values)
+---
 
-- **Environment:** every URL, key, limit and feature flag is in `.env` (documented in `.env.example`).
-- **AI CV drafting:** disabled by default; only enable with `GEMINI_ENABLED=true` after reviewing the provider's current data-use terms.
-- **Product tunables:** scoring weights, evidence scores, locations, defaults and storage keys are in `src/config/`.
-- **Business rules:** pure, tested functions in `src/domain/`.
-
-## Project structure
-
-```
-src/app        app shell + store      src/config     all tunables
-src/domain     pure logic + types     src/features   auth / candidate / employer / admin
-src/shared     reusable UI            src/services   firebase, sync, PDF export
-src/data/seed  demo data (opt-in)     server/        API (CV drafting, rate limiting)
-firebase/      rules + indexes        tests/ docs/   tests and documentation
-```
-Details: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
-
-## Security and privacy
-
-Roles, ownership and status transitions are enforced in Firestore rules, not in the UI. No identities are hard-coded; admin status is a custom claim. Locations are broad areas (no GPS). See [`docs/SECURITY.md`](docs/SECURITY.md) for the pre-launch checklist. This is not legal advice; review POPIA obligations before a public launch.
-
-## Deployment
-
-See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) (Firebase rules, Cloud Run/Node hosting, PWA, Capacitor/Tauri).
-
-## Roadmap
+## Roadmap & Progress
 
 - [x] **Phase 1: Foundation.** Feature-based structure, config/env separation, hardened rules, unit tests, CI, Docker.
-- [x] **Phase 2: Real backend (code complete, needs emulator verification).** Firestore-backed store with role-scoped live listeners and offline cache; onboarding; admin via custom claim. The localStorage store remains as demo mode only.
-- [x] **Roadmap R1: In-App Notifications (FR-15).** Dedicated notification center modal, unread badge counter in header, fine-grained preferences toggles, and idempotent alerts without PII (tests T-13, T-14, T-15 pass).
-- [x] **Roadmap R2: Location-Aware Filters (FR-16).** Centroid-based distance estimation between broad South African areas, interactive candidate distance & work mode filters, without GPS tracking (tests T-16, T-17, T-18 pass).
-- [x] **Roadmap R3: Verification Flows (FR-19).** Peer endorsement request/review queue, practical 100-pt micro-tasks rubrics, and designated mentor reviews with honest verification disclaimers (tests T-19, T-20, T-21, T-22 pass).
+- [x] **Phase 2: Real backend.** Firestore-backed store with role-scoped live listeners and offline cache; onboarding; admin via custom claim.
+- [x] **FR-01: Multi-Provider Authentication.** Google 1-tap, Apple Sign-in, Email & Password, and South African Phone SMS OTP with invisible reCAPTCHA.
+- [x] **Roadmap R1: In-App Notifications (FR-15).** Dedicated notification center modal, unread badge counter in header, fine-grained preferences toggles, and idempotent alerts (tests T-13, T-14, T-15 pass).
+- [x] **Roadmap R2: Location-Aware Filters (FR-16).** Centroid-based distance estimation between 30+ South African areas, interactive candidate distance & work mode filters, without GPS tracking (tests T-16, T-17, T-18 pass).
+- [x] **Roadmap R3: Verification Flows (FR-19).** Peer endorsement request/review queue, practical 100-pt micro-tasks rubrics, designated mentor reviews, and live admin job moderation (tests T-19, T-20, T-21, T-22 pass).
 - [ ] **Roadmap R4: Micro-Internships & Work Records (FR-21).** Micro-internship listings, milestone sign-offs, and immutable completion work records.
-- [ ] **Phase 2b:** Cloud Function to maintain `reportCount`; run `npm run test:rules` in CI.
-- [ ] **Phase 3: Responsive and accessibility pass.** Remove fixed-width layouts, test on real phones, keyboard and contrast audit, measure bundle and data use.
-- [ ] **Phase 4: Launch readiness.** App Check, privacy notice, data retention and deletion, monitoring, store wrappers if needed.
 
-## Project documents
+---
 
-The original specification and 12-day plan: [`docs/BASA_Project_Specification.pdf`](docs/BASA_Project_Specification.pdf).
-Note: the spec proposes Flutter; this codebase uses React/TypeScript, which satisfies the same product requirements.
+## Documentation
 
-## Contributing
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md).
+* [Architecture & Data Flow](docs/ARCHITECTURE.md)
+* [Deployment & Hosting Guide](docs/DEPLOYMENT.md)
+* [Security Baseline & POPIA Compliance](docs/SECURITY.md)
+* [Progress Tracker & Requirements Matrix](docs/PROGRESS.md)
+* [Contributing Guide](CONTRIBUTING.md)

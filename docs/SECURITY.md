@@ -60,4 +60,12 @@ Before public use, the BASA operator must publish a privacy contact and retentio
 - **Authorization & Separation of Concerns:** Peer endorsement status transitions (`approved` / `rejected`) and mentor reviews are restricted to verified administrators and designated assessors (`request.auth.token.admin == true`).
 - **Honest Labeling & Disclaimers:** All verification levels display transparent user-facing definitions and "what this does not mean" disclaimers, ensuring youth credibility without misrepresenting formal accreditations.
 
+## Multi-Provider Authentication (FR-01) Security & Privacy Review
+
+- **Authentication Providers Supported:** Google 1-tap, Apple OAuth (`apple.com`), Email/Password with client show/hide controls, and South African cell phone SMS OTP with invisible background reCAPTCHA.
+- **Data Minimization:** No unnecessary demographic, financial, or tracking data is requested during signup. Phone authentication collects only the candidate's cell number to dispatch the verification OTP; no third-party spam services are engaged.
+- **Protection Against Credential Stuffing & Bots:** Invisible reCAPTCHA protects SMS endpoints from automated abuse and telecom exhaustion. Firebase Authentication manages token issuance, rotation, and cryptographically signed JWTs.
+- **Role Elevation Barrier:** All public sign-up flows create `candidate` or `employer` accounts exclusively. The `admin` custom claim cannot be set through any public authentication provider.
+
+
 

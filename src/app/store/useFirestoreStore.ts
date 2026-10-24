@@ -1,5 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { onAuthStateChanged, signInWithPopup, signOut, type User as FirebaseUser } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  OAuthProvider,
+  onAuthStateChanged,
+  RecaptchaVerifier,
+  signInWithEmailAndPassword,
+  signInWithPhoneNumber,
+  signInWithPopup,
+  signOut,
+  updateProfile,
+  type ConfirmationResult,
+  type User as FirebaseUser,
+} from 'firebase/auth';
 import {
   collection,
   deleteDoc,
@@ -377,6 +389,72 @@ export function useFirestoreStore(): BasaStore {
   const signInWithGoogle = async (): Promise<unknown> => {
     try {
       return (await signInWithPopup(auth, googleProvider)).user;
+    } catch (error) {
+      throw new Error(friendlyFirebaseError(error));
+    }
+  };
+
+  const signInWithApple = async (): Promise<unknown> => {
+    try {
+      const appleProvider = new OAuthProvider('apple.com');
+      appleProvider.addScope('email');
+      appleProvider.addScope('name');
+      return (await signInWithPopup(auth, appleProvider)).user;
+    } catch (error) {
+      throw new Error(friendlyFirebaseError(error));
+    }
+  };
+
+  const signInWithEmail = async (
+    email: string,
+    pass: string,
+    isSignUp = false,
+    displayName?: string
+  ): Promise<unknown> => {
+    try {
+      if (isSignUp) {
+        const cred = await createUserWithEmailAndPassword(auth, email.trim(), pass);
+        if (displayName && cred.user) {
+          await updateProfile(cred.user, { displayName });
+        }
+        return cred.user;
+      } else {
+        const cred = await signInWithEmailAndPassword(auth, email.trim(), pass);
+        return cred.user;
+      }
+    } catch (error) {
+      throw new Error(friendlyFirebaseError(error));
+    }
+  };
+
+  const phoneConfirmationRef = useRef<ConfirmationResult | null>(null);
+
+  const sendPhoneOtp = async (phoneNumber: string): Promise<boolean> => {
+    try {
+      let formatted = phoneNumber.trim().replace(/\s+/g, '');
+      if (formatted.startsWith('0')) {
+        formatted = '+27' + formatted.slice(1);
+      } else if (!formatted.startsWith('+')) {
+        formatted = '+27' + formatted;
+      }
+      const container = document.getElementById('recaptcha-container');
+      const verifier = container
+        ? new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' })
+        : new RecaptchaVerifier(auth, document.body, { size: 'invisible' });
+      phoneConfirmationRef.current = await signInWithPhoneNumber(auth, formatted, verifier);
+      return true;
+    } catch (error) {
+      throw new Error(friendlyFirebaseError(error));
+    }
+  };
+
+  const verifyPhoneOtp = async (code: string): Promise<unknown> => {
+    try {
+      if (!phoneConfirmationRef.current) {
+        throw new Error('Please request an SMS verification code first.');
+      }
+      const cred = await phoneConfirmationRef.current.confirm(code.trim());
+      return cred.user;
     } catch (error) {
       throw new Error(friendlyFirebaseError(error));
     }
@@ -871,6 +949,10 @@ export function useFirestoreStore(): BasaStore {
     isOnline,
     triggerSync,
     signInWithGoogle,
+    signInWithEmail,
+    signInWithApple,
+    sendPhoneOtp,
+    verifyPhoneOtp,
     signOutUser,
     authLoading,
     needsOnboarding,
