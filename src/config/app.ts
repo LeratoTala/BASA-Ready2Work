@@ -19,6 +19,7 @@ export const STORAGE_KEYS = {
   applications: `${APP.storagePrefix}applications`,
   workRecords: `${APP.storagePrefix}workRecords`,
   reports: `${APP.storagePrefix}reports`,
+  privacyDeletionRequests: `${APP.storagePrefix}privacyDeletionRequests`,
   lowDataMode: `${APP.storagePrefix}lowDataMode`,
   profileDraft: `${APP.storagePrefix}profileDraft`,
   syncQueue: `${APP.storagePrefix}sync_queue`,
@@ -56,4 +57,5 @@ export const COLLECTIONS = {
   employerCandidateContactAccess: 'employerCandidateContactAccess',
   workRecords: 'workRecords',
   reports: 'reports',
+  privacyDeletionRequests: 'privacyDeletionRequests',
 } as const;

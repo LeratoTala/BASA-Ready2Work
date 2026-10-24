@@ -7,6 +7,7 @@ import {
   EmployerProfile,
   Job,
   ModerationReport,
+  PrivacyDeletionRequest,
   Role,
   SkillClaim,
   User,
@@ -64,6 +65,9 @@ export function useDemoStore() {
   const [reports, setReports] = useState<ModerationReport[]>(() =>
     loadStored(STORAGE_KEYS.reports, INITIAL_REPORTS)
   );
+  const [privacyDeletionRequests, setPrivacyDeletionRequests] = useState<PrivacyDeletionRequest[]>(() =>
+    loadStored(STORAGE_KEYS.privacyDeletionRequests, [])
+  );
   const { lowDataMode, setLowDataMode, profileDraft, saveDraft } = useLocalPrefs();
   const syncStatus = 'synced' as SyncState;
   const pendingSyncCount = 0;
@@ -90,6 +94,7 @@ export function useDemoStore() {
   useEffect(() => saveStored(STORAGE_KEYS.applications, applications), [applications]);
   useEffect(() => saveStored(STORAGE_KEYS.workRecords, workRecords), [workRecords]);
   useEffect(() => saveStored(STORAGE_KEYS.reports, reports), [reports]);
+  useEffect(() => saveStored(STORAGE_KEYS.privacyDeletionRequests, privacyDeletionRequests), [privacyDeletionRequests]);
 
   const triggerSync = async () => {};
   const authLoading = false;
@@ -214,7 +219,7 @@ export function useDemoStore() {
   };
 
   // Add Skill Claim
-  const addSkillClaim = (claim: Omit<SkillClaim, 'id' | 'createdAt'>) => {
+  const addSkillClaim = async (claim: Omit<SkillClaim, 'id' | 'createdAt'>) => {
     if (!currentUser) throw new Error('Authentication required');
     if (currentUser.role !== 'candidate') {
       throw new Error('Only candidates can register skill claims.');
@@ -496,6 +501,27 @@ export function useDemoStore() {
     );
   };
 
+  const requestPrivacyDeletion = async () => {
+    if (!currentUser || currentUser.role !== 'candidate') throw new Error('Only candidates can request account deletion.');
+    const existing = privacyDeletionRequests.find((request) => request.uid === currentUser.uid);
+    if (existing && existing.status !== 'declined') throw new Error('A deletion request is already open.');
+    const now = new Date().toISOString();
+    const request: PrivacyDeletionRequest = {
+      uid: currentUser.uid,
+      status: 'pending',
+      requestedAt: now,
+      updatedAt: now,
+    };
+    setPrivacyDeletionRequests((prev) => [request, ...prev.filter((item) => item.uid !== request.uid)]);
+  };
+
+  const reviewPrivacyDeletionRequest = async (uid: string, status: 'in_review' | 'declined') => {
+    if (!currentUser || currentUser.role !== 'admin') throw new Error('Admin authorization required.');
+    setPrivacyDeletionRequests((prev) => prev.map((request) => request.uid === uid
+      ? { ...request, status, updatedAt: new Date().toISOString(), reviewedBy: currentUser.uid }
+      : request));
+  };
+
   // Reset to initial demo seed data anytime
   const resetDemoData = () => {
     if (!env.enableDemoData) return;
@@ -509,6 +535,7 @@ export function useDemoStore() {
     setApplications(INITIAL_APPLICATIONS);
     setWorkRecords(INITIAL_WORK_RECORDS);
     setReports(INITIAL_REPORTS);
+    setPrivacyDeletionRequests([]);
   };
 
   return {
@@ -545,6 +572,11 @@ export function useDemoStore() {
     reports,
     submitReport,
     resolveReport,
+    privacyDeletionRequests: currentUser?.role === 'admin'
+      ? privacyDeletionRequests
+      : privacyDeletionRequests.filter((request) => request.uid === currentUser?.uid),
+    requestPrivacyDeletion,
+    reviewPrivacyDeletionRequest,
     lowDataMode,
     setLowDataMode,
     profileDraft,

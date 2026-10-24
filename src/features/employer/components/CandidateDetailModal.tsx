@@ -172,7 +172,7 @@ export const CandidateDetailModal: React.FC<Props> = ({
           {/* Skill Evidence Trail */}
           <div className="space-y-3">
             <h4 className="font-bold text-stone-900 uppercase tracking-wider text-[11px]">
-              Verified Skill Evidence ({candidateClaims.length})
+              Skill Evidence ({candidateClaims.length})
             </h4>
 
             {candidateClaims.map((claim) => (

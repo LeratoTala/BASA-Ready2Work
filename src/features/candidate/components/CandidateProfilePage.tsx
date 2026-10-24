@@ -18,7 +18,7 @@ import {
   Save,
   Linkedin,
 } from 'lucide-react';
-import { CandidateProfile, SkillClaim, WorkRecord } from '../../../domain/types';
+import { CandidateProfile, PrivacyDeletionRequest, SkillClaim, WorkRecord } from '../../../domain/types';
 import { VerificationBadge } from '../../../shared/components/VerificationBadge';
 import { generatePassportPdf } from '../../../services/passportExport';
 
@@ -26,6 +26,8 @@ interface Props {
   candidate: CandidateProfile;
   claims: SkillClaim[];
   workRecords: WorkRecord[];
+  deletionRequest: PrivacyDeletionRequest | null;
+  onRequestDeletion: () => Promise<void>;
   onUpdateProfile: (updates: Partial<CandidateProfile>) => void;
   onOpenExport: () => void;
   onOpenSkills: () => void;
@@ -35,6 +37,8 @@ export const CandidateProfilePage: React.FC<Props> = ({
   candidate,
   claims,
   workRecords,
+  deletionRequest,
+  onRequestDeletion,
   onUpdateProfile,
   onOpenExport,
   onOpenSkills,
@@ -49,6 +53,8 @@ export const CandidateProfilePage: React.FC<Props> = ({
     candidate.popiaVisibility === 'private' ? 'private' : 'employers_only'
   );
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [deletionRequestBusy, setDeletionRequestBusy] = useState(false);
+  const [deletionRequestError, setDeletionRequestError] = useState<string | null>(null);
 
   const candidateWorkRecords = workRecords.filter((w) => w.candidateId === candidate.uid);
   const taskAssessedCount = claims.filter((c) => c.verificationStatus === 'Task-assessed').length;
@@ -67,6 +73,19 @@ export const CandidateProfilePage: React.FC<Props> = ({
     setIsEditing(false);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 3000);
+  };
+
+  const handleDeletionRequest = async () => {
+    if (!window.confirm('This sends a deletion request to the BASA operator. Your data will not be deleted until related records are reviewed. Continue?')) return;
+    setDeletionRequestBusy(true);
+    setDeletionRequestError(null);
+    try {
+      await onRequestDeletion();
+    } catch (error) {
+      setDeletionRequestError(error instanceof Error ? error.message : 'Could not send your request. Please try again.');
+    } finally {
+      setDeletionRequestBusy(false);
+    }
   };
 
   return (
@@ -390,13 +409,36 @@ export const CandidateProfilePage: React.FC<Props> = ({
 
             <div className="pt-3 border-t border-stone-100 text-[11px] text-stone-500">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 inline mr-1" />
-              POPIA Privacy Shield: Contact details are only visible to shortlisted employers or when using public share links.
+              Contact details are visible only to you and an employer who has shortlisted your application.
+            </div>
+
+            <div className="pt-3 border-t border-stone-100 space-y-2">
+              <h4 className="font-semibold text-stone-800">Account deletion</h4>
+              <p className="text-[11px] text-stone-600">
+                A request asks the BASA operator to review and delete eligible records. This button does not delete your account immediately.
+              </p>
+              {deletionRequest && (
+                <p className="text-[11px] text-stone-700" role="status">
+                  Request status: <strong>{deletionRequest.status.replace('_', ' ')}</strong>
+                </p>
+              )}
+              {(!deletionRequest || deletionRequest.status === 'declined') && (
+                <button
+                  type="button"
+                  onClick={handleDeletionRequest}
+                  disabled={deletionRequestBusy}
+                  className="px-3 py-2 border border-stone-300 bg-white text-stone-800 font-semibold disabled:opacity-50"
+                >
+                  {deletionRequestBusy ? 'Sending request…' : deletionRequest ? 'Submit another request' : 'Request account deletion'}
+                </button>
+              )}
+              {deletionRequestError && <p className="text-[11px] text-red-700" role="alert">{deletionRequestError}</p>}
             </div>
           </div>
 
           {/* Quick PDF & Share Card */}
           <div className="bg-stone-900 text-white rounded-2xl p-6 shadow-md border border-stone-800 space-y-3 text-xs">
-            <h3 className="font-bold text-white text-sm">Downloadable Credentials</h3>
+            <h3 className="font-bold text-white text-sm">Export your Skill Passport</h3>
             <p className="text-stone-300">
               Export your skills and evidence as a PDF or editable LinkedIn summary.
             </p>
@@ -406,7 +448,7 @@ export const CandidateProfilePage: React.FC<Props> = ({
                 className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg shadow-xs cursor-pointer"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>Download Standardized PDF</span>
+                <span>Download PDF summary</span>
               </button>
               <button
                 onClick={onOpenExport}

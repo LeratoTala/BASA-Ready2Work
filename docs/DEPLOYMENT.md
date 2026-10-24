@@ -4,7 +4,7 @@
 ```bash
 npm i -g firebase-tools && firebase login
 cp .firebaserc.example .firebaserc        # set your project id
-firebase deploy --only firestore:rules,firestore:indexes
+firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
 Enable Authentication → Google. Add your production domain to Authorized domains.
 

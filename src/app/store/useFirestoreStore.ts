@@ -22,6 +22,7 @@ import type {
   EmployerProfile,
   Job,
   ModerationReport,
+  PrivacyDeletionRequest,
   Role,
   SkillClaim,
   User,
@@ -34,6 +35,7 @@ import type { SyncState } from '../../services/syncService';
 import { useLocalPrefs } from './useLocalPrefs';
 import type { BasaStore } from './types';
 import { env } from '../../config/env';
+import { deleteCandidateEvidence, uploadCandidateEvidence } from '../../services/evidenceStorage';
 
 const nowIso = () => new Date().toISOString();
 
@@ -69,6 +71,7 @@ export function useFirestoreStore(): BasaStore {
   const [applications, setApplications] = useState<Application[]>([]);
   const [workRecords, setWorkRecords] = useState<WorkRecord[]>([]);
   const [reports, setReports] = useState<ModerationReport[]>([]);
+  const [privacyDeletionRequests, setPrivacyDeletionRequests] = useState<PrivacyDeletionRequest[]>([]);
 
   const reportError = useCallback((error: unknown) => {
     console.warn('BASA data error:', error);
@@ -165,6 +168,7 @@ export function useFirestoreStore(): BasaStore {
     setApplications([]);
     setWorkRecords([]);
     setReports([]);
+    setPrivacyDeletionRequests([]);
     if (!uid || !role) return;
 
     const unsubs: Unsubscribe[] = [];
@@ -178,6 +182,11 @@ export function useFirestoreStore(): BasaStore {
       listCol<AssessmentRecord>(query(col(COLLECTIONS.assessments), where('candidateId', '==', uid)), setAssessments);
       listCol<Application>(query(col(COLLECTIONS.applications), where('candidateId', '==', uid)), setApplications);
       listCol<WorkRecord>(query(col(COLLECTIONS.workRecords), where('candidateId', '==', uid)), setWorkRecords);
+      unsubs.push(onSnapshot(
+        doc(db, COLLECTIONS.privacyDeletionRequests, uid),
+        (snap) => setPrivacyDeletionRequests(snap.exists() ? [snap.data() as PrivacyDeletionRequest] : []),
+        reportError
+      ));
       unsubs.push(
         onSnapshot(
           doc(db, COLLECTIONS.candidateProfiles, uid),
@@ -239,6 +248,7 @@ export function useFirestoreStore(): BasaStore {
       listCol<Application>(col(COLLECTIONS.applications), setApplications);
       listCol<WorkRecord>(col(COLLECTIONS.workRecords), setWorkRecords);
       listCol<ModerationReport>(col(COLLECTIONS.reports), setReports);
+      listCol<PrivacyDeletionRequest>(col(COLLECTIONS.privacyDeletionRequests), setPrivacyDeletionRequests);
       listCol<CandidateProfile>(col(COLLECTIONS.candidateProfiles), (items) => setCandidateProfiles(byId(items)));
       listCol<EmployerProfile>(col(COLLECTIONS.employerProfiles), (items) => setEmployerProfiles(byId(items)));
     }
@@ -389,17 +399,35 @@ export function useFirestoreStore(): BasaStore {
   };
 
   // ---- skills & assessments ----
-  const addSkillClaim = (claim: Omit<SkillClaim, 'id' | 'createdAt'>): SkillClaim => {
+  const addSkillClaim = async (
+    claim: Omit<SkillClaim, 'id' | 'createdAt'>,
+    evidenceFile?: File
+  ): Promise<SkillClaim> => {
     const user = requireUser();
     if (user.role !== 'candidate') throw new Error('Only candidates can register skill claims.');
     const ref = doc(collection(db, COLLECTIONS.skillClaims));
+    const evidencePath = evidenceFile
+      ? await uploadCandidateEvidence(user.uid, ref.id, evidenceFile)
+      : claim.evidenceUrlOrText;
     // New claims are ALWAYS self-reported. Peer/mentor/assessed labels are granted by others, never typed in by the candidate.
-    const newClaim: SkillClaim = { ...claim, candidateId: user.uid, verificationStatus: 'Self-reported', id: ref.id, createdAt: nowIso() };
+    const newClaim: SkillClaim = {
+      ...claim,
+      evidenceUrlOrText: evidencePath,
+      candidateId: user.uid,
+      verificationStatus: 'Self-reported',
+      id: ref.id,
+      createdAt: nowIso(),
+    };
     delete newClaim.assessmentId;
     const batch = writeBatch(db);
     batch.set(ref, clean(newClaim));
     batch.update(doc(db, COLLECTIONS.candidateProfiles, user.uid), { skillIds: arrayUnion(claim.skillId), updatedAt: nowIso() });
-    fire(batch.commit());
+    try {
+      await batch.commit();
+    } catch (error) {
+      if (evidenceFile) await deleteCandidateEvidence(evidencePath).catch(() => undefined);
+      throw error;
+    }
     return newClaim;
   };
 
@@ -571,6 +599,30 @@ export function useFirestoreStore(): BasaStore {
     fire(batch.commit());
   };
 
+  const requestPrivacyDeletion = async () => {
+    const user = requireUser();
+    if (user.role !== 'candidate') throw new Error('Only candidates can request account deletion.');
+    const existing = privacyDeletionRequests.find((request) => request.uid === user.uid);
+    if (existing && existing.status !== 'declined') throw new Error('A deletion request is already open.');
+    const now = nowIso();
+    const ref = doc(db, COLLECTIONS.privacyDeletionRequests, user.uid);
+    if (existing) {
+      await updateDoc(ref, { status: 'pending', requestedAt: now, updatedAt: now });
+    } else {
+      await setDoc(ref, { uid: user.uid, status: 'pending', requestedAt: now, updatedAt: now });
+    }
+  };
+
+  const reviewPrivacyDeletionRequest = async (requestUid: string, status: 'in_review' | 'declined') => {
+    const user = requireUser();
+    if (user.role !== 'admin') throw new Error('Admin authorization required.');
+    await updateDoc(doc(db, COLLECTIONS.privacyDeletionRequests, requestUid), {
+      status,
+      updatedAt: nowIso(),
+      reviewedBy: user.uid,
+    });
+  };
+
   const switchUser = (_uid: string) => undefined; // demo-only
   const resetDemoData = () => undefined; // demo-only
   const triggerSync = async () => undefined; // handled by the Firestore SDK
@@ -605,6 +657,9 @@ export function useFirestoreStore(): BasaStore {
     reports,
     submitReport,
     resolveReport,
+    privacyDeletionRequests,
+    requestPrivacyDeletion,
+    reviewPrivacyDeletionRequest,
     lowDataMode: prefs.lowDataMode,
     setLowDataMode: prefs.setLowDataMode,
     profileDraft: prefs.profileDraft,

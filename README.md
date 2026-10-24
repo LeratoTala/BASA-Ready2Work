@@ -51,7 +51,7 @@ The repo is not yet marked as production-ready; the remaining work is primarily 
 ### Firebase setup
 1. Create a Firebase project; add a **Web app** and copy its config into the `VITE_FIREBASE_*` variables.
 2. Enable **Authentication → Google**.
-3. Create a Firestore database and deploy the rules: `firebase deploy --only firestore`.
+3. Create Firestore and a Storage bucket, then deploy Firestore and Storage rules: `firebase deploy --only firestore:rules,firestore:indexes,storage`.
 4. Grant admin/assessor access with `scripts/set-admin-claim.mjs` (see `docs/DEPLOYMENT.md`).
 
 ## Scripts

@@ -38,12 +38,12 @@ const TOUR_STEPS: TourStep[] = [
     timeWindow: '0:45 – 1:45',
     focus: 'Evidence & Honest Verification Labels',
     description:
-      'BASA enforces honest verification: Self-reported, Peer-endorsed, Task-assessed, and Mentor-reviewed. Candidates attach real proof (bench tests, contractor references). The Skill Passport can be shared securely via QR or public link with strict POPIA privacy toggles.',
+      'This walkthrough uses fictional sample data. BASA distinguishes Self-reported, Peer-endorsed, Task-assessed, and Mentor-reviewed records; employer access follows application and shortlist permissions.',
     targetRole: 'candidate',
     targetUid: 'candidate-thabo',
     keyPoints: [
-      'Inspect Thabo’s "Barista & Espresso Calibration" verified as Task-assessed (92/100).',
-      'Solar PV Mounting is backed by an identified licensed electrician reference.',
+      'Inspect the sample Barista claim and its recorded task-assessment result.',
+      'Review a separate self-reported skill claim and its evidence description.',
       'Use the AI CV Drafter (strictly constrained to candidate-provided facts).',
     ],
   },
@@ -52,7 +52,7 @@ const TOUR_STEPS: TourStep[] = [
     timeWindow: '1:45 – 2:45',
     focus: 'Matching Engine: M = 0.50S + 0.25E + 0.15A + 0.10L',
     description:
-      'Instead of an opaque black box, BASA computes a transparent recommendation score using required skill alignment (50%), verified evidence strength (25%), availability fit (15%), and location fit (10%). Candidates see exactly why they matched and how to level up.',
+      'BASA computes a transparent recommendation score using required skill alignment (50%), evidence strength (25%), availability fit (15%), and location fit (10%). Candidates see why a role matched and possible next steps.',
     targetRole: 'candidate',
     targetUid: 'candidate-thabo',
     keyPoints: [
@@ -80,7 +80,7 @@ const TOUR_STEPS: TourStep[] = [
     timeWindow: '4:00 – 5:00',
     focus: 'Quality Standards, POPIA & Low-Data Mode',
     description:
-      'Switch to the Assessor / Admin view. Assessors evaluate practical demos using structured 100-point rubrics to certify candidate claims. The built-in Low-Data Mode cuts payload size down to under 80 KB for data-constrained township networks.',
+      'Switch to the Assessor / Admin view. Assessors record practical task assessments against a shared rubric. Low-data performance still needs measurement on real devices and constrained networks.',
     targetRole: 'admin',
     targetUid: 'admin-nomsa',
     keyPoints: [

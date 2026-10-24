@@ -95,7 +95,7 @@
         "evidenceType": { "type": "string" },
         "evidenceTitle": { "type": "string" },
         "evidenceDescription": { "type": "string" },
-        "evidenceUrlOrText": { "type": "string" },
+        "evidenceUrlOrText": { "type": "string", "description": "Evidence summary text or private Firebase Storage object path" },
         "verificationStatus": { "type": "string", "enum": ["Self-reported", "Peer-endorsed", "Task-assessed", "Mentor-reviewed"] },
         "peerEndorserName": { "type": "string" },
         "peerEndorserContact": { "type": "string" },
@@ -153,7 +153,7 @@
     },
     "WorkRecord": {
       "title": "WorkRecord",
-      "description": "Verified work completion and confirmed payout record",
+      "description": "Employer-reported work completion and separate payout status",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -172,7 +172,7 @@
     },
     "AssessmentRecord": {
       "title": "AssessmentRecord",
-      "description": "Rubric grading records by certified assessors",
+      "description": "Rubric assessment records created by authorized BASA assessors",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -203,6 +203,19 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "reporterId", "targetId", "reason", "status"]
+    },
+    "PrivacyDeletionRequest": {
+      "title": "PrivacyDeletionRequest",
+      "description": "Minimal request for an operator to review eligible account-data deletion",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "in_review", "declined"] },
+        "requestedAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "reviewedBy": { "type": "string" }
+      },
+      "required": ["uid", "status", "requestedAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -253,6 +266,10 @@
     "/reports/{reportId}": {
       "schema": { "$ref": "#/entities/ModerationReport" },
       "description": "Fraud and safety moderation reports"
+    },
+    "/privacyDeletionRequests/{uid}": {
+      "schema": { "$ref": "#/entities/PrivacyDeletionRequest" },
+      "description": "Candidate-owned deletion request and admin review state; does not represent completed deletion"
     }
   }
 }

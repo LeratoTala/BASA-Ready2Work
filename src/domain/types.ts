@@ -200,3 +200,11 @@ export interface ModerationReport {
   status: 'pending' | 'resolved' | 'dismissed';
   createdAt: string;
 }
+
+export interface PrivacyDeletionRequest {
+  uid: string;
+  status: 'pending' | 'in_review' | 'declined';
+  requestedAt: string;
+  updatedAt: string;
+  reviewedBy?: string;
+}

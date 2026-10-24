@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
-import { Plus, Award, CheckCircle2, FileText, Sparkles, HelpCircle, ShieldCheck, Upload, AlertCircle } from 'lucide-react';
+import { Plus, Award, CheckCircle2, FileText, Sparkles, HelpCircle, ShieldCheck, AlertCircle, Upload } from 'lucide-react';
 import { CandidateProfile, SkillClaim, VerificationStatus } from '../../../domain/types';
 import { SKILL_DEFINITIONS } from '../../../domain/skillCatalogue';
 import { VerificationBadge } from '../../../shared/components/VerificationBadge';
+import { env } from '../../../config/env';
 
 interface Props {
   candidate: CandidateProfile;
   claims: SkillClaim[];
-  onAddClaim: (claim: Omit<SkillClaim, 'id' | 'createdAt'>) => void;
+  onAddClaim: (claim: Omit<SkillClaim, 'id' | 'createdAt'>, evidenceFile?: File) => Promise<SkillClaim>;
   onOpenPassport: () => void;
   onOpenAIDrafter: () => void;
 }
@@ -26,10 +27,15 @@ export const SkillsAndEvidence: React.FC<Props> = ({
   const [evidenceType, setEvidenceType] = useState<'photo_video' | 'client_review' | 'reference_note' | 'work_sample' | 'practical_demo'>('reference_note');
   const [evidenceTitle, setEvidenceTitle] = useState('');
   const [evidenceDescription, setEvidenceDescription] = useState('');
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
+    setSaveError(null);
 
     let skillName = '';
     if (selectedSkillId === 'custom') {
@@ -42,25 +48,32 @@ export const SkillsAndEvidence: React.FC<Props> = ({
 
     const status: VerificationStatus = 'Self-reported';
 
-    onAddClaim({
-      candidateId: candidate.uid,
-      skillId: selectedSkillId === 'custom' ? `custom-${Date.now()}` : selectedSkillId,
-      skillName,
-      selfReportedLevel,
-      evidenceType,
-      evidenceTitle: evidenceTitle || `${skillName} Practical Experience`,
-      evidenceDescription: evidenceDescription || 'Completed practical hands-on tasks.',
-      evidenceUrlOrText: 'Evidence logged locally in BASA.',
-      verificationStatus: status,
-    });
+    try {
+      const savedClaim = await onAddClaim({
+        candidateId: candidate.uid,
+        skillId: selectedSkillId === 'custom' ? `custom-${Date.now()}` : selectedSkillId,
+        skillName,
+        selfReportedLevel,
+        evidenceType,
+        evidenceTitle: evidenceTitle.trim() || `${skillName} Practical Experience`,
+        evidenceDescription: evidenceDescription.trim(),
+        evidenceUrlOrText: evidenceDescription.trim() || evidenceTitle.trim(),
+        verificationStatus: status,
+      }, evidenceFile ?? undefined);
 
-    setNotification(`Skill claim for "${skillName}" recorded as ${status}.`);
-    setShowAddForm(false);
-    setEvidenceTitle('');
-    setEvidenceDescription('');
-    setCustomSkillName('');
-
-    setTimeout(() => setNotification(null), 4000);
+      const hasPrivateImage = savedClaim.evidenceUrlOrText.startsWith('candidate-evidence/');
+      setNotification(`Skill claim for "${skillName}" recorded as ${status}${hasPrivateImage ? ' with a private image' : ''}.`);
+      setShowAddForm(false);
+      setEvidenceTitle('');
+      setEvidenceDescription('');
+      setEvidenceFile(null);
+      setCustomSkillName('');
+      setTimeout(() => setNotification(null), 4000);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Could not save this claim. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -70,7 +83,7 @@ export const SkillsAndEvidence: React.FC<Props> = ({
         <div>
           <h2 className="text-xl font-bold text-stone-900">Skills & Evidence Portfolio</h2>
           <p className="text-xs text-stone-500 mt-1">
-            Record informal experience and attach honest evidence. Independent assessors can verify claims.
+            Record informal experience and describe the evidence you have. Optional images remain private to you and admins.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -164,17 +177,17 @@ export const SkillsAndEvidence: React.FC<Props> = ({
               </div>
 
               <div>
-                <label className="block font-semibold text-stone-700 mb-1">Evidence Type (Proof)</label>
+                <label className="block font-semibold text-stone-700 mb-1">Evidence Type</label>
                 <select
                   value={evidenceType}
                   onChange={(e) => setEvidenceType(e.target.value as any)}
                   className="w-full border border-stone-300 rounded p-2 text-xs bg-white text-stone-800"
                 >
-                  <option value="reference_note">Reference Note / Contractor Endorsement</option>
-                  <option value="client_review">Customer or Community Feedback</option>
-                  <option value="practical_demo">In-Person Practical Bench Test</option>
-                  <option value="work_sample">Work Sample / Portfolio Link</option>
-                  <option value="photo_video">Photo or Video Proof of Task</option>
+                  <option value="reference_note">Reference note details</option>
+                  <option value="client_review">Customer or community feedback summary</option>
+                  <option value="practical_demo">Practical demonstration details</option>
+                  <option value="work_sample">Work sample description</option>
+                  <option value="photo_video">Photo or video evidence description</option>
                 </select>
               </div>
             </div>
@@ -195,6 +208,7 @@ export const SkillsAndEvidence: React.FC<Props> = ({
               <label className="block font-semibold text-stone-700 mb-1">
                 Detailed Description of Duties & Tools Used
               </label>
+              <p className="text-[11px] text-stone-500 mb-1">Do not include private contact details. This form stores a text description, not a file.</p>
               <textarea
                 rows={3}
                 required
@@ -204,6 +218,21 @@ export const SkillsAndEvidence: React.FC<Props> = ({
                 className="w-full border border-stone-300 rounded p-2 text-xs"
               />
             </div>
+
+            {!env.enableDemoData && (
+              <label className="block">
+                <span className="block font-semibold text-stone-700 mb-1">Optional evidence image</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(event) => setEvidenceFile(event.target.files?.[0] ?? null)}
+                  className="block w-full text-xs text-stone-700"
+                />
+                <span className="block text-[11px] text-stone-500 mt-1">JPEG, PNG or WebP, up to 5 MB. Do not include private contact details.</span>
+              </label>
+            )}
+
+            {saveError && <p className="text-red-700 text-xs" role="alert">{saveError}</p>}
 
             <div className="pt-2 flex justify-end gap-2">
               <button
@@ -215,9 +244,10 @@ export const SkillsAndEvidence: React.FC<Props> = ({
               </button>
               <button
                 type="submit"
+                disabled={isSaving}
                 className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded shadow-xs"
               >
-                Save Skill Claim
+                {isSaving ? 'Saving…' : 'Save Skill Claim'}
               </button>
             </div>
           </form>

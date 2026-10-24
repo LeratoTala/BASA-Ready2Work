@@ -17,6 +17,7 @@ import {
   CandidateProfile,
   Job,
   ModerationReport,
+  PrivacyDeletionRequest,
   RubricCriterion,
   SkillClaim,
   User,
@@ -30,8 +31,10 @@ interface Props {
   assessments: AssessmentRecord[];
   jobs: Job[];
   reports: ModerationReport[];
+  privacyDeletionRequests: PrivacyDeletionRequest[];
   onSubmitAssessment: (assessment: Omit<AssessmentRecord, 'id' | 'createdAt'>, claimId: string) => void;
   onResolveReport: (reportId: string, action: 'dismiss' | 'suspend_job') => void;
+  onReviewPrivacyDeletionRequest: (uid: string, status: 'in_review' | 'declined') => Promise<void>;
   activeSubTab: string;
 }
 
@@ -43,8 +46,10 @@ export const AdminDashboard: React.FC<Props> = ({
   assessments,
   jobs,
   reports,
+  privacyDeletionRequests,
   onSubmitAssessment,
   onResolveReport,
+  onReviewPrivacyDeletionRequest,
   activeSubTab = 'overview',
 }) => {
   const [selectedClaimForGrading, setSelectedClaimForGrading] = useState<SkillClaim | null>(null);
@@ -486,6 +491,41 @@ export const AdminDashboard: React.FC<Props> = ({
                       className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded font-semibold text-xs"
                     >
                       Suspend / Flag Listing
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="bg-white rounded-xl border border-stone-200 p-6 space-y-4">
+        <div className="border-b border-stone-100 pb-3">
+          <h2 className="text-base font-bold text-stone-900">Account deletion requests ({privacyDeletionRequests.length})</h2>
+          <p className="text-xs text-stone-500 mt-1">
+            Review retention requirements and complete deletion using the operator procedure. The request status does not mean data has been deleted.
+          </p>
+        </div>
+        {privacyDeletionRequests.length === 0 ? (
+          <p className="text-xs text-stone-500 italic">No requests.</p>
+        ) : (
+          <div className="space-y-3">
+            {privacyDeletionRequests.map((request) => (
+              <div key={request.uid} className="p-4 border border-stone-200 bg-stone-50 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div>
+                  <p className="font-semibold text-stone-900">Account {request.uid}</p>
+                  <p className="text-stone-600">Requested {new Date(request.requestedAt).toLocaleDateString()} · Status: {request.status.replace('_', ' ')}</p>
+                </div>
+                {request.status !== 'declined' && (
+                  <div className="flex gap-2">
+                    {request.status === 'pending' && (
+                      <button onClick={() => void onReviewPrivacyDeletionRequest(request.uid, 'in_review')} className="px-3 py-2 border border-stone-300 bg-white font-semibold text-stone-800">
+                        Start review
+                      </button>
+                    )}
+                    <button onClick={() => void onReviewPrivacyDeletionRequest(request.uid, 'declined')} className="px-3 py-2 border border-stone-300 bg-white font-semibold text-stone-800">
+                      Decline request
                     </button>
                   </div>
                 )}

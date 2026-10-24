@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
     "test": "tsx --test \"src/**/*.test.ts\" \"server/**/*.test.ts\"",
-    "test:rules": "firebase emulators:exec --only firestore \"tsx --test tests/rules/*.test.ts\"",
+    "test:rules": "firebase emulators:exec --only firestore,storage \"tsx --test tests/rules/*.test.ts\"",
     "clean": "rm -rf dist"
   },
   "overrides": {

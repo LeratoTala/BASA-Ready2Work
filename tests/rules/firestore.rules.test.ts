@@ -139,6 +139,9 @@ describe('firestore rules', () => {
     const base = { employerId: 'emp1', status: 'open', reportCount: 0, compensationCurrency: 'ZAR', compensationUnit: 'daily', compensationAmount: 100 };
     await assertFails(setDoc(doc(db, 'jobs/j-fake'), { ...base, employerVerified: true }));
     await assertSucceeds(setDoc(doc(db, 'jobs/j-ok'), { ...base, employerVerified: false }));
+    await assertFails(updateDoc(doc(db, 'jobs/j-ok'), { employerVerified: true }));
+    await assertFails(updateDoc(doc(db, 'jobs/j-ok'), { compensationAmount: -50 }));
+    await assertSucceeds(updateDoc(doc(db, 'jobs/j-ok'), { status: 'closed' }));
   });
 
   it('clients cannot assign roles during registration', async () => {
@@ -231,6 +234,35 @@ describe('firestore rules', () => {
   it('T-11: non-admin cannot read reports', async () => {
     const db = env.authenticatedContext('cand1').firestore();
     await assertFails(getDoc(doc(db, 'reports/r1')));
+  });
+
+  it('candidate can create and read only their deletion request', async () => {
+    const candidate = env.authenticatedContext('cand1').firestore();
+    await assertSucceeds(setDoc(doc(candidate, 'privacyDeletionRequests/cand1'), {
+      uid: 'cand1', status: 'pending', requestedAt: '2026-10-24T00:00:00.000Z',
+      updatedAt: '2026-10-24T00:00:00.000Z',
+    }));
+    await assertSucceeds(getDoc(doc(candidate, 'privacyDeletionRequests/cand1')));
+    const otherCandidate = env.authenticatedContext('cand2').firestore();
+    await assertFails(getDoc(doc(otherCandidate, 'privacyDeletionRequests/cand1')));
+  });
+
+  it('only admin can review a deletion request and candidates cannot complete or alter it', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'privacyDeletionRequests/cand1'), {
+        uid: 'cand1', status: 'pending', requestedAt: '2026-10-24T00:00:00.000Z',
+        updatedAt: '2026-10-24T00:00:00.000Z',
+      });
+    });
+    const candidate = env.authenticatedContext('cand1').firestore();
+    await assertFails(updateDoc(doc(candidate, 'privacyDeletionRequests/cand1'), { status: 'declined' }));
+    const admin = env.authenticatedContext('adm', { admin: true }).firestore();
+    await assertSucceeds(updateDoc(doc(admin, 'privacyDeletionRequests/cand1'), {
+      status: 'in_review', updatedAt: '2026-10-24T00:01:00.000Z', reviewedBy: 'adm',
+    }));
+    await assertFails(updateDoc(doc(admin, 'privacyDeletionRequests/cand1'), {
+      status: 'completed', updatedAt: '2026-10-24T00:02:00.000Z', reviewedBy: 'adm',
+    }));
   });
 
   it('admin claim can write assessments; candidate cannot', async () => {

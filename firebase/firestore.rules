@@ -13,7 +13,7 @@ service cloud.firestore {
     // ---------- helpers ----------
     function signedIn() { return request.auth != null; }
     function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
-    function isAdmin() { return signedIn() && request.auth.token.admin == true; }
+    function isAdmin() { return signedIn() && ('admin' in request.auth.token) && request.auth.token.admin == true; }
 
     function userDoc() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
@@ -160,7 +160,7 @@ service cloud.firestore {
         && incoming().compensationAmount is number
         && incoming().compensationAmount >= 0;
       allow update: if (isOwner(resource.data.employerId)
-        && !changedKeys().hasAny(['employerId', 'reportCount'])
+        && changedKeys().hasOnly(['status'])
         && incoming().status in ['open', 'closed']
         && resource.data.status != 'flagged') || isAdmin();
       allow delete: if isOwner(resource.data.employerId) || isAdmin();
@@ -253,6 +253,25 @@ service cloud.firestore {
       allow read: if isAdmin() || (signedIn() && resource.data.reporterId == request.auth.uid);
       allow create: if signedIn() && incoming().reporterId == request.auth.uid && incoming().status == 'pending';
       allow update, delete: if isAdmin();
+    }
+
+    // Deletion requests are review tickets; completion requires the operator's documented retention process.
+    match /privacyDeletionRequests/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if hasRole('candidate') && isOwner(uid)
+        && incoming().keys().hasOnly(['uid', 'status', 'requestedAt', 'updatedAt'])
+        && incoming().keys().hasAll(['uid', 'status', 'requestedAt', 'updatedAt'])
+        && incoming().uid == uid
+        && incoming().status == 'pending'
+        && incoming().requestedAt is string
+        && incoming().updatedAt is string;
+      allow update: if isAdmin()
+        && changedKeys().hasOnly(['status', 'updatedAt', 'reviewedBy'])
+        && incoming().reviewedBy == request.auth.uid
+        && incoming().updatedAt is string
+        && ((resource.data.status == 'pending' && incoming().status in ['in_review', 'declined'])
+          || (resource.data.status == 'in_review' && incoming().status == 'declined'));
+      allow delete: if false;
     }
   }
 }

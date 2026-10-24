@@ -147,7 +147,7 @@ export const SignInPage: React.FC<Props> = ({
                 } else if (u.role === 'admin') {
                   badgeStyle = 'bg-emerald-50 text-emerald-900 border-emerald-200';
                   icon = <Shield className="w-4 h-4 text-emerald-600" />;
-                  roleDesc = 'Certified Assessor · Soweto Skills Hub';
+                  roleDesc = 'Assessor and moderation workspace';
                 }
 
                 return (

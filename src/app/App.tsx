@@ -220,6 +220,8 @@ export default function App() {
                 }
                 claims={store.currentCandidateClaims}
                 workRecords={store.workRecords}
+                deletionRequest={store.privacyDeletionRequests.find((request) => request.uid === currentUser.uid) ?? null}
+                onRequestDeletion={store.requestPrivacyDeletion}
                 onUpdateProfile={(updates) =>
                   store.updateCandidateProfile(currentUser.uid, updates)
                 }
@@ -416,8 +418,10 @@ export default function App() {
                 assessments={store.assessments}
                 jobs={store.jobs}
                 reports={store.reports}
+                privacyDeletionRequests={store.privacyDeletionRequests}
                 onSubmitAssessment={store.submitAssessment}
                 onResolveReport={store.resolveReport}
+                onReviewPrivacyDeletionRequest={store.reviewPrivacyDeletionRequest}
                 activeSubTab={activeTab}
               />
             )}

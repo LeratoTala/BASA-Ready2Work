@@ -272,12 +272,12 @@ export const CandidateDashboard: React.FC<Props> = ({
         >
           <div className="space-y-1">
             <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider block">
-              Shareable Credential
+              Your Skill Passport
             </span>
             <h4 className="text-sm font-bold text-stone-900 group-hover:text-amber-800">
               View Skill Passport
             </h4>
-            <p className="text-xs text-stone-500">QR code & honest verification badges.</p>
+            <p className="text-xs text-stone-500">Recorded skills and evidence labels.</p>
           </div>
           <ShieldCheck className="w-5 h-5 text-stone-400 group-hover:text-amber-600 shrink-0" />
         </button>
