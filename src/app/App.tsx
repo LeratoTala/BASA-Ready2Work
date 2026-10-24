@@ -432,7 +432,9 @@ export default function App() {
                 onReviewPrivacyDeletionRequest={store.reviewPrivacyDeletionRequest}
                 onApproveEndorsement={store.approvePeerEndorsement}
                 onSubmitMentorReview={store.submitMentorReview}
+                onToggleJobStatus={store.toggleJobStatus}
                 activeSubTab={activeTab}
+                onSelectSubTab={setActiveTab}
               />
             )}
           </>

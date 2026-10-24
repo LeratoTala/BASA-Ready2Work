@@ -84,9 +84,10 @@ export const Header: React.FC<Props> = ({
 
   const adminTabs = [
     { id: 'overview', label: 'Pilot Overview' },
-    { id: 'profile', label: 'Assessor Profile' },
+    { id: 'jobs', label: 'Manage Jobs' },
     { id: 'assessments', label: 'Assessor Workspace' },
     { id: 'reports', label: 'Moderation Reports' },
+    { id: 'profile', label: 'Assessor Profile' },
   ];
 
   let currentTabs = candidateTabs;
