@@ -31,6 +31,8 @@ import type {
   InAppNotification,
   NotificationPreferences,
   NotificationType,
+  PeerEndorsement,
+  MentorReview,
 } from '../../domain/types';
 import { applicationId, isValidTransition } from '../../domain/applicationStatus';
 import {
@@ -84,6 +86,8 @@ export function useFirestoreStore(): BasaStore {
   const [privacyDeletionRequests, setPrivacyDeletionRequests] = useState<PrivacyDeletionRequest[]>([]);
   const [notifications, setNotifications] = useState<InAppNotification[]>([]);
   const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
+  const [endorsements, setEndorsements] = useState<PeerEndorsement[]>([]);
+  const [mentorReviews, setMentorReviews] = useState<MentorReview[]>([]);
 
   const reportError = useCallback((error: unknown) => {
     console.warn('BASA data error:', error);
@@ -220,6 +224,8 @@ export function useFirestoreStore(): BasaStore {
       listCol<Job>(query(col(COLLECTIONS.jobs), where('status', '==', 'open')), setJobs);
       listCol<SkillClaim>(query(col(COLLECTIONS.skillClaims), where('candidateId', '==', uid)), setSkillClaims);
       listCol<AssessmentRecord>(query(col(COLLECTIONS.assessments), where('candidateId', '==', uid)), setAssessments);
+      listCol<PeerEndorsement>(query(col(COLLECTIONS.endorsements), where('candidateId', '==', uid)), setEndorsements);
+      listCol<MentorReview>(query(col(COLLECTIONS.mentorReviews), where('candidateId', '==', uid)), setMentorReviews);
       listCol<Application>(query(col(COLLECTIONS.applications), where('candidateId', '==', uid)), setApplications);
       listCol<WorkRecord>(query(col(COLLECTIONS.workRecords), where('candidateId', '==', uid)), setWorkRecords);
       unsubs.push(onSnapshot(
@@ -285,6 +291,8 @@ export function useFirestoreStore(): BasaStore {
       listCol<Job>(col(COLLECTIONS.jobs), setJobs);
       listCol<SkillClaim>(col(COLLECTIONS.skillClaims), setSkillClaims);
       listCol<AssessmentRecord>(col(COLLECTIONS.assessments), setAssessments);
+      listCol<PeerEndorsement>(col(COLLECTIONS.endorsements), setEndorsements);
+      listCol<MentorReview>(col(COLLECTIONS.mentorReviews), setMentorReviews);
       listCol<Application>(col(COLLECTIONS.applications), setApplications);
       listCol<WorkRecord>(col(COLLECTIONS.workRecords), setWorkRecords);
       listCol<ModerationReport>(col(COLLECTIONS.reports), setReports);
@@ -483,6 +491,103 @@ export function useFirestoreStore(): BasaStore {
     }
     fire(batch.commit());
     return record;
+  };
+
+  const requestPeerEndorsement = async (
+    claimId: string,
+    params: {
+      endorserName: string;
+      endorserRole: string;
+      relationship: string;
+      comments: string;
+    }
+  ): Promise<PeerEndorsement> => {
+    const user = requireUser();
+    if (user.role !== 'candidate') throw new Error('Only candidates can request peer endorsements.');
+    const claim = skillClaims.find((c) => c.id === claimId);
+    if (!claim) throw new Error('Skill claim not found.');
+    if (claim.candidateId !== user.uid) throw new Error('You can only request endorsements for your own claims.');
+
+    const ref = doc(collection(db, COLLECTIONS.endorsements));
+    const newEndorsement: PeerEndorsement = {
+      id: ref.id,
+      claimId,
+      candidateId: user.uid,
+      candidateName: user.displayName,
+      skillName: claim.skillName,
+      endorserName: params.endorserName.trim(),
+      endorserRole: params.endorserRole.trim(),
+      relationship: params.relationship.trim(),
+      comments: params.comments.trim(),
+      status: 'pending',
+      createdAt: nowIso(),
+    };
+
+    fire(setDoc(ref, clean(newEndorsement)));
+    return newEndorsement;
+  };
+
+  const approvePeerEndorsement = async (endorsementId: string): Promise<void> => {
+    const user = requireUser();
+    if (user.role !== 'admin') throw new Error('Only administrators can approve peer endorsements.');
+    const endorsement = endorsements.find((e) => e.id === endorsementId);
+    if (!endorsement) throw new Error('Endorsement not found.');
+
+    const batch = writeBatch(db);
+    batch.update(doc(db, COLLECTIONS.endorsements, endorsementId), {
+      status: 'approved',
+      confirmedAt: nowIso(),
+    });
+    batch.update(doc(db, COLLECTIONS.skillClaims, endorsement.claimId), {
+      verificationStatus: 'Peer-endorsed',
+      peerEndorserName: endorsement.endorserName,
+      peerEndorsementId: endorsement.id,
+    });
+    fire(batch.commit());
+  };
+
+  const submitMentorReview = async (
+    claimId: string,
+    params: {
+      mentorName: string;
+      organization?: string;
+      feedback: string;
+      decision: 'approved' | 'needs_more_evidence' | 'rejected';
+    }
+  ): Promise<MentorReview> => {
+    const user = requireUser();
+    if (user.role !== 'admin') throw new Error('Only authorized mentors or administrators can record mentor reviews.');
+    const claim = skillClaims.find((c) => c.id === claimId);
+    if (!claim) throw new Error('Skill claim not found.');
+
+    const ref = doc(collection(db, COLLECTIONS.mentorReviews));
+    const now = nowIso();
+    const newReview: MentorReview = {
+      id: ref.id,
+      claimId,
+      candidateId: claim.candidateId,
+      candidateName: 'Candidate',
+      skillName: claim.skillName,
+      mentorId: user.uid,
+      mentorName: params.mentorName.trim() || user.displayName,
+      organization: params.organization?.trim() || 'Youth Employment Partner',
+      feedback: params.feedback.trim(),
+      decision: params.decision,
+      createdAt: now,
+      reviewedAt: now,
+    };
+
+    const batch = writeBatch(db);
+    batch.set(ref, clean(newReview));
+    if (params.decision === 'approved') {
+      batch.update(doc(db, COLLECTIONS.skillClaims, claimId), {
+        verificationStatus: 'Mentor-reviewed',
+        mentorName: newReview.mentorName,
+        mentorReviewId: newReview.id,
+      });
+    }
+    fire(batch.commit());
+    return newReview;
   };
 
   // ---- jobs ----
@@ -728,6 +833,11 @@ export function useFirestoreStore(): BasaStore {
     addSkillClaim,
     assessments,
     submitAssessment,
+    endorsements,
+    mentorReviews,
+    requestPeerEndorsement,
+    approvePeerEndorsement,
+    submitMentorReview,
     jobs,
     postJob,
     toggleJobStatus,

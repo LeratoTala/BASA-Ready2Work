@@ -18,3 +18,5 @@ export const INITIAL_APPLICATIONS = useDemo ? demo.INITIAL_APPLICATIONS : [];
 export const INITIAL_WORK_RECORDS = useDemo ? demo.INITIAL_WORK_RECORDS : [];
 export const INITIAL_REPORTS = useDemo ? demo.INITIAL_REPORTS : [];
 export const INITIAL_NOTIFICATIONS = useDemo ? demo.INITIAL_NOTIFICATIONS : [];
+export const INITIAL_ENDORSEMENTS = useDemo ? demo.INITIAL_ENDORSEMENTS : [];
+export const INITIAL_MENTOR_REVIEWS = useDemo ? demo.INITIAL_MENTOR_REVIEWS : [];

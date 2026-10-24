@@ -380,4 +380,64 @@ describe('firestore rules', () => {
       lng: 28.1263,
     }));
   });
+
+  it('R3 / FR-19 peer endorsements and mentor reviews rules enforcement (T-19)', async () => {
+    const cand1 = env.authenticatedContext('cand1').firestore();
+    const otherUser = env.authenticatedContext('other_user').firestore();
+    const admin = env.authenticatedContext('admin_user', { admin: true }).firestore();
+
+    // 1. Candidate can create pending endorsement request for their own claim
+    await assertSucceeds(setDoc(doc(cand1, 'endorsements/endorse_1'), {
+      id: 'endorse_1',
+      claimId: 'claim_1',
+      candidateId: 'cand1',
+      candidateName: 'Fictional Candidate',
+      skillName: 'Solar PV Mounting',
+      endorserName: 'Sipho Zulu',
+      endorserRole: 'Lead Electrician',
+      relationship: 'Former Contractor',
+      comments: 'Worked with me on 10 residential installs in Soweto.',
+      status: 'pending',
+      createdAt: '2026-10-24T12:00:00.000Z',
+    }));
+
+    // 2. Candidate cannot forge an approved status directly
+    await assertFails(setDoc(doc(cand1, 'endorsements/endorse_forged'), {
+      id: 'endorse_forged',
+      claimId: 'claim_1',
+      candidateId: 'cand1',
+      status: 'approved',
+    }));
+
+    // 3. Other user cannot create endorsement in cand1 name
+    await assertFails(setDoc(doc(otherUser, 'endorsements/endorse_2'), {
+      id: 'endorse_2',
+      claimId: 'claim_1',
+      candidateId: 'cand1',
+      status: 'pending',
+    }));
+
+    // 4. Non-admin cannot write mentor reviews
+    await assertFails(setDoc(doc(cand1, 'mentorReviews/mentor_1'), {
+      id: 'mentor_1',
+      claimId: 'claim_1',
+      candidateId: 'cand1',
+      decision: 'approved',
+    }));
+
+    // 5. Admin can record mentor review
+    await assertSucceeds(setDoc(doc(admin, 'mentorReviews/mentor_1'), {
+      id: 'mentor_1',
+      claimId: 'claim_1',
+      candidateId: 'cand1',
+      candidateName: 'Fictional Candidate',
+      skillName: 'Solar PV Mounting',
+      mentorId: 'admin_user',
+      mentorName: 'Nomsa Dlamini',
+      feedback: 'Excellent wiring neatness and adherence to safety.',
+      decision: 'approved',
+      createdAt: '2026-10-24T12:00:00.000Z',
+      reviewedAt: '2026-10-24T12:00:00.000Z',
+    }));
+  });
 });

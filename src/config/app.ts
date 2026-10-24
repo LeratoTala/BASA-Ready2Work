@@ -22,6 +22,8 @@ export const STORAGE_KEYS = {
   privacyDeletionRequests: `${APP.storagePrefix}privacyDeletionRequests`,
   notifications: `${APP.storagePrefix}notifications`,
   notificationPreferences: `${APP.storagePrefix}notificationPreferences`,
+  endorsements: `${APP.storagePrefix}endorsements`,
+  mentorReviews: `${APP.storagePrefix}mentorReviews`,
   lowDataMode: `${APP.storagePrefix}lowDataMode`,
   profileDraft: `${APP.storagePrefix}profileDraft`,
   syncQueue: `${APP.storagePrefix}sync_queue`,
@@ -62,4 +64,6 @@ export const COLLECTIONS = {
   privacyDeletionRequests: 'privacyDeletionRequests',
   notifications: 'notifications',
   notificationPreferences: 'notificationPreferences',
+  endorsements: 'endorsements',
+  mentorReviews: 'mentorReviews',
 } as const;

@@ -32,9 +32,9 @@ export const FEATURE_FLAGS: FeatureFlags = {
   locationFilters: true,     // R2: Location-aware filters (FR-16)
   offlineDrafts: true,       // R5 Phase A: Profile drafts
   offlineSync: false,
-  peerEndorsement: false,    // R3: Peer endorsement
-  microTasks: false,         // R3: Micro-tasks & rubrics
-  mentorReview: false,       // R3: Mentor review
+  peerEndorsement: true,     // R3: Peer endorsement (FR-19)
+  microTasks: true,          // R3: Micro-tasks & rubrics (FR-19)
+  mentorReview: true,        // R3: Mentor review (FR-19)
   aiDrafting: false,         // R6: AI drafting (default off per POPIA rules)
   mentorChat: false,         // R7: Mentor chat
   microInternships: false,   // R4: 1-5 day micro-internships

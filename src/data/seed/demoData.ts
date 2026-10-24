@@ -9,6 +9,8 @@ import {
   WorkRecord,
   ModerationReport,
   InAppNotification,
+  PeerEndorsement,
+  MentorReview,
 } from '../../domain/types';
 
 export const INITIAL_USERS: User[] = [
@@ -407,6 +409,40 @@ export const INITIAL_NOTIFICATIONS: InAppNotification[] = [
     link: 'applicants',
     createdAt: '2026-10-24T08:00:00Z',
     readAt: null,
+  },
+];
+
+export const INITIAL_ENDORSEMENTS: PeerEndorsement[] = [
+  {
+    id: 'endorse-solar-1',
+    claimId: 'claim-solar-assist',
+    candidateId: 'candidate-thabo',
+    candidateName: 'Thabo Ndlovu',
+    skillName: 'Solar PV Rooftop Mounting & DC Wiring',
+    endorserName: 'Sipho Zulu',
+    endorserRole: 'Lead Electrician & Solar Installer',
+    relationship: 'Former Job Supervisor',
+    comments: 'Thabo assisted our crew on 8 solar roof installations in Soweto. Very attentive to wiring neatness and safety protocol.',
+    status: 'approved',
+    createdAt: '2026-10-15T10:00:00Z',
+    confirmedAt: '2026-10-15T12:00:00Z',
+  },
+];
+
+export const INITIAL_MENTOR_REVIEWS: MentorReview[] = [
+  {
+    id: 'mentor-braiding-1',
+    claimId: 'claim-braiding',
+    candidateId: 'candidate-thabo',
+    candidateName: 'Thabo Ndlovu',
+    skillName: 'Hair Braiding & Knotless Styling',
+    mentorId: 'admin-nomsa',
+    mentorName: 'Nomsa Dlamini',
+    organization: 'Soweto Youth Skills Hub',
+    feedback: 'Portfolio photos show exceptional parting consistency, tension control, and neat knotless finishing.',
+    decision: 'approved',
+    createdAt: '2026-10-18T14:00:00Z',
+    reviewedAt: '2026-10-18T14:30:00Z',
   },
 ];
 

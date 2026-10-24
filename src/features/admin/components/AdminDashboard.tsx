@@ -11,17 +11,21 @@ import {
   UserCheck,
   Building2,
   Check,
+  Users,
 } from 'lucide-react';
 import {
   AssessmentRecord,
   CandidateProfile,
   Job,
+  MentorReview,
   ModerationReport,
+  PeerEndorsement,
   PrivacyDeletionRequest,
   RubricCriterion,
   SkillClaim,
   User,
 } from '../../../domain/types';
+import { getRubricForSkill } from '../../../domain/rubrics';
 
 interface Props {
   assessorId: string;
@@ -32,9 +36,21 @@ interface Props {
   jobs: Job[];
   reports: ModerationReport[];
   privacyDeletionRequests: PrivacyDeletionRequest[];
+  endorsements?: PeerEndorsement[];
+  mentorReviews?: MentorReview[];
   onSubmitAssessment: (assessment: Omit<AssessmentRecord, 'id' | 'createdAt'>, claimId: string) => void;
   onResolveReport: (reportId: string, action: 'dismiss' | 'suspend_job') => void;
   onReviewPrivacyDeletionRequest: (uid: string, status: 'in_review' | 'declined') => Promise<void>;
+  onApproveEndorsement?: (endorsementId: string) => Promise<void>;
+  onSubmitMentorReview?: (
+    claimId: string,
+    params: {
+      mentorName: string;
+      organization?: string;
+      feedback: string;
+      decision: 'approved' | 'needs_more_evidence' | 'rejected';
+    }
+  ) => Promise<any>;
   activeSubTab: string;
 }
 
@@ -47,9 +63,13 @@ export const AdminDashboard: React.FC<Props> = ({
   jobs,
   reports,
   privacyDeletionRequests,
+  endorsements = [],
+  mentorReviews = [],
   onSubmitAssessment,
   onResolveReport,
   onReviewPrivacyDeletionRequest,
+  onApproveEndorsement,
+  onSubmitMentorReview,
   activeSubTab = 'overview',
 }) => {
   const [selectedClaimForGrading, setSelectedClaimForGrading] = useState<SkillClaim | null>(null);
@@ -78,36 +98,40 @@ export const AdminDashboard: React.FC<Props> = ({
 
     const candidate = candidateProfiles[selectedClaimForGrading.candidateId];
     const decision = totalScore >= 70 ? 'approved' : 'revision_requested';
+    const rubricTemplate = getRubricForSkill(
+      selectedClaimForGrading.skillId,
+      selectedClaimForGrading.skillName
+    );
 
     const criteria: RubricCriterion[] = [
       {
         id: 'c1',
-        title: 'Core Technical Execution',
-        description: 'Performs procedure according to standard industry benchmarks.',
+        title: rubricTemplate.criteria[0]?.title || 'Core Technical Execution',
+        description: rubricTemplate.criteria[0]?.description || 'Performs procedure according to standard industry benchmarks.',
         maxPoints: 25,
         score: rubricScores.crit1,
         passed: rubricScores.crit1 >= 18,
       },
       {
         id: 'c2',
-        title: 'Safety, PPE & Protocol Compliance',
-        description: 'Adheres strictly to workshop safety, electrical isolation, or hygiene.',
+        title: rubricTemplate.criteria[1]?.title || 'Safety, PPE & Protocol Compliance',
+        description: rubricTemplate.criteria[1]?.description || 'Adheres strictly to workshop safety, electrical isolation, or hygiene.',
         maxPoints: 25,
         score: rubricScores.crit2,
         passed: rubricScores.crit2 >= 18,
       },
       {
         id: 'c3',
-        title: 'Tool & Equipment Care',
-        description: 'Uses appropriate instruments, cleans workstation, prevents damage.',
+        title: rubricTemplate.criteria[2]?.title || 'Tool & Equipment Care',
+        description: rubricTemplate.criteria[2]?.description || 'Uses appropriate instruments, cleans workstation, prevents damage.',
         maxPoints: 25,
         score: rubricScores.crit3,
         passed: rubricScores.crit3 >= 18,
       },
       {
         id: 'c4',
-        title: 'Efficiency & Troubleshooting',
-        description: 'Demonstrates confidence, speed, and handles minor defects appropriately.',
+        title: rubricTemplate.criteria[3]?.title || 'Efficiency & Troubleshooting',
+        description: rubricTemplate.criteria[3]?.description || 'Demonstrates confidence, speed, and handles minor defects appropriately.',
         maxPoints: 25,
         score: rubricScores.crit4,
         passed: rubricScores.crit4 >= 18,
@@ -120,7 +144,7 @@ export const AdminDashboard: React.FC<Props> = ({
         candidateName: candidate?.fullName || 'Candidate',
         skillId: selectedClaimForGrading.skillId,
         skillName: selectedClaimForGrading.skillName,
-        rubricVersion: 'v1.0',
+        rubricVersion: 'v1.0-standard',
         score: totalScore,
         criteria,
         assessorId,
@@ -249,33 +273,40 @@ export const AdminDashboard: React.FC<Props> = ({
               >
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <span className="font-bold text-stone-900 text-sm block">
-                      {candidate?.fullName || 'Candidate'}
+                    <span className="text-stone-400 block text-[10px]">
+                      Candidate: {candidate?.fullName || 'Candidate ' + claim.candidateId}
                     </span>
-                    <span className="text-stone-500 font-medium">{claim.skillName}</span>
+                    <h4 className="font-bold text-stone-900 text-sm">{claim.skillName}</h4>
                   </div>
                   <span
-                    className={`px-2 py-0.5 rounded font-bold uppercase text-[10px] ${
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
                       isAssessed
-                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                        : 'bg-stone-100 text-stone-700 border border-stone-200'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-stone-100 text-stone-700'
                     }`}
                   >
                     {claim.verificationStatus}
                   </span>
                 </div>
 
-                <p className="text-stone-600 bg-stone-50 p-2 rounded">{claim.evidenceDescription}</p>
+                <p className="text-stone-600 bg-stone-50 p-2 rounded line-clamp-2">
+                  {claim.evidenceDescription}
+                </p>
 
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[11px] text-stone-400">
-                    Logged: {new Date(claim.createdAt).toLocaleDateString()}
-                  </span>
+                <div className="pt-2 flex justify-end">
                   <button
-                    onClick={() => setSelectedClaimForGrading(claim)}
-                    className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-semibold text-xs cursor-pointer"
+                    type="button"
+                    onClick={() => {
+                      setSelectedClaimForGrading(claim);
+                      setRubricScores({ crit1: 22, crit2: 24, crit3: 20, crit4: 21 });
+                    }}
+                    className={`px-3 py-1.5 rounded font-semibold text-xs cursor-pointer ${
+                      selectedClaimForGrading?.id === claim.id
+                        ? 'bg-amber-600 text-white'
+                        : 'bg-stone-800 text-white hover:bg-stone-700'
+                    }`}
                   >
-                    {isAssessed ? 'Re-grade Rubric' : 'Grade Against Rubric'}
+                    {isAssessed ? 'Re-evaluate Rubric' : 'Grade Against Rubric'}
                   </button>
                 </div>
               </div>
@@ -283,153 +314,237 @@ export const AdminDashboard: React.FC<Props> = ({
           })}
         </div>
 
-        {/* Active Rubric Grading Drawer / Form */}
+        {/* Selected Claim Grading Form */}
         {selectedClaimForGrading && (
           <form
             onSubmit={handleGradeSubmit}
-            className="mt-6 bg-stone-50 rounded-xl p-5 border border-amber-300 space-y-4 text-xs"
+            className="mt-6 border-t border-stone-200 pt-6 space-y-5 bg-stone-50/60 p-5 rounded-xl border"
           >
-            <div className="flex items-center justify-between border-b border-stone-200 pb-2">
+            <div className="flex items-center justify-between">
               <div>
-                <h3 className="font-bold text-sm text-stone-900">
-                  Rubric Assessment: {selectedClaimForGrading.skillName}
+                <span className="text-xs font-bold text-amber-800 uppercase tracking-wider block">
+                  Active Scoring Sheet (100-Point Micro-Task Rubric)
+                </span>
+                <h3 className="text-base font-bold text-stone-900">
+                  Bench Test Evaluation: {selectedClaimForGrading.skillName}
                 </h3>
-                <p className="text-stone-500">
-                  Candidate: {candidateProfiles[selectedClaimForGrading.candidateId]?.fullName}
-                </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setSelectedClaimForGrading(null)}
-                className="text-stone-500 hover:text-stone-800"
-              >
-                Cancel
-              </button>
+              <div className="text-right">
+                <span className="text-2xl font-extrabold text-stone-900">{totalScore}</span>
+                <span className="text-xs text-stone-500 font-bold"> / 100 pts</span>
+                <span
+                  className={`block text-[11px] font-bold ${
+                    totalScore >= 70 ? 'text-emerald-700' : 'text-amber-800'
+                  }`}
+                >
+                  {totalScore >= 70 ? 'Meets Benchmark (Approved)' : 'Needs Improvement'}
+                </span>
+              </div>
             </div>
 
-            {/* 4 Rubric Criteria (25 pts each = 100 total) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-white p-3 rounded border border-stone-200 space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-stone-800">1. Core Technical Execution</label>
-                  <span className="font-bold text-stone-900">{rubricScores.crit1}/25</span>
+              <div className="bg-white p-3 rounded-lg border border-stone-200 space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <label className="font-bold text-stone-800">1. Core Technical Execution</label>
+                  <span className="font-semibold text-amber-700">{rubricScores.crit1}/25</span>
                 </div>
-                <p className="text-[11px] text-stone-500">
-                  Proper technique, measurement calibration, sequence of operations.
-                </p>
+                <p className="text-[11px] text-stone-500">Benchmark speed, procedure sequence, and accuracy.</p>
                 <input
                   type="range"
                   min="0"
                   max="25"
                   value={rubricScores.crit1}
                   onChange={(e) => setRubricScores({ ...rubricScores, crit1: Number(e.target.value) })}
-                  className="w-full"
+                  className="w-full accent-amber-600"
                 />
               </div>
 
-              <div className="bg-white p-3 rounded border border-stone-200 space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-stone-800">2. Safety, PPE & Protocols</label>
-                  <span className="font-bold text-stone-900">{rubricScores.crit2}/25</span>
+              <div className="bg-white p-3 rounded-lg border border-stone-200 space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <label className="font-bold text-stone-800">2. Safety, PPE & Protocol</label>
+                  <span className="font-semibold text-amber-700">{rubricScores.crit2}/25</span>
                 </div>
-                <p className="text-[11px] text-stone-500">
-                  PPE compliance, harness / electrical isolation, food hygiene.
-                </p>
+                <p className="text-[11px] text-stone-500">Adheres to PPE standards, isolation rules, and hygiene.</p>
                 <input
                   type="range"
                   min="0"
                   max="25"
                   value={rubricScores.crit2}
                   onChange={(e) => setRubricScores({ ...rubricScores, crit2: Number(e.target.value) })}
-                  className="w-full"
+                  className="w-full accent-amber-600"
                 />
               </div>
 
-              <div className="bg-white p-3 rounded border border-stone-200 space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-stone-800">3. Tool & Machine Handling</label>
-                  <span className="font-bold text-stone-900">{rubricScores.crit3}/25</span>
+              <div className="bg-white p-3 rounded-lg border border-stone-200 space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <label className="font-bold text-stone-800">3. Tool & Equipment Care</label>
+                  <span className="font-semibold text-amber-700">{rubricScores.crit3}/25</span>
                 </div>
-                <p className="text-[11px] text-stone-500">
-                  Cleanliness, correct tool torque, zero damage to materials.
-                </p>
+                <p className="text-[11px] text-stone-500">Careful handling, cleaning, and prevention of damage.</p>
                 <input
                   type="range"
                   min="0"
                   max="25"
                   value={rubricScores.crit3}
                   onChange={(e) => setRubricScores({ ...rubricScores, crit3: Number(e.target.value) })}
-                  className="w-full"
+                  className="w-full accent-amber-600"
                 />
               </div>
 
-              <div className="bg-white p-3 rounded border border-stone-200 space-y-1">
-                <div className="flex items-center justify-between">
-                  <label className="font-semibold text-stone-800">4. Pace, Speed & Problem Solving</label>
-                  <span className="font-bold text-stone-900">{rubricScores.crit4}/25</span>
+              <div className="bg-white p-3 rounded-lg border border-stone-200 space-y-1">
+                <div className="flex justify-between items-center text-xs">
+                  <label className="font-bold text-stone-800">4. Troubleshooting & Efficiency</label>
+                  <span className="font-semibold text-amber-700">{rubricScores.crit4}/25</span>
                 </div>
-                <p className="text-[11px] text-stone-500">
-                  Calmness under pressure, reasonable turnaround time.
-                </p>
+                <p className="text-[11px] text-stone-500">Handled defect detection and time-bound task pacing.</p>
                 <input
                   type="range"
                   min="0"
                   max="25"
                   value={rubricScores.crit4}
                   onChange={(e) => setRubricScores({ ...rubricScores, crit4: Number(e.target.value) })}
-                  className="w-full"
+                  className="w-full accent-amber-600"
                 />
               </div>
             </div>
 
-            {/* Total Score preview */}
-            <div className="flex items-center justify-between bg-white p-3 rounded border border-stone-200">
-              <div>
-                <span className="font-bold text-stone-900 text-sm">Total Rubric Score: {totalScore} / 100</span>
-                <p className="text-[11px] text-stone-500">
-                  Passing threshold is 70 points to earn official "Task-assessed" passport status.
-                </p>
-              </div>
-              <span
-                className={`font-bold px-3 py-1 rounded text-xs ${
-                  totalScore >= 70
-                    ? 'bg-emerald-100 text-emerald-800'
-                    : 'bg-red-100 text-red-800'
-                }`}
-              >
-                {totalScore >= 70 ? 'PASS (Approved)' : 'REVISION NEEDED'}
-              </span>
-            </div>
-
             <div>
-              <label className="block font-semibold text-stone-800 mb-1">
-                Assessor Notes & Transparent Feedback
-              </label>
+              <label className="block font-bold text-stone-800 text-xs mb-1">Assessor Feedback & Notes</label>
               <textarea
                 rows={2}
                 required
                 value={assessorFeedback}
                 onChange={(e) => setAssessorFeedback(e.target.value)}
-                className="w-full p-2 border border-stone-300 rounded bg-white text-xs"
+                className="w-full border border-stone-300 rounded p-2 text-xs bg-white"
               />
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setSelectedClaimForGrading(null)}
-                className="px-3 py-1.5 text-stone-600"
+                className="px-3 py-1.5 text-stone-600 hover:text-stone-900 text-xs"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded text-xs shadow-xs"
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded text-xs shadow-xs"
               >
-                Submit Rubric & Certify Claim
+                Submit Rubric Grade ({totalScore}/100)
               </button>
             </div>
           </form>
+        )}
+      </div>
+
+      {/* Peer Endorsement Review Queue (R3 / FR-19) */}
+      <div className="bg-white rounded-xl border border-stone-200 p-6 space-y-4">
+        <div className="border-b border-stone-100 pb-3 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
+              <Users className="w-4 h-4 text-amber-600" />
+              Peer Endorsement Review Queue ({endorsements.length})
+            </h2>
+            <p className="text-xs text-stone-500 mt-1">
+              Verify community contractor, coworker, or supervisor endorsements to upgrade claims to "Peer-endorsed".
+            </p>
+          </div>
+        </div>
+
+        {endorsements.length === 0 ? (
+          <p className="text-xs text-stone-500 italic">No peer endorsement requests pending.</p>
+        ) : (
+          <div className="space-y-3">
+            {endorsements.map((end) => (
+              <div
+                key={end.id}
+                className="p-4 rounded-lg border border-stone-200 bg-stone-50 text-xs space-y-2"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="font-bold text-stone-900">{end.skillName}</span>
+                    <span className="text-stone-500 block text-[11px]">
+                      Candidate: <strong>{end.candidateName}</strong> · Endorser: <strong>{end.endorserName}</strong> ({end.endorserRole}, {end.relationship})
+                    </span>
+                  </div>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                      end.status === 'approved'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-amber-100 text-amber-900'
+                    }`}
+                  >
+                    {end.status}
+                  </span>
+                </div>
+
+                <p className="text-stone-700 bg-white p-2.5 rounded border border-stone-200">
+                  <strong>Work Performed / Context:</strong> {end.comments || 'Direct hands-on experience confirmed.'}
+                </p>
+
+                {end.status === 'pending' && onApproveEndorsement && (
+                  <div className="flex justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => onApproveEndorsement(end.id)}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded font-semibold text-xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Approve Endorsement & Upgrade Claim</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Mentor Reviews Log (R3 / FR-19) */}
+      <div className="bg-white rounded-xl border border-stone-200 p-6 space-y-4">
+        <div className="border-b border-stone-100 pb-3 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
+              <Award className="w-4 h-4 text-blue-600" />
+              Designated Mentor Reviews ({mentorReviews.length})
+            </h2>
+            <p className="text-xs text-stone-500 mt-1">
+              Recorded portfolio reviews by designated youth employment partners.
+            </p>
+          </div>
+        </div>
+
+        {mentorReviews.length === 0 ? (
+          <p className="text-xs text-stone-500 italic">No mentor reviews recorded yet.</p>
+        ) : (
+          <div className="space-y-3">
+            {mentorReviews.map((mr) => (
+              <div
+                key={mr.id}
+                className="p-4 rounded-lg border border-stone-200 bg-stone-50 text-xs space-y-1"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="font-bold text-stone-900">{mr.skillName}</span>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                      mr.decision === 'approved'
+                        ? 'bg-blue-100 text-blue-800'
+                        : 'bg-amber-100 text-amber-900'
+                    }`}
+                  >
+                    {mr.decision.replace('_', ' ')}
+                  </span>
+                </div>
+                <p className="text-stone-500 text-[11px]">
+                  Mentor: <strong>{mr.mentorName}</strong> ({mr.organization || 'Youth Partner'}) · {new Date(mr.reviewedAt).toLocaleDateString()}
+                </p>
+                <p className="text-stone-700 bg-white p-2 rounded border border-stone-200 mt-1">
+                  {mr.feedback}
+                </p>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

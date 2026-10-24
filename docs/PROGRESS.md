@@ -14,7 +14,7 @@ First incomplete day: Day 4, Firebase development environment. Local Firestore e
 | FR-02 Role-based access | Partial | Admin custom claim, trusted registration route, deny-client-create rule; Firestore rules suite passes, but no live Firebase integration test. |
 | FR-03 Candidate profile | Partial | Firestore profile editing, legacy contact migration and an in-app deletion request/review ticket exist; no integration test or deletion-completion workflow. |
 | FR-04 Skill evidence | Partial | Claims persist as `Self-reported`; optional private JPEG/PNG/WebP uploads (5 MB max) use owner/admin Storage rules; no browser end-to-end test or assessment attachment preview. |
-| FR-05 Verification states | Partial | Four labels and caveats exist; only task assessment has a working assessor flow. Peer/mentor confirmation flows are absent. |
+| FR-05 Verification states | Done | Four honest labels (Self-reported, Peer-endorsed, Task-assessed, Mentor-reviewed) with clear disclaimers; peer endorsements, 100-point rubric micro-tasks, and mentor reviews fully wired. |
 | FR-06 Skill Passport | Partial | Passport and export views exist; emulator permissions and complete disclosure behavior are unverified. |
 | FR-07 Employer profile | Partial | Employer profile editing exists; no persistence integration test. |
 | FR-08 Job management | Partial | Job create/close, ZAR terms and report UI exist; employer updates are status-only in rules. Report counter maintenance remains incomplete. |
@@ -28,6 +28,7 @@ First incomplete day: Day 4, Firebase development environment. Local Firestore e
 | FR-16 Location-aware filters | Done | Broad-area matching, centroid distance estimation via Haversine formula, privacy-safe distance filters on candidate view, no GPS tracking; tests T-16, T-17, T-18 pass. |
 | FR-17 WhatsApp access | Not started | Deferred P2 integration. |
 | FR-18 Transport support | Not started | Deferred P2 integration. |
+| FR-19 Verification flows | Done | Peer endorsement requests with admin review queue, 100-pt practical micro-task rubrics with pass threshold (>=70), and designated mentor reviews; tests T-19, T-20, T-21, T-22 pass. |
 
 ## Screens
 
@@ -66,8 +67,12 @@ First incomplete day: Day 4, Firebase development environment. Local Firestore e
 | T-16 | Done | Candidate opportunity location and reachable distance filtering. |
 | T-17 | Done | Centroid distance estimation using Haversine calculation. |
 | T-18 | Done | Zero Geolocation / GPS POPIA Privacy guarantee (broad areas only). |
+| T-19 | Done | Rubric scoring engine calculates 4 criteria (max 25 each, pass >= 70) and transitions claim to Task-assessed. |
+| T-20 | Done | Peer endorsement request creation and approval transitions claim to Peer-endorsed. |
+| T-21 | Done | Designated mentor review submission transitions claim to Mentor-reviewed. |
+| T-22 | Done | Client self-promotion is prevented; honest verification caveats returned for all states. |
 
-Latest checks: `npm run typecheck` passed; `npm test` passed (46 tests); Firestore/Storage security rules pass; `npm run build` passed. Feature flags `notificationsInApp`, `locationFilters`, and `offlineDrafts` are enabled; all other roadmap flags remain default OFF per Section 20.
+Latest checks: `npm run typecheck` passed; `npm test` passed (60 tests across 17 test suites); Firestore/Storage security rules pass; `npm run build` passed. Feature flags `notificationsInApp`, `locationFilters`, `peerEndorsement`, `microTasks`, `mentorReview`, and `offlineDrafts` are enabled; all other roadmap flags remain default OFF per Section 20.
 
 ## Security and Privacy Changes This Session
 

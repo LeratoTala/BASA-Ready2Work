@@ -52,3 +52,12 @@ Before public use, the BASA operator must publish a privacy contact and retentio
 - **Access control:** Area reference data in `/areas/{areaId}` is readable by signed-in users and writable only by administrators (`firebase/firestore.rules`).
 - **Third-party sharing:** None. Zero location data is sent to external maps or third-party tracking APIs.
 
+## R3: Verification Flows (FR-19) Security & Privacy Review
+
+- **Data collected:** Peer endorsements collect only endorser name, relationship (coworker, supervisor, client, mentor, community_leader), role/trade, and brief observed work context. Mentor reviews record mentor name, organization/designation, and assessment feedback.
+- **Anti-Spam & Contact Privacy:** Candidates cannot enter third-party phone numbers or email addresses; no unsolicited automated SMS, emails, or messages are ever dispatched. All endorsement approvals and mentor submissions occur within the secure platform workflow.
+- **Anti-Forgery & Tamper Proofing (T-22):** Strict server-side Firestore security rules deny candidates from mutating claim verification labels or approving their own endorsements. Claims always originate as `Self-reported`.
+- **Authorization & Separation of Concerns:** Peer endorsement status transitions (`approved` / `rejected`) and mentor reviews are restricted to verified administrators and designated assessors (`request.auth.token.admin == true`).
+- **Honest Labeling & Disclaimers:** All verification levels display transparent user-facing definitions and "what this does not mean" disclaimers, ensuring youth credibility without misrepresenting formal accreditations.
+
+

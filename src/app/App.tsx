@@ -322,6 +322,8 @@ export default function App() {
                   onAddClaim={store.addSkillClaim}
                   onOpenPassport={() => setIsPassportOpen(true)}
                   onOpenAIDrafter={() => setIsAIDrafterOpen(true)}
+                  onRequestPeerEndorsement={store.requestPeerEndorsement}
+                  onRequestMentorReview={store.submitMentorReview}
                 />
               </div>
             )}
@@ -423,9 +425,13 @@ export default function App() {
                 jobs={store.jobs}
                 reports={store.reports}
                 privacyDeletionRequests={store.privacyDeletionRequests}
+                endorsements={store.endorsements}
+                mentorReviews={store.mentorReviews}
                 onSubmitAssessment={store.submitAssessment}
                 onResolveReport={store.resolveReport}
                 onReviewPrivacyDeletionRequest={store.reviewPrivacyDeletionRequest}
+                onApproveEndorsement={store.approvePeerEndorsement}
+                onSubmitMentorReview={store.submitMentorReview}
                 activeSubTab={activeTab}
               />
             )}

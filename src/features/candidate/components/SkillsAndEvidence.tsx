@@ -1,9 +1,24 @@
 import React, { useState } from 'react';
-import { Plus, Award, CheckCircle2, FileText, Sparkles, HelpCircle, ShieldCheck, AlertCircle, Upload } from 'lucide-react';
+import {
+  Plus,
+  Award,
+  CheckCircle2,
+  FileText,
+  Sparkles,
+  HelpCircle,
+  ShieldCheck,
+  AlertCircle,
+  Upload,
+  Users,
+  Check,
+  X,
+} from 'lucide-react';
 import { CandidateProfile, SkillClaim, VerificationStatus } from '../../../domain/types';
 import { SKILL_DEFINITIONS } from '../../../domain/skillCatalogue';
 import { VerificationBadge } from '../../../shared/components/VerificationBadge';
 import { env } from '../../../config/env';
+import { FEATURE_FLAGS } from '../../../config/featureFlags';
+import { getRubricForSkill } from '../../../domain/rubrics';
 
 interface Props {
   candidate: CandidateProfile;
@@ -11,6 +26,24 @@ interface Props {
   onAddClaim: (claim: Omit<SkillClaim, 'id' | 'createdAt'>, evidenceFile?: File) => Promise<SkillClaim>;
   onOpenPassport: () => void;
   onOpenAIDrafter: () => void;
+  onRequestPeerEndorsement?: (
+    claimId: string,
+    params: {
+      endorserName: string;
+      endorserRole: string;
+      relationship: string;
+      comments: string;
+    }
+  ) => Promise<any>;
+  onRequestMentorReview?: (
+    claimId: string,
+    params: {
+      mentorName: string;
+      organization?: string;
+      feedback: string;
+      decision: 'approved' | 'needs_more_evidence' | 'rejected';
+    }
+  ) => Promise<any>;
 }
 
 export const SkillsAndEvidence: React.FC<Props> = ({
@@ -19,6 +52,8 @@ export const SkillsAndEvidence: React.FC<Props> = ({
   onAddClaim,
   onOpenPassport,
   onOpenAIDrafter,
+  onRequestPeerEndorsement,
+  onRequestMentorReview,
 }) => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedSkillId, setSelectedSkillId] = useState(SKILL_DEFINITIONS[0].id);
@@ -31,6 +66,15 @@ export const SkillsAndEvidence: React.FC<Props> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+
+  // R3 Verification Modals
+  const [endorsementClaim, setEndorsementClaim] = useState<SkillClaim | null>(null);
+  const [rubricClaim, setRubricClaim] = useState<SkillClaim | null>(null);
+  const [endorserName, setEndorserName] = useState('');
+  const [endorserRole, setEndorserRole] = useState('');
+  const [endorserRelationship, setEndorserRelationship] = useState('Former Job Supervisor');
+  const [endorserComments, setEndorserComments] = useState('');
+  const [isSubmittingEndorsement, setIsSubmittingEndorsement] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -322,14 +366,257 @@ export const SkillsAndEvidence: React.FC<Props> = ({
                 {claim.assessmentId && (
                   <div className="pt-2 flex items-center gap-1.5 text-emerald-800 font-semibold text-[11px]">
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Graded by Nomsa Dlamini (Assessor) at Soweto Skills Hub · Score: 92/100</span>
+                    <span>Graded against practical rubric · Score: 92/100 (Task-assessed)</span>
+                  </div>
+                )}
+                {claim.mentorName && (
+                  <div className="pt-2 flex items-center gap-1.5 text-blue-800 font-semibold text-[11px]">
+                    <Award className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Reviewed by Mentor {claim.mentorName} (Mentor-reviewed)</span>
                   </div>
                 )}
               </div>
+
+              {/* R3 Verification Action Bar */}
+              {claim.verificationStatus === 'Self-reported' && (
+                <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-stone-100">
+                  {FEATURE_FLAGS.peerEndorsement && (
+                    <button
+                      type="button"
+                      onClick={() => setEndorsementClaim(claim)}
+                      className="px-2.5 py-1 text-xs font-semibold rounded bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Users className="w-3.5 h-3.5 text-amber-700" />
+                      <span>Request Peer Endorsement</span>
+                    </button>
+                  )}
+                  {FEATURE_FLAGS.microTasks && (
+                    <button
+                      type="button"
+                      onClick={() => setRubricClaim(claim)}
+                      className="px-2.5 py-1 text-xs font-semibold rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>View Assessment Rubric</span>
+                    </button>
+                  )}
+                  {FEATURE_FLAGS.mentorReview && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (onRequestMentorReview) {
+                          await onRequestMentorReview(claim.id, {
+                            mentorName: 'Designated Youth Mentor',
+                            feedback: 'Portfolio evidence queued for review.',
+                            decision: 'needs_more_evidence',
+                          });
+                          setNotification(`Portfolio evidence for "${claim.skillName}" submitted for mentor review.`);
+                          setTimeout(() => setNotification(null), 4000);
+                        }
+                      }}
+                      className="px-2.5 py-1 text-xs font-semibold rounded bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <Award className="w-3.5 h-3.5 text-blue-700" />
+                      <span>Request Mentor Review</span>
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           ))
         )}
       </div>
+
+      {/* Peer Endorsement Request Modal (R3 / FR-19) */}
+      {endorsementClaim && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-lg w-full border border-stone-200 overflow-hidden">
+            <div className="bg-stone-900 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h3 className="font-bold text-sm">Request Peer Endorsement</h3>
+                  <p className="text-xs text-stone-300">Skill: {endorsementClaim.skillName}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEndorsementClaim(null)}
+                className="text-stone-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!endorserName.trim() || !endorserRole.trim()) return;
+                setIsSubmittingEndorsement(true);
+                try {
+                  if (onRequestPeerEndorsement) {
+                    await onRequestPeerEndorsement(endorsementClaim.id, {
+                      endorserName,
+                      endorserRole,
+                      relationship: endorserRelationship,
+                      comments: endorserComments,
+                    });
+                  }
+                  setNotification(`Endorsement request logged for ${endorserName}!`);
+                  setEndorsementClaim(null);
+                  setEndorserName('');
+                  setEndorserRole('');
+                  setEndorserComments('');
+                  setTimeout(() => setNotification(null), 4000);
+                } catch (err) {
+                  alert(err instanceof Error ? err.message : 'Error submitting endorsement request');
+                } finally {
+                  setIsSubmittingEndorsement(false);
+                }
+              }}
+              className="p-5 space-y-4 text-xs"
+            >
+              <div className="bg-amber-50 border border-amber-200 rounded p-3 text-amber-900 text-[11px] space-y-1">
+                <span className="font-bold block">POPIA Privacy & Anti-Spam Notice:</span>
+                <p>
+                  BASA only records professional relationships and feedback. We do not harvest or send unsolicited SMS/spam to third-party phone numbers.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-stone-700 mb-1">
+                  Peer / Contractor Full Name
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Sipho Zulu"
+                  value={endorserName}
+                  onChange={(e) => setEndorserName(e.target.value)}
+                  className="w-full border border-stone-300 rounded p-2 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-stone-700 mb-1">
+                  Their Trade / Role / Title
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Lead Electrician, Salon Owner, Senior Welder"
+                  value={endorserRole}
+                  onChange={(e) => setEndorserRole(e.target.value)}
+                  className="w-full border border-stone-300 rounded p-2 text-xs"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-stone-700 mb-1">
+                  Professional Relationship
+                </label>
+                <select
+                  value={endorserRelationship}
+                  onChange={(e) => setEndorserRelationship(e.target.value)}
+                  className="w-full border border-stone-300 rounded p-2 text-xs bg-white text-stone-800"
+                >
+                  <option value="Former Job Supervisor">Former Job Supervisor</option>
+                  <option value="Trade Co-worker">Trade Co-worker / Peer</option>
+                  <option value="Local Business Owner">Local Business Owner</option>
+                  <option value="Direct Client">Direct Client / Customer</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-stone-700 mb-1">
+                  Work Performed Together
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Assisted on 8 residential solar roof installations in Soweto..."
+                  value={endorserComments}
+                  onChange={(e) => setEndorserComments(e.target.value)}
+                  className="w-full border border-stone-300 rounded p-2 text-xs"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEndorsementClaim(null)}
+                  className="px-3 py-1.5 text-stone-600 hover:text-stone-900"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingEndorsement}
+                  className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded shadow-xs"
+                >
+                  {isSubmittingEndorsement ? 'Submitting…' : 'Submit Endorsement Request'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Rubric View Modal (R3 / FR-19) */}
+      {rubricClaim && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-xl w-full border border-stone-200 overflow-hidden">
+            <div className="bg-stone-900 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                <div>
+                  <h3 className="font-bold text-sm">Practical Assessment Rubric</h3>
+                  <p className="text-xs text-stone-300">Skill: {rubricClaim.skillName}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRubricClaim(null)}
+                className="text-stone-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              <div className="bg-emerald-50 border border-emerald-200 rounded p-3 text-emerald-900 text-[11px]">
+                <strong className="block font-bold">Standard Bench Test Evaluation:</strong>
+                Candidates must achieve at least <strong>70 / 100 points</strong> across these 4 industry benchmarks to receive the "Task-assessed" label.
+              </div>
+
+              <div className="space-y-2.5">
+                {getRubricForSkill(rubricClaim.skillId, rubricClaim.skillName).criteria.map((c, i) => (
+                  <div key={c.id} className="p-3 bg-stone-50 rounded-lg border border-stone-200 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-stone-900">
+                        {i + 1}. {c.title}
+                      </span>
+                      <span className="text-[11px] font-semibold text-stone-600 bg-white border border-stone-200 px-2 py-0.5 rounded">
+                        Max {c.maxPoints} pts
+                      </span>
+                    </div>
+                    <p className="text-stone-600 text-[11px] leading-relaxed">{c.description}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setRubricClaim(null)}
+                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white font-semibold rounded text-xs"
+                >
+                  Close Rubric
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

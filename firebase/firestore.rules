@@ -299,5 +299,24 @@ service cloud.firestore {
     match /notificationPreferences/{userId} {
       allow read, write: if isOwner(userId) || isAdmin();
     }
+
+    // ---------- verification flows: peer endorsements & mentor reviews (R3 / FR-19) ----------
+    match /endorsements/{endorsementId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && incoming().candidateId == request.auth.uid
+        && incoming().status == 'pending'
+        && incoming().id == endorsementId;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /mentorReviews/{reviewId} {
+      allow read: if (signedIn() && resource.data.candidateId == request.auth.uid) || isAdmin();
+      allow create, update: if isAdmin()
+        && incoming().id == reviewId
+        && incoming().decision in ['approved', 'needs_more_evidence', 'rejected'];
+      allow delete: if isAdmin();
+    }
   }
 }

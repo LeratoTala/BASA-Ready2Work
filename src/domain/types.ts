@@ -78,8 +78,41 @@ export interface SkillClaim {
   verificationStatus: VerificationStatus;
   peerEndorserName?: string;
   peerEndorserContact?: string;
+  peerEndorsementId?: string;
+  mentorReviewId?: string;
+  mentorName?: string;
   assessmentId?: string;
   createdAt: string;
+}
+
+export interface PeerEndorsement {
+  id: string;
+  claimId: string;
+  candidateId: string;
+  candidateName: string;
+  skillName: string;
+  endorserName: string;
+  endorserRole: string;
+  relationship: string;
+  comments: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  confirmedAt?: string;
+}
+
+export interface MentorReview {
+  id: string;
+  claimId: string;
+  candidateId: string;
+  candidateName: string;
+  skillName: string;
+  mentorId: string;
+  mentorName: string;
+  organization?: string;
+  feedback: string;
+  decision: 'approved' | 'needs_more_evidence' | 'rejected';
+  createdAt: string;
+  reviewedAt: string;
 }
 
 export interface RubricCriterion {

@@ -15,6 +15,8 @@ import {
   InAppNotification,
   NotificationPreferences,
   NotificationType,
+  PeerEndorsement,
+  MentorReview,
 } from '../../domain/types';
 import {
   INITIAL_APPLICATIONS,
@@ -27,6 +29,8 @@ import {
   INITIAL_USERS,
   INITIAL_WORK_RECORDS,
   INITIAL_NOTIFICATIONS,
+  INITIAL_ENDORSEMENTS,
+  INITIAL_MENTOR_REVIEWS,
 } from '../../data/seed';
 import { calculateMatchScore } from '../../domain/matching';
 import { applicationId, isValidTransition, VALID_STATUS_TRANSITIONS } from '../../domain/applicationStatus';
@@ -84,6 +88,12 @@ export function useDemoStore() {
   const [notificationPreferences, setNotificationPreferences] = useState<Record<string, NotificationPreferences>>(() =>
     loadStored(STORAGE_KEYS.notificationPreferences, {})
   );
+  const [endorsements, setEndorsements] = useState<PeerEndorsement[]>(() =>
+    loadStored(STORAGE_KEYS.endorsements, INITIAL_ENDORSEMENTS)
+  );
+  const [mentorReviews, setMentorReviews] = useState<MentorReview[]>(() =>
+    loadStored(STORAGE_KEYS.mentorReviews, INITIAL_MENTOR_REVIEWS)
+  );
   const { lowDataMode, setLowDataMode, profileDraft, saveDraft } = useLocalPrefs();
   const syncStatus = 'synced' as SyncState;
   const pendingSyncCount = 0;
@@ -113,6 +123,8 @@ export function useDemoStore() {
   useEffect(() => saveStored(STORAGE_KEYS.privacyDeletionRequests, privacyDeletionRequests), [privacyDeletionRequests]);
   useEffect(() => saveStored(STORAGE_KEYS.notifications, notifications), [notifications]);
   useEffect(() => saveStored(STORAGE_KEYS.notificationPreferences, notificationPreferences), [notificationPreferences]);
+  useEffect(() => saveStored(STORAGE_KEYS.endorsements, endorsements), [endorsements]);
+  useEffect(() => saveStored(STORAGE_KEYS.mentorReviews, mentorReviews), [mentorReviews]);
 
   const deliverNotification = useCallback(
     (
@@ -371,6 +383,159 @@ export function useDemoStore() {
     );
 
     return newRecord;
+  };
+
+  // Request Peer Endorsement (R3 / FR-19)
+  const requestPeerEndorsement = async (
+    claimId: string,
+    params: {
+      endorserName: string;
+      endorserRole: string;
+      relationship: string;
+      comments: string;
+    }
+  ): Promise<PeerEndorsement> => {
+    if (!currentUser) throw new Error('Authentication required');
+    if (currentUser.role !== 'candidate') throw new Error('Only candidates can request peer endorsements.');
+
+    const claim = skillClaims.find((c) => c.id === claimId);
+    if (!claim) throw new Error('Skill claim not found.');
+    if (claim.candidateId !== currentUser.uid) throw new Error('You can only request endorsements for your own claims.');
+
+    const newEndorsement: PeerEndorsement = {
+      id: `endorse_${Date.now()}_${claimId}`,
+      claimId,
+      candidateId: currentUser.uid,
+      candidateName: currentUser.displayName,
+      skillName: claim.skillName,
+      endorserName: params.endorserName.trim(),
+      endorserRole: params.endorserRole.trim(),
+      relationship: params.relationship.trim(),
+      comments: params.comments.trim(),
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+
+    setEndorsements((prev) => [newEndorsement, ...prev]);
+
+    deliverNotification(
+      currentUser.uid,
+      'endorsement_request',
+      'Peer Endorsement Requested',
+      `Endorsement request logged for "${claim.skillName}" from ${params.endorserName}.`,
+      newEndorsement.id,
+      newEndorsement.createdAt,
+      'skills'
+    );
+
+    return newEndorsement;
+  };
+
+  // Approve Peer Endorsement (R3 / FR-19)
+  const approvePeerEndorsement = async (endorsementId: string): Promise<void> => {
+    if (!currentUser) throw new Error('Authentication required');
+    if (currentUser.role !== 'admin') {
+      throw new Error('Only administrators or verified mentors can approve peer endorsements.');
+    }
+
+    const endorsement = endorsements.find((e) => e.id === endorsementId);
+    if (!endorsement) throw new Error('Endorsement request not found.');
+
+    const confirmedAt = new Date().toISOString();
+
+    setEndorsements((prev) =>
+      prev.map((e) => (e.id === endorsementId ? { ...e, status: 'approved', confirmedAt } : e))
+    );
+
+    // Upgrade claim verification status to Peer-endorsed
+    setSkillClaims((prev) =>
+      prev.map((c) => {
+        if (c.id === endorsement.claimId) {
+          return {
+            ...c,
+            verificationStatus: 'Peer-endorsed',
+            peerEndorserName: endorsement.endorserName,
+            peerEndorsementId: endorsement.id,
+          };
+        }
+        return c;
+      })
+    );
+
+    deliverNotification(
+      endorsement.candidateId,
+      'endorsement_request',
+      'Skill Claim Peer-Endorsed!',
+      `Your skill "${endorsement.skillName}" was peer-endorsed by ${endorsement.endorserName} (${endorsement.endorserRole}).`,
+      endorsement.id,
+      confirmedAt,
+      'passport'
+    );
+  };
+
+  // Submit Mentor Review (R3 / FR-19)
+  const submitMentorReview = async (
+    claimId: string,
+    params: {
+      mentorName: string;
+      organization?: string;
+      feedback: string;
+      decision: 'approved' | 'needs_more_evidence' | 'rejected';
+    }
+  ): Promise<MentorReview> => {
+    if (!currentUser) throw new Error('Authentication required');
+    if (currentUser.role !== 'admin') {
+      throw new Error('Only authorized mentors or administrators can record mentor reviews.');
+    }
+
+    const claim = skillClaims.find((c) => c.id === claimId);
+    if (!claim) throw new Error('Skill claim not found.');
+
+    const now = new Date().toISOString();
+    const newReview: MentorReview = {
+      id: `mentor_${Date.now()}_${claimId}`,
+      claimId,
+      candidateId: claim.candidateId,
+      candidateName: 'Candidate',
+      skillName: claim.skillName,
+      mentorId: currentUser.uid,
+      mentorName: params.mentorName.trim() || currentUser.displayName,
+      organization: params.organization?.trim() || 'Youth Employment Partner',
+      feedback: params.feedback.trim(),
+      decision: params.decision,
+      createdAt: now,
+      reviewedAt: now,
+    };
+
+    setMentorReviews((prev) => [newReview, ...prev]);
+
+    if (params.decision === 'approved') {
+      setSkillClaims((prev) =>
+        prev.map((c) => {
+          if (c.id === claimId) {
+            return {
+              ...c,
+              verificationStatus: 'Mentor-reviewed',
+              mentorName: newReview.mentorName,
+              mentorReviewId: newReview.id,
+            };
+          }
+          return c;
+        })
+      );
+    }
+
+    deliverNotification(
+      claim.candidateId,
+      'assessment_result',
+      params.decision === 'approved' ? 'Skill Mentor-Reviewed!' : 'Mentor Review Completed',
+      `Your skill "${claim.skillName}" received mentor feedback from ${newReview.mentorName}: ${params.decision === 'approved' ? 'Approved & Upgraded' : 'Additional Evidence Requested'}.`,
+      newReview.id,
+      now,
+      'passport'
+    );
+
+    return newReview;
   };
 
   // Post a Job
@@ -676,6 +841,12 @@ export function useDemoStore() {
     addSkillClaim,
     assessments,
     submitAssessment,
+    // Verification Flows (R3 / FR-19)
+    endorsements,
+    mentorReviews,
+    requestPeerEndorsement,
+    approvePeerEndorsement,
+    submitMentorReview,
     jobs,
     postJob,
     toggleJobStatus,
