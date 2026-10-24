@@ -23,6 +23,7 @@ import { CandidateDetailModal } from '../features/employer/components/CandidateD
 import { AdminDashboard } from '../features/admin/components/AdminDashboard';
 import { AssessorProfilePage } from '../features/admin/components/AssessorProfilePage';
 import { ExportPassportModal } from '../features/candidate/components/ExportPassportModal';
+import { NotificationCenterModal } from '../features/notifications/components/NotificationCenterModal';
 import { calculateMatchScore } from '../domain/matching';
 import { Application, Job, MatchBreakdown, Role } from '../domain/types';
 import { Flame, Shield, Info, CheckCircle2, Award } from 'lucide-react';
@@ -34,6 +35,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [viewportMode, setViewportMode] = useState<ViewportMode>('desktop');
   const [isDemoTourOpen, setIsDemoTourOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isPassportOpen, setIsPassportOpen] = useState(false);
   const [isExportPassportOpen, setIsExportPassportOpen] = useState(false);
   const [isAIDrafterOpen, setIsAIDrafterOpen] = useState(false);
@@ -159,6 +161,8 @@ export default function App() {
         onSignOutGoogle={store.signOutUser}
         viewportMode={viewportMode}
         onSetViewportMode={setViewportMode}
+        unreadNotificationCount={store.unreadNotificationCount}
+        onOpenNotifications={() => setIsNotificationsOpen(true)}
       />
 
       {/* POPIA Privacy Notification Banner */}
@@ -541,6 +545,23 @@ export default function App() {
           }}
         />
       )}
+
+      {/* In-App Notifications Center (R1 / FR-15) */}
+      <NotificationCenterModal
+        isOpen={isNotificationsOpen}
+        onClose={() => setIsNotificationsOpen(false)}
+        notifications={store.notifications}
+        unreadCount={store.unreadNotificationCount}
+        preferences={store.notificationPreferences}
+        onMarkRead={store.markNotificationRead}
+        onMarkAllRead={store.markAllNotificationsRead}
+        onDelete={store.deleteNotification}
+        onUpdatePreferences={store.updateNotificationPreferences}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setIsNotificationsOpen(false);
+        }}
+      />
     </div>
   );
 }

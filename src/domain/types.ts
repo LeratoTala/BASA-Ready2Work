@@ -208,3 +208,32 @@ export interface PrivacyDeletionRequest {
   updatedAt: string;
   reviewedBy?: string;
 }
+
+export type NotificationType =
+  | 'application_status'
+  | 'matching_job'
+  | 'assessment_result'
+  | 'endorsement_request'
+  | 'transport_update'
+  | 'mentor_message';
+
+export interface InAppNotification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  title: string;
+  body: string;
+  link?: string;
+  createdAt: string;
+  readAt: string | null;
+}
+
+export interface NotificationPreferences {
+  application_status: boolean;
+  matching_job: boolean;
+  assessment_result: boolean;
+  endorsement_request: boolean;
+  transport_update: boolean;
+  mentor_message: boolean;
+}
+

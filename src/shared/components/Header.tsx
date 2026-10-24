@@ -14,6 +14,7 @@ import {
   Monitor,
   Smartphone,
   Tablet,
+  Bell,
 } from 'lucide-react';
 import { Role, User as UserType } from '../../domain/types';
 import { SyncIndicator } from './SyncIndicator';
@@ -39,6 +40,8 @@ interface Props {
   onSignOutGoogle?: () => void;
   viewportMode: ViewportMode;
   onSetViewportMode: (mode: ViewportMode) => void;
+  unreadNotificationCount?: number;
+  onOpenNotifications?: () => void;
 }
 
 export const Header: React.FC<Props> = ({
@@ -59,6 +62,8 @@ export const Header: React.FC<Props> = ({
   onSignOutGoogle,
   viewportMode,
   onSetViewportMode,
+  unreadNotificationCount,
+  onOpenNotifications,
 }) => {
   // Navigation tabs based on role per Section 4.4 - Each persona has their own dedicated profile page
   const candidateTabs = [
@@ -276,6 +281,24 @@ export const Header: React.FC<Props> = ({
               </button>
             );
           })}
+
+          {onOpenNotifications && (
+            <button
+              type="button"
+              onClick={onOpenNotifications}
+              className="relative p-2 ml-1 text-stone-600 hover:text-stone-950 hover:bg-stone-100 rounded-md transition-colors cursor-pointer flex items-center gap-1.5 text-sm font-medium"
+              title="Notifications & Updates"
+              aria-label={`Notifications ${unreadNotificationCount ? `(${unreadNotificationCount} unread)` : ''}`}
+            >
+              <Bell className="w-4 h-4 text-stone-700" />
+              <span className="hidden md:inline text-xs font-medium">Alerts</span>
+              {unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
+                <span className="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white bg-emerald-600 rounded-full">
+                  {unreadNotificationCount}
+                </span>
+              )}
+            </button>
+          )}
         </nav>
       </div>
     </header>

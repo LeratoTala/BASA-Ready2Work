@@ -32,3 +32,13 @@ This is a product checklist, not legal advice. Review POPIA obligations before l
 Candidates can submit a minimal deletion request in their profile. It records only the candidate UID, request timestamps and review status. The candidate can see their own request; admins can review requests and mark them `in_review` or `declined`. The UI does not claim that data has been deleted.
 
 Before public use, the BASA operator must publish a privacy contact and retention policy, verify the requester, review applications/work/safety records for required retention, then perform and audit deletion of eligible Firebase Auth and Firestore data through a trusted operator process. There is currently no in-app delete/completion action; keep a request in review until the operator workflow is approved and implemented.
+
+## R1: In-App Notifications (FR-15) Security & Privacy Review
+
+- **Data collected:** Document ID, recipient `userId`, category `type`, generic notification `title`, friendly plain-text `body`, optional internal navigation `link`, `createdAt` timestamp, and `readAt` timestamp.
+- **Data minimization:** No personal identifiers, no phone numbers/emails, no ZAR compensation amounts, and no raw evidence content are ever stored or exposed in notification payloads.
+- **Purpose:** Purely internal application status alerts, assessment results, and matching reminders within the BASA platform.
+- **Access control:** Enforced strictly in `firebase/firestore.rules`. Only the authenticated owner matching `resource.data.userId` can read, mark as read, or delete their notifications. Direct client writes/creations are denied; creations happen only through trusted backend batches or admin SDK operations with deterministic IDs preventing duplicates.
+- **Third-party sharing:** None. No push tokens or notification data are sent to external third parties.
+- **Preferences & Consent:** Users configure fine-grained delivery preferences for each notification category in the Notification Center settings; opted-out notification types are never generated.
+

@@ -17,3 +17,4 @@ export const INITIAL_JOBS = useDemo ? demo.INITIAL_JOBS : [];
 export const INITIAL_APPLICATIONS = useDemo ? demo.INITIAL_APPLICATIONS : [];
 export const INITIAL_WORK_RECORDS = useDemo ? demo.INITIAL_WORK_RECORDS : [];
 export const INITIAL_REPORTS = useDemo ? demo.INITIAL_REPORTS : [];
+export const INITIAL_NOTIFICATIONS = useDemo ? demo.INITIAL_NOTIFICATIONS : [];

@@ -12,6 +12,9 @@ import {
   SkillClaim,
   User,
   WorkRecord,
+  InAppNotification,
+  NotificationPreferences,
+  NotificationType,
 } from '../../domain/types';
 import {
   INITIAL_APPLICATIONS,
@@ -23,9 +26,16 @@ import {
   INITIAL_SKILL_CLAIMS,
   INITIAL_USERS,
   INITIAL_WORK_RECORDS,
+  INITIAL_NOTIFICATIONS,
 } from '../../data/seed';
 import { calculateMatchScore } from '../../domain/matching';
 import { applicationId, isValidTransition, VALID_STATUS_TRANSITIONS } from '../../domain/applicationStatus';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  formatApplicationStatusNotification,
+  createNotificationRecord,
+  shouldDeliverNotification,
+} from '../../domain/notifications';
 import { NEW_ACCOUNT_DEFAULTS, STORAGE_KEYS } from '../../config/app';
 import { env } from '../../config/env';
 import { SyncState } from '../../services/syncService';
@@ -68,6 +78,12 @@ export function useDemoStore() {
   const [privacyDeletionRequests, setPrivacyDeletionRequests] = useState<PrivacyDeletionRequest[]>(() =>
     loadStored(STORAGE_KEYS.privacyDeletionRequests, [])
   );
+  const [notifications, setNotifications] = useState<InAppNotification[]>(() =>
+    loadStored(STORAGE_KEYS.notifications, INITIAL_NOTIFICATIONS)
+  );
+  const [notificationPreferences, setNotificationPreferences] = useState<Record<string, NotificationPreferences>>(() =>
+    loadStored(STORAGE_KEYS.notificationPreferences, {})
+  );
   const { lowDataMode, setLowDataMode, profileDraft, saveDraft } = useLocalPrefs();
   const syncStatus = 'synced' as SyncState;
   const pendingSyncCount = 0;
@@ -95,6 +111,67 @@ export function useDemoStore() {
   useEffect(() => saveStored(STORAGE_KEYS.workRecords, workRecords), [workRecords]);
   useEffect(() => saveStored(STORAGE_KEYS.reports, reports), [reports]);
   useEffect(() => saveStored(STORAGE_KEYS.privacyDeletionRequests, privacyDeletionRequests), [privacyDeletionRequests]);
+  useEffect(() => saveStored(STORAGE_KEYS.notifications, notifications), [notifications]);
+  useEffect(() => saveStored(STORAGE_KEYS.notificationPreferences, notificationPreferences), [notificationPreferences]);
+
+  const deliverNotification = useCallback(
+    (
+      userId: string,
+      type: NotificationType,
+      title: string,
+      body: string,
+      entityId: string,
+      stateOrTimestamp: string,
+      link?: string
+    ) => {
+      const userPrefs = notificationPreferences[userId] ?? DEFAULT_NOTIFICATION_PREFERENCES;
+      if (!shouldDeliverNotification(userPrefs, type)) return;
+      const notif = createNotificationRecord({
+        userId,
+        type,
+        title,
+        body,
+        entityId,
+        stateOrTimestamp,
+        link,
+        createdAt: new Date().toISOString(),
+      });
+      setNotifications((prev) => {
+        if (prev.some((n) => n.id === notif.id)) return prev;
+        return [notif, ...prev];
+      });
+    },
+    [notificationPreferences]
+  );
+
+  const markNotificationRead = (notificationId: string) => {
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notificationId ? { ...n, readAt: new Date().toISOString() } : n))
+    );
+  };
+
+  const markAllNotificationsRead = () => {
+    if (!currentUser) return;
+    const now = new Date().toISOString();
+    setNotifications((prev) =>
+      prev.map((n) => (n.userId === currentUser.uid && !n.readAt ? { ...n, readAt: now } : n))
+    );
+  };
+
+  const deleteNotification = (notificationId: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
+  };
+
+  const updateNotificationPreferences = (prefs: Partial<NotificationPreferences>) => {
+    if (!currentUser) return;
+    setNotificationPreferences((prev) => ({
+      ...prev,
+      [currentUser.uid]: {
+        ...(prev[currentUser.uid] ?? DEFAULT_NOTIFICATION_PREFERENCES),
+        ...prefs,
+      },
+    }));
+  };
 
   const triggerSync = async () => {};
   const authLoading = false;
@@ -282,6 +359,17 @@ export function useDemoStore() {
         })
       );
     }
+
+    deliverNotification(
+      assessment.candidateId,
+      'assessment_result',
+      'Skill Demonstration Assessed',
+      `Your demonstration for "${assessment.skillName}" was evaluated (${assessment.decision === 'approved' ? 'Approved' : 'Reviewed'}).`,
+      newRecord.id,
+      newRecord.createdAt,
+      'passport'
+    );
+
     return newRecord;
   };
 
@@ -380,6 +468,25 @@ export function useDemoStore() {
     };
 
     setApplications((prev) => [newApp, ...prev]);
+
+    deliverNotification(
+      targetJob.employerId,
+      'application_status',
+      'New Applicant Received',
+      `A candidate applied for "${targetJob.title}". Review their Skill Passport in your Applicants tab.`,
+      newApp.id,
+      'submitted',
+      'applicants'
+    );
+    deliverNotification(
+      currentUser.uid,
+      'application_status',
+      'Application Sent',
+      `Your application for "${targetJob.title}" was submitted successfully.`,
+      newApp.id,
+      'submitted',
+      'applications'
+    );
     return newApp;
   };
 
@@ -420,6 +527,17 @@ export function useDemoStore() {
         }
         return a;
       })
+    );
+
+    const statusNotif = formatApplicationStatusNotification(app.jobTitle, newStatus);
+    deliverNotification(
+      app.candidateId,
+      'application_status',
+      statusNotif.title,
+      statusNotif.body,
+      app.id,
+      newStatus,
+      'applications'
     );
 
     if (newStatus === 'completed') {
@@ -536,6 +654,8 @@ export function useDemoStore() {
     setWorkRecords(INITIAL_WORK_RECORDS);
     setReports(INITIAL_REPORTS);
     setPrivacyDeletionRequests([]);
+    setNotifications(INITIAL_NOTIFICATIONS);
+    setNotificationPreferences({});
   };
 
   return {
@@ -577,6 +697,19 @@ export function useDemoStore() {
       : privacyDeletionRequests.filter((request) => request.uid === currentUser?.uid),
     requestPrivacyDeletion,
     reviewPrivacyDeletionRequest,
+    // In-App Notifications (R1 / FR-15)
+    notifications: currentUser ? notifications.filter((n) => n.userId === currentUser.uid) : [],
+    unreadNotificationCount: currentUser
+      ? notifications.filter((n) => n.userId === currentUser.uid && !n.readAt).length
+      : 0,
+    notificationPreferences:
+      currentUser && notificationPreferences[currentUser.uid]
+        ? notificationPreferences[currentUser.uid]
+        : DEFAULT_NOTIFICATION_PREFERENCES,
+    markNotificationRead,
+    markAllNotificationsRead,
+    deleteNotification,
+    updateNotificationPreferences,
     lowDataMode,
     setLowDataMode,
     profileDraft,

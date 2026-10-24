@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, signInWithPopup, signOut, type User as FirebaseUser } from 'firebase/auth';
 import {
   collection,
+  deleteDoc,
   deleteField,
   doc,
   onSnapshot,
@@ -27,8 +28,17 @@ import type {
   SkillClaim,
   User,
   WorkRecord,
+  InAppNotification,
+  NotificationPreferences,
+  NotificationType,
 } from '../../domain/types';
 import { applicationId, isValidTransition } from '../../domain/applicationStatus';
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  formatApplicationStatusNotification,
+  buildNotificationId,
+  shouldDeliverNotification,
+} from '../../domain/notifications';
 import { COLLECTIONS } from '../../config/app';
 import { friendlyFirebaseError, getFirebase } from '../../services/firebase';
 import type { SyncState } from '../../services/syncService';
@@ -72,6 +82,8 @@ export function useFirestoreStore(): BasaStore {
   const [workRecords, setWorkRecords] = useState<WorkRecord[]>([]);
   const [reports, setReports] = useState<ModerationReport[]>([]);
   const [privacyDeletionRequests, setPrivacyDeletionRequests] = useState<PrivacyDeletionRequest[]>([]);
+  const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+  const [notificationPreferences, setNotificationPreferences] = useState<NotificationPreferences>(DEFAULT_NOTIFICATION_PREFERENCES);
 
   const reportError = useCallback((error: unknown) => {
     console.warn('BASA data error:', error);
@@ -169,12 +181,40 @@ export function useFirestoreStore(): BasaStore {
     setWorkRecords([]);
     setReports([]);
     setPrivacyDeletionRequests([]);
+    setNotifications([]);
+    setNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES);
     if (!uid || !role) return;
 
     const unsubs: Unsubscribe[] = [];
     const listCol = <T,>(q: Query, set: (items: T[]) => void) =>
       unsubs.push(onSnapshot(q, (snap) => set(snap.docs.map((d) => d.data() as T)), reportError));
     const col = (name: string) => collection(db, name);
+
+    // Notifications subscription (R1 / FR-15)
+    unsubs.push(
+      onSnapshot(
+        query(col(COLLECTIONS.notifications), where('userId', '==', uid)),
+        (snap) => {
+          const list = snap.docs.map((d) => d.data() as InAppNotification);
+          list.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+          setNotifications(list);
+        },
+        reportError
+      )
+    );
+    unsubs.push(
+      onSnapshot(
+        doc(db, COLLECTIONS.notificationPreferences, uid),
+        (snap) => {
+          if (snap.exists()) {
+            setNotificationPreferences(snap.data() as NotificationPreferences);
+          } else {
+            setNotificationPreferences(DEFAULT_NOTIFICATION_PREFERENCES);
+          }
+        },
+        reportError
+      )
+    );
 
     if (role === 'candidate') {
       listCol<Job>(query(col(COLLECTIONS.jobs), where('status', '==', 'open')), setJobs);
@@ -564,7 +604,50 @@ export function useFirestoreStore(): BasaStore {
       };
       batch.set(ref, clean(record));
     }
+
+    // Generate in-app notification for candidate (R1 / FR-15)
+    const statusNotif = formatApplicationStatusNotification(app.jobTitle, newStatus);
+    const notifId = buildNotificationId(app.candidateId, 'application_status', app.id, newStatus);
+    const notifRecord: InAppNotification = {
+      id: notifId,
+      userId: app.candidateId,
+      type: 'application_status',
+      title: statusNotif.title,
+      body: statusNotif.body,
+      link: 'applications',
+      createdAt: nowIso(),
+      readAt: null,
+    };
+    batch.set(doc(db, COLLECTIONS.notifications, notifId), clean(notifRecord));
+
     fire(batch.commit());
+  };
+
+  // ---- notifications management (R1 / FR-15) ----
+  const markNotificationRead = (notificationId: string) => {
+    fire(updateDoc(doc(db, COLLECTIONS.notifications, notificationId), { readAt: nowIso() }));
+  };
+
+  const markAllNotificationsRead = () => {
+    const unread = notifications.filter((n) => !n.readAt);
+    if (unread.length === 0) return;
+    const batch = writeBatch(db);
+    const now = nowIso();
+    unread.forEach((n) => {
+      batch.update(doc(db, COLLECTIONS.notifications, n.id), { readAt: now });
+    });
+    fire(batch.commit());
+  };
+
+  const deleteNotification = (notificationId: string) => {
+    fire(deleteDoc(doc(db, COLLECTIONS.notifications, notificationId)));
+  };
+
+  const updateNotificationPreferences = (prefs: Partial<NotificationPreferences>) => {
+    const user = requireUser();
+    fire(
+      setDoc(doc(db, COLLECTIONS.notificationPreferences, user.uid), clean(prefs), { merge: true })
+    );
   };
 
   // ---- moderation ----
@@ -660,6 +743,14 @@ export function useFirestoreStore(): BasaStore {
     privacyDeletionRequests,
     requestPrivacyDeletion,
     reviewPrivacyDeletionRequest,
+    // In-App Notifications (R1 / FR-15)
+    notifications,
+    unreadNotificationCount: notifications.filter((n) => !n.readAt).length,
+    notificationPreferences,
+    markNotificationRead,
+    markAllNotificationsRead,
+    deleteNotification,
+    updateNotificationPreferences,
     lowDataMode: prefs.lowDataMode,
     setLowDataMode: prefs.setLowDataMode,
     profileDraft: prefs.profileDraft,

@@ -20,6 +20,8 @@ export const STORAGE_KEYS = {
   workRecords: `${APP.storagePrefix}workRecords`,
   reports: `${APP.storagePrefix}reports`,
   privacyDeletionRequests: `${APP.storagePrefix}privacyDeletionRequests`,
+  notifications: `${APP.storagePrefix}notifications`,
+  notificationPreferences: `${APP.storagePrefix}notificationPreferences`,
   lowDataMode: `${APP.storagePrefix}lowDataMode`,
   profileDraft: `${APP.storagePrefix}profileDraft`,
   syncQueue: `${APP.storagePrefix}sync_queue`,
@@ -58,4 +60,6 @@ export const COLLECTIONS = {
   workRecords: 'workRecords',
   reports: 'reports',
   privacyDeletionRequests: 'privacyDeletionRequests',
+  notifications: 'notifications',
+  notificationPreferences: 'notificationPreferences',
 } as const;

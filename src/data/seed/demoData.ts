@@ -8,6 +8,7 @@ import {
   Application,
   WorkRecord,
   ModerationReport,
+  InAppNotification,
 } from '../../domain/types';
 
 export const INITIAL_USERS: User[] = [
@@ -375,3 +376,37 @@ export const INITIAL_REPORTS: ModerationReport[] = [
     createdAt: '2026-10-11T12:00:00Z',
   },
 ];
+
+export const INITIAL_NOTIFICATIONS: InAppNotification[] = [
+  {
+    id: 'notif_thabo_shortlisted',
+    userId: 'candidate-thabo',
+    type: 'application_status',
+    title: 'You Are Shortlisted!',
+    body: 'Great news! You have been shortlisted for "Weekend Barista & Cashier". The employer will reach out if selected.',
+    link: 'applications',
+    createdAt: '2026-10-24T08:30:00Z',
+    readAt: null,
+  },
+  {
+    id: 'notif_thabo_assessed',
+    userId: 'candidate-thabo',
+    type: 'assessment_result',
+    title: 'Skill Demonstration Assessed',
+    body: 'Your "Coffee Brewing & Machine Operation" demonstration was evaluated and upgraded to Task-assessed.',
+    link: 'passport',
+    createdAt: '2026-10-23T14:00:00Z',
+    readAt: '2026-10-23T15:00:00Z',
+  },
+  {
+    id: 'notif_zola_new_applicant',
+    userId: 'employer-zola',
+    type: 'application_status',
+    title: 'New Applicant Received',
+    body: 'A candidate applied for "Weekend Barista & Cashier". Review their Skill Passport in your Applicants tab.',
+    link: 'applicants',
+    createdAt: '2026-10-24T08:00:00Z',
+    readAt: null,
+  },
+];
+

@@ -304,4 +304,43 @@ describe('firestore rules', () => {
     });
     await assertFails(updateDoc(doc(db, 'workRecords/locked'), { payoutConfirmed: true }));
   });
+
+  it('T-14 a user cannot read another user notifications; owner can read and update readAt', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'notifications/notif_cand1_1'), {
+        id: 'notif_cand1_1',
+        userId: 'cand1',
+        type: 'application_status',
+        title: 'You are Shortlisted!',
+        body: 'Great news! You have been shortlisted.',
+        createdAt: '2026-10-24T12:00:00.000Z',
+        readAt: null,
+      });
+    });
+
+    const cand1 = env.authenticatedContext('cand1').firestore();
+    const otherUser = env.authenticatedContext('other_user').firestore();
+
+    // Owner can read their own notification
+    await assertSucceeds(getDoc(doc(cand1, 'notifications/notif_cand1_1')));
+
+    // Other user cannot read cand1's notification (T-14)
+    await assertFails(getDoc(doc(otherUser, 'notifications/notif_cand1_1')));
+
+    // Client cannot create a notification directly
+    await assertFails(setDoc(doc(cand1, 'notifications/forged'), {
+      userId: 'cand1',
+      title: 'Forged',
+    }));
+
+    // Owner can mark as read (update readAt)
+    await assertSucceeds(updateDoc(doc(cand1, 'notifications/notif_cand1_1'), {
+      readAt: '2026-10-24T12:05:00.000Z',
+    }));
+
+    // Other user cannot update cand1's notification
+    await assertFails(updateDoc(doc(otherUser, 'notifications/notif_cand1_1'), {
+      readAt: '2026-10-24T12:05:00.000Z',
+    }));
+  });
 });

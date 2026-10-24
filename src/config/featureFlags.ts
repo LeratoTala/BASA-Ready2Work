@@ -1,0 +1,46 @@
+/**
+ * Roadmap Feature Flags
+ * Specified in Section 20 & 21 of the AI Agent Brief.
+ * 
+ * Rules:
+ *  - Every roadmap feature sits behind a flag.
+ *  - A flag is ON only when its feature is finished, tested, and reviewed. Default is OFF.
+ */
+
+export interface FeatureFlags {
+  notificationsInApp: boolean;
+  pushNotifications: boolean;
+  locationFilters: boolean;
+  offlineDrafts: boolean;
+  offlineSync: boolean;
+  peerEndorsement: boolean;
+  microTasks: boolean;
+  mentorReview: boolean;
+  aiDrafting: boolean;
+  mentorChat: boolean;
+  microInternships: boolean;
+  transportSupport: boolean;
+  paymentConfirmation: boolean;
+  whatsapp: boolean;
+  credentials: boolean;
+  matchFeedback: boolean;
+}
+
+export const FEATURE_FLAGS: FeatureFlags = {
+  notificationsInApp: true,  // R1: In-app notifications (FR-15)
+  pushNotifications: false,
+  locationFilters: false,    // R2: Location-aware filters (FR-16) - Next up
+  offlineDrafts: true,       // R5 Phase A: Profile drafts
+  offlineSync: false,
+  peerEndorsement: false,    // R3: Peer endorsement
+  microTasks: false,         // R3: Micro-tasks & rubrics
+  mentorReview: false,       // R3: Mentor review
+  aiDrafting: false,         // R6: AI drafting (default off per POPIA rules)
+  mentorChat: false,         // R7: Mentor chat
+  microInternships: false,   // R4: 1-5 day micro-internships
+  transportSupport: false,   // R8: Transport help
+  paymentConfirmation: false,// R9: Payment confirmation records
+  whatsapp: false,           // R10: WhatsApp channel
+  credentials: false,        // R11: Qualification entries
+  matchFeedback: false,      // R12: Weight tuning & feedback
+} as const;

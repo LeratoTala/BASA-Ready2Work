@@ -273,5 +273,25 @@ service cloud.firestore {
           || (resource.data.status == 'in_review' && incoming().status == 'declined'));
       allow delete: if false;
     }
+
+    // ---------- feature flags (Section 20) ----------
+    match /config/featureFlags {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- notifications (R1 / FR-15) ----------
+    match /notifications/{notificationId} {
+      allow read: if (signedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow create: if false; // server-side / Admin SDK only to ensure idempotency & prevent forgery
+      allow update: if signedIn() && resource.data.userId == request.auth.uid
+        && changedKeys().hasOnly(['readAt'])
+        && (incoming().readAt is string || incoming().readAt == null);
+      allow delete: if (signedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+    }
+
+    match /notificationPreferences/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
   }
 }
