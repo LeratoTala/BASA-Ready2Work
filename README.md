@@ -44,7 +44,7 @@ Try it with fictional data and no backend: set `VITE_ENABLE_DEMO_DATA=true` in `
 
 ## Current status
 
-This repository is an MVP-level working web app for BASA: Ready2Work. The core product flow is implemented: role-based onboarding, candidate and employer dashboards, explainable matching, application status handling, admin/assessor views, Firebase-backed persistence, optional demo mode, and an Express API for AI-assisted CV drafting.
+This repository is an MVP-level working web app for BASA: Ready2Work. The core product flow is implemented: role-based onboarding, candidate and employer dashboards, explainable matching, application status handling, admin/assessor views, Firebase-backed persistence, optional demo mode, Express API for AI-assisted CV drafting, in-app notifications center (R1 / FR-15), and POPIA-compliant private evidence storage.
 
 The repo is not yet marked as production-ready; the remaining work is primarily validation, security hardening, and launch-readiness tasks such as emulator verification, App Check, and privacy/deletion controls.
 
@@ -95,6 +95,8 @@ See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) (Firebase rules, Cloud Run/Node h
 
 - [x] **Phase 1: Foundation.** Feature-based structure, config/env separation, hardened rules, unit tests, CI, Docker.
 - [x] **Phase 2: Real backend (code complete, needs emulator verification).** Firestore-backed store with role-scoped live listeners and offline cache; onboarding; admin via custom claim. The localStorage store remains as demo mode only.
+- [x] **Roadmap R1: In-App Notifications (FR-15).** Dedicated notification center modal, unread badge counter in header, fine-grained preferences toggles, and idempotent alerts without PII (tests T-13, T-14, T-15 pass).
+- [ ] **Roadmap R2: Location-Aware Filters (FR-16).** Centroid-based distance estimation between broad areas without GPS tracking.
 - [ ] **Phase 2b:** Cloud Function to maintain `reportCount`; run `npm run test:rules` in CI.
 - [ ] **Phase 3: Responsive and accessibility pass.** Remove fixed-width layouts, test on real phones, keyboard and contrast audit, measure bundle and data use.
 - [ ] **Phase 4: Launch readiness.** App Check, privacy notice, data retention and deletion, monitoring, store wrappers if needed.
