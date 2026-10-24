@@ -12,6 +12,7 @@ import {
   WEEKEND_KEYWORD,
 } from '../config/scoring';
 import { getMetroCluster } from '../config/locations';
+import { getEstimatedDistanceBetweenAreas, formatCentroidDistance } from './location';
 
 export function calculateMatchScore(
   job: Job,
@@ -89,6 +90,13 @@ export function calculateMatchScore(
     }
   }
 
+  // Pure centroid distance estimation (POPIA: no device GPS tracking)
+  const isRemote = job.workMode === 'Remote';
+  const estimatedDistanceKm = isRemote
+    ? null
+    : getEstimatedDistanceBetweenAreas(candidate.locationArea, job.locationArea);
+  const distanceLabel = formatCentroidDistance(estimatedDistanceKm, job.workMode);
+
   // Formula (spec 7.1): M = wS*S + wE*E + wA*A + wL*L, weights in config/scoring.ts
   const totalScore = Math.round(
     MATCH_WEIGHTS.skills * S +
@@ -119,7 +127,9 @@ export function calculateMatchScore(
   if (L === 100) {
     reasons.push(job.workMode === 'Remote' ? 'Fully remote opportunity (flexible from anywhere).' : `Exact location match in ${candidate.locationArea}.`);
   } else if (L >= 70) {
-    reasons.push(`Accessible location within the greater metro area (${job.locationArea}).`);
+    const distHint =
+      estimatedDistanceKm !== null ? ` (~${Math.round(estimatedDistanceKm)} km centroid distance)` : '';
+    reasons.push(`Accessible location within the greater metro area (${job.locationArea})${distHint}.`);
   }
 
   // Constructive improvement suggestions
@@ -144,5 +154,7 @@ export function calculateMatchScore(
     missingSkills,
     reasons,
     improvementTips,
+    estimatedDistanceKm,
+    distanceLabel,
   };
 }

@@ -108,6 +108,11 @@ export const OpportunityDetailModal: React.FC<Props> = ({
             <div>
               <span className="text-stone-400 block">Location</span>
               <span className="font-medium text-white">{job.locationArea}</span>
+              {matchBreakdown.distanceLabel && (
+                <span className="text-[10px] text-amber-300 block font-normal">
+                  {matchBreakdown.distanceLabel}
+                </span>
+              )}
             </div>
             <div>
               <span className="text-stone-400 block">Start Date</span>
@@ -172,6 +177,11 @@ export const OpportunityDetailModal: React.FC<Props> = ({
                 <span className="text-stone-500 block">Location Fit (L)</span>
                 <span className="text-base font-bold text-stone-900">{matchBreakdown.locationFit}%</span>
                 <span className="text-[10px] text-stone-400 block">10% weight</span>
+                {matchBreakdown.distanceLabel && (
+                  <span className="text-[10px] text-amber-700 block mt-0.5 font-medium">
+                    {matchBreakdown.distanceLabel}
+                  </span>
+                )}
               </div>
             </div>
 

@@ -29,7 +29,7 @@ export interface FeatureFlags {
 export const FEATURE_FLAGS: FeatureFlags = {
   notificationsInApp: true,  // R1: In-app notifications (FR-15)
   pushNotifications: false,
-  locationFilters: false,    // R2: Location-aware filters (FR-16) - Next up
+  locationFilters: true,     // R2: Location-aware filters (FR-16)
   offlineDrafts: true,       // R5 Phase A: Profile drafts
   offlineSync: false,
   peerEndorsement: false,    // R3: Peer endorsement

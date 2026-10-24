@@ -343,4 +343,41 @@ describe('firestore rules', () => {
       readAt: '2026-10-24T12:05:00.000Z',
     }));
   });
+
+  it('R2 / FR-16 signed-in users can read areas reference; only admin can write', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'areas/area_soweto'), {
+        id: 'area_soweto',
+        name: 'Soweto',
+        province: 'Gauteng',
+        lat: -26.2678,
+        lng: 27.8585,
+      });
+    });
+
+    const cand1 = env.authenticatedContext('cand1').firestore();
+    const unauthed = env.unauthenticatedContext().firestore();
+    const admin = env.authenticatedContext('admin_user', { admin: true }).firestore();
+
+    // Signed-in user can read area centroid
+    await assertSucceeds(getDoc(doc(cand1, 'areas/area_soweto')));
+
+    // Unauthenticated user cannot read areas
+    await assertFails(getDoc(doc(unauthed, 'areas/area_soweto')));
+
+    // Candidate cannot write to areas collection
+    await assertFails(setDoc(doc(cand1, 'areas/area_forged'), {
+      id: 'area_forged',
+      name: 'Forged',
+    }));
+
+    // Admin can write area reference data
+    await assertSucceeds(setDoc(doc(admin, 'areas/area_midrand'), {
+      id: 'area_midrand',
+      name: 'Midrand',
+      province: 'Gauteng',
+      lat: -25.9992,
+      lng: 28.1263,
+    }));
+  });
 });

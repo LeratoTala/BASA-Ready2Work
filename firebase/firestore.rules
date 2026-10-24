@@ -280,6 +280,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ---------- areas & centroids (R2 / FR-16) ----------
+    match /areas/{areaId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
     // ---------- notifications (R1 / FR-15) ----------
     match /notifications/{notificationId} {
       allow read: if (signedIn() && resource.data.userId == request.auth.uid) || isAdmin();

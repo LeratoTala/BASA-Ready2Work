@@ -25,7 +25,7 @@ First incomplete day: Day 4, Firebase development environment. Local Firestore e
 | FR-13 Offline-friendly drafts | Partial | Local draft support exists; recovery/connectivity integration is unverified. |
 | FR-14 AI CV drafting | Partial | Server-side endpoint is token-protected, default-off, and excludes profile identifiers; provider terms and enabled-model behavior need review. |
 | FR-15 In-app notifications | Done | Dedicated notification center modal, unread badge counter in header, fine-grained preferences toggles, idempotent deterministic IDs, Firestore rules, and tests T-13, T-14, T-15 pass. |
-| FR-16 Location-aware filters | Partial | Broad-area matching exists; location filter workflow is incomplete. |
+| FR-16 Location-aware filters | Done | Broad-area matching, centroid distance estimation via Haversine formula, privacy-safe distance filters on candidate view, no GPS tracking; tests T-16, T-17, T-18 pass. |
 | FR-17 WhatsApp access | Not started | Deferred P2 integration. |
 | FR-18 Transport support | Not started | Deferred P2 integration. |
 
@@ -63,8 +63,11 @@ First incomplete day: Day 4, Firebase development environment. Local Firestore e
 | T-13 | Done | Deterministic notification ID prevents duplicates on status change. |
 | T-14 | Done | Firestore security rules deny users reading another user's notifications. |
 | T-15 | Done | Opted-out notification types are not created or delivered. |
+| T-16 | Done | Candidate opportunity location and reachable distance filtering. |
+| T-17 | Done | Centroid distance estimation using Haversine calculation. |
+| T-18 | Done | Zero Geolocation / GPS POPIA Privacy guarantee (broad areas only). |
 
-Latest checks: `npm run typecheck` passed; `npm test` passed (28 tests); Firestore/Storage security rules pass; `npm run build` passed. Feature flag `notificationsInApp` is enabled; `offlineDrafts` is enabled; all other roadmap flags remain default OFF per Section 20.
+Latest checks: `npm run typecheck` passed; `npm test` passed (46 tests); Firestore/Storage security rules pass; `npm run build` passed. Feature flags `notificationsInApp`, `locationFilters`, and `offlineDrafts` are enabled; all other roadmap flags remain default OFF per Section 20.
 
 ## Security and Privacy Changes This Session
 

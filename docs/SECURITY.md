@@ -42,3 +42,13 @@ Before public use, the BASA operator must publish a privacy contact and retentio
 - **Third-party sharing:** None. No push tokens or notification data are sent to external third parties.
 - **Preferences & Consent:** Users configure fine-grained delivery preferences for each notification category in the Notification Center settings; opted-out notification types are never generated.
 
+## R2: Location-Aware Filters (FR-16) Security & Privacy Review
+
+- **Data collected:** Broad area identifier or name (e.g. "Soweto", "Sandton", "Khayelitsha").
+- **Zero GPS / Geolocation Tracking (T-18):** No HTML5 Geolocation API, GPS receiver, device coordinates, home street address, or IP-based geolocation tracking is ever requested, stored, or processed. Distance math is purely mathematical between public, static South African area centroid coordinates (`SA_AREA_CENTROIDS`).
+- **Data minimization:** Candidate profiles and employer job postings record only broad suburb or township text names (e.g. "Soweto, Johannesburg").
+- **Purpose:** Assist youth in identifying reachable opportunities and estimating commute feasibility without exposing where they live.
+- **Centroid Distance Math (T-17):** Pure client-side/server-side Haversine formula against pre-defined township and suburb centroids, returning rounded estimated kilometers labeled clearly as centroid estimates.
+- **Access control:** Area reference data in `/areas/{areaId}` is readable by signed-in users and writable only by administrators (`firebase/firestore.rules`).
+- **Third-party sharing:** None. Zero location data is sent to external maps or third-party tracking APIs.
+

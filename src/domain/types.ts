@@ -151,6 +151,8 @@ export interface MatchBreakdown {
   missingSkills: string[];
   reasons: string[];
   improvementTips: string[];
+  estimatedDistanceKm?: number | null;
+  distanceLabel?: string;
 }
 
 export interface Application {

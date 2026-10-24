@@ -96,7 +96,8 @@ See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) (Firebase rules, Cloud Run/Node h
 - [x] **Phase 1: Foundation.** Feature-based structure, config/env separation, hardened rules, unit tests, CI, Docker.
 - [x] **Phase 2: Real backend (code complete, needs emulator verification).** Firestore-backed store with role-scoped live listeners and offline cache; onboarding; admin via custom claim. The localStorage store remains as demo mode only.
 - [x] **Roadmap R1: In-App Notifications (FR-15).** Dedicated notification center modal, unread badge counter in header, fine-grained preferences toggles, and idempotent alerts without PII (tests T-13, T-14, T-15 pass).
-- [ ] **Roadmap R2: Location-Aware Filters (FR-16).** Centroid-based distance estimation between broad areas without GPS tracking.
+- [x] **Roadmap R2: Location-Aware Filters (FR-16).** Centroid-based distance estimation between broad South African areas, interactive candidate distance & work mode filters, without GPS tracking (tests T-16, T-17, T-18 pass).
+- [ ] **Roadmap R3: Verification Flows (FR-19).** Peer endorsement request/review, practical micro-tasks rubrics, and designated mentor reviews.
 - [ ] **Phase 2b:** Cloud Function to maintain `reportCount`; run `npm run test:rules` in CI.
 - [ ] **Phase 3: Responsive and accessibility pass.** Remove fixed-width layouts, test on real phones, keyboard and contrast audit, measure bundle and data use.
 - [ ] **Phase 4: Launch readiness.** App Check, privacy notice, data retention and deletion, monitoring, store wrappers if needed.
