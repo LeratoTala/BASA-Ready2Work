@@ -56,10 +56,22 @@ export const EmployerDashboard: React.FC<Props> = ({
               <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 bg-amber-950/60 border border-amber-800 px-2 py-0.5 rounded">
                 Employer Dashboard
               </span>
-              <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                Verified Business
-              </span>
+              {employer.verificationStatus === 'verified' ? (
+                <span className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Verified Business
+                </span>
+              ) : employer.verificationStatus === 'pending' ? (
+                <span className="flex items-center gap-1 text-xs text-amber-400 font-medium">
+                  <Clock className="w-3.5 h-3.5" />
+                  Verification Pending
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-xs text-stone-400 font-medium">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  Unverified
+                </span>
+              )}
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-white">{employer.businessName}</h1>
             <p className="text-stone-300 text-sm">{employer.description}</p>

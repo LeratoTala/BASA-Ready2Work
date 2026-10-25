@@ -18,6 +18,7 @@ import {
 import { Application, CandidateProfile, Job, MatchBreakdown, SkillClaim } from '../../../domain/types';
 import { calculateMatchScore } from '../../../domain/matching';
 import { FEATURE_FLAGS } from '../../../config/featureFlags';
+import type { ProfileDraft } from '../../../app/store/useLocalPrefs';
 
 interface Props {
   candidate: CandidateProfile;
@@ -31,8 +32,8 @@ interface Props {
   onOpenProfile?: () => void;
   onSelectJob: (job: Job, breakdown: MatchBreakdown) => void;
   onUpdateProfile: (updates: Partial<CandidateProfile>) => void;
-  profileDraft: any;
-  onSaveDraft: (draft: any) => void;
+  profileDraft: ProfileDraft | null;
+  onSaveDraft: (draft: ProfileDraft) => void;
 }
 
 export const CandidateDashboard: React.FC<Props> = ({
@@ -327,7 +328,7 @@ export const CandidateDashboard: React.FC<Props> = ({
           <div>
             <h2 className="text-lg font-bold text-stone-900">Recommended Opportunities</h2>
             <p className="text-xs text-stone-500">
-              Ranked using the BASA Matching Formula: Skills (50%) + Evidence (25%) + Availability (15%) + Location (10%)
+              Ranked by an explainable fit guide—not hiring odds. Skills (50%) + Evidence (25%) + Availability (15%) + Location (10%).
             </p>
           </div>
           <span className="text-xs text-stone-500 font-medium">

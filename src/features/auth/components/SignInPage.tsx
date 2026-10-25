@@ -17,6 +17,8 @@ import {
   Globe,
 } from 'lucide-react';
 import { User as UserType } from '../../../domain/types';
+import { ThemeToggle } from '../../../shared/components/ThemeToggle';
+import type { ColorTheme } from '../../../app/useColorTheme';
 
 interface Props {
   onSignInWithGoogle: () => Promise<any>;
@@ -26,6 +28,8 @@ interface Props {
   onVerifyPhoneOtp?: (code: string) => Promise<any>;
   onSelectDemoUser: (uid: string) => void;
   demoUsers: UserType[];
+  theme: ColorTheme;
+  onToggleTheme: () => void;
 }
 
 export const SignInPage: React.FC<Props> = ({
@@ -36,6 +40,8 @@ export const SignInPage: React.FC<Props> = ({
   onVerifyPhoneOtp,
   onSelectDemoUser,
   demoUsers,
+  theme,
+  onToggleTheme,
 }) => {
   const [authMethod, setAuthMethod] = useState<'quick' | 'email' | 'phone'>('quick');
   const [isLoading, setIsLoading] = useState(false);
@@ -181,6 +187,7 @@ export const SignInPage: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-2 text-xs text-stone-400">
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
             <Shield className="w-3.5 h-3.5 text-emerald-400" />
             <span className="hidden sm:inline">POPIA Protected Portal</span>
           </div>

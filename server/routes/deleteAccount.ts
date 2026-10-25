@@ -99,10 +99,11 @@ deleteAccountRouter.delete('/delete-account', verifyIdToken, async (req, res) =>
       await batch.commit();
     }
 
-    // 3. Delete Firebase Storage evidence objects
+    // 3. Delete Firebase Storage evidence objects.
+    // Path must match the prefix used by uploadCandidateEvidence in src/services/evidenceStorage.ts.
     try {
       const storageBucket = getStorage(getApps()[0]).bucket();
-      const [files] = await storageBucket.getFiles({ prefix: `evidence/${uid}/` });
+      const [files] = await storageBucket.getFiles({ prefix: `candidate-evidence/${uid}/` });
       await Promise.all(files.map((f) => f.delete()));
     } catch (storageError) {
       // Storage may not be configured (e.g. VITE_FIREBASE_STORAGE_BUCKET empty). Log but don't fail.

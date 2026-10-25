@@ -21,7 +21,7 @@ Weights, thresholds, defaults, storage keys, collection names, API limits and UR
 They live in `src/config/*` (client) or env vars read in `server/config.ts` (server).
 
 ## Matching engine
-`M = 0.50·S + 0.25·E + 0.15·A + 0.10·L` (weights in `src/config/scoring.ts`). Skills (S), evidence strength (E), availability (A), location/work mode (L), each 0-100. The weights are hypotheses, not validated predictors. The score is a recommendation aid and never an automatic hiring decision.
+`M = 0.50·S + 0.25·E + 0.15·A + 0.10·L` (weights in `src/config/scoring.ts`). Skills (S), evidence strength (E), availability (A), location/work mode (L), each 0-100. The weights are hypotheses, not validated predictors. The score is a recommendation aid—not a hiring probability—and never an automatic hiring decision. Validate the weights with pilot feedback and outcomes before making predictive claims.
 
 ## Application lifecycle
 `submitted → under_review → shortlisted → selected → completed`, with `not_selected` and `withdrawn` exits. Enforced in `src/domain/applicationStatus.ts` and mirrored in the Firestore rules. Application ids are `<jobId>_<candidateId>`, which makes duplicates impossible.

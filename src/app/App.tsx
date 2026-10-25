@@ -6,7 +6,6 @@ import type { BasaStore } from './store/types';
 import { OnboardingPage } from '../features/auth/components/OnboardingPage';
 import { Header, ViewportMode } from '../shared/components/Header';
 import { PopiaBanner } from '../shared/components/PopiaBanner';
-import { DemoTourModal } from '../shared/components/DemoTourModal';
 import { SignInPage } from '../features/auth/components/SignInPage';
 import { CandidateDashboard } from '../features/candidate/components/CandidateDashboard';
 import { CandidateProfilePage } from '../features/candidate/components/CandidateProfilePage';
@@ -24,17 +23,19 @@ import { AdminDashboard } from '../features/admin/components/AdminDashboard';
 import { AssessorProfilePage } from '../features/admin/components/AssessorProfilePage';
 import { ExportPassportModal } from '../features/candidate/components/ExportPassportModal';
 import { NotificationCenterModal } from '../features/notifications/components/NotificationCenterModal';
+import { useColorTheme } from './useColorTheme';
 import { calculateMatchScore } from '../domain/matching';
-import { Application, Job, MatchBreakdown, Role } from '../domain/types';
+import { Application, Job, MatchBreakdown } from '../domain/types';
 import { Flame, Shield, Info, CheckCircle2, Award } from 'lucide-react';
+import { ThemeToggle } from '../shared/components/ThemeToggle';
 
 export default function App() {
   // env.enableDemoData is fixed at build time, so exactly one store hook runs for the app's lifetime.
   const store: BasaStore = env.enableDemoData ? useDemoStore() : useFirestoreStore();
+  const { theme, toggleTheme } = useColorTheme();
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [viewportMode, setViewportMode] = useState<ViewportMode>('desktop');
-  const [isDemoTourOpen, setIsDemoTourOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isPassportOpen, setIsPassportOpen] = useState(false);
   const [isExportPassportOpen, setIsExportPassportOpen] = useState(false);
@@ -71,6 +72,8 @@ export default function App() {
         minimumAge={env.minimumUserAge}
         onComplete={store.registerUser}
         onSignOut={store.signOutUser}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
     );
   }
@@ -86,15 +89,11 @@ export default function App() {
         onVerifyPhoneOtp={store.verifyPhoneOtp}
         onSelectDemoUser={handleSwitchUser}
         demoUsers={env.enableDemoData ? store.users : []}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
     );
   }
-
-  const handleRoleTourSwitch = (role: Role, uid: string) => {
-    store.switchUser(uid);
-    setActiveTab('dashboard');
-    setIsDemoTourOpen(false);
-  };
 
   // Open job detail with computed matching breakdown
   const handleSelectJob = (job: Job, breakdown?: MatchBreakdown) => {
@@ -143,7 +142,7 @@ export default function App() {
       className={`min-h-screen flex flex-col font-sans transition-colors ${
         store.lowDataMode
           ? 'bg-stone-100 text-stone-900 contrast-125'
-          : 'bg-[#faf8f5] text-stone-900'
+          : theme === 'dark' ? 'bg-stone-950 text-stone-100' : 'bg-[#faf8f5] text-stone-900'
       }`}
     >
       {/* Global Header */}
@@ -155,7 +154,6 @@ export default function App() {
         onSelectTab={setActiveTab}
         lowDataMode={store.lowDataMode}
         onToggleLowData={() => store.setLowDataMode(!store.lowDataMode)}
-        onOpenDemoTour={() => setIsDemoTourOpen(true)}
         onResetDemoData={store.resetDemoData}
         syncStatus={store.syncStatus}
         pendingCount={store.pendingSyncCount}
@@ -167,6 +165,8 @@ export default function App() {
         onSetViewportMode={setViewportMode}
         unreadNotificationCount={store.unreadNotificationCount}
         onOpenNotifications={() => setIsNotificationsOpen(true)}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
 
       {/* POPIA Privacy Notification Banner */}
@@ -427,6 +427,8 @@ export default function App() {
                 candidateProfiles={store.candidateProfiles}
                 employerProfiles={store.employerProfiles}
                 assessments={store.assessments}
+                applications={store.applications}
+                workRecords={store.workRecords}
                 jobs={store.jobs}
                 reports={store.reports}
                 privacyDeletionRequests={store.privacyDeletionRequests}
@@ -465,28 +467,11 @@ export default function App() {
             <a href="/PRIVACY.md" target="_blank" rel="noopener noreferrer" className="text-stone-400 hover:text-amber-400 underline">
               Privacy Notice (POPIA)
             </a>
-            {env.enableDemoData && (
-              <>
-                <span>·</span>
-                <button
-                  onClick={() => setIsDemoTourOpen(true)}
-                  className="text-amber-400 hover:underline cursor-pointer"
-                >
-                  5-Minute Demo Script
-                </button>
-              </>
-            )}
           </div>
         </div>
       </footer>
 
       {/* Modals */}
-      <DemoTourModal
-        isOpen={isDemoTourOpen}
-        onClose={() => setIsDemoTourOpen(false)}
-        onSwitchRole={handleRoleTourSwitch}
-      />
-
       {isPassportOpen && store.currentCandidateProfile && (
         <SkillPassportModal
           isOpen={isPassportOpen}

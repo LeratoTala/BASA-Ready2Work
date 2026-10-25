@@ -4,6 +4,8 @@
 
 *BASA = Bridge to Actual Skills & Access.*
 
+Users can switch between light and dark appearance; their selection is saved on the device.
+
 ---
 
 ## What It Does
@@ -193,4 +195,5 @@ Try it with fictional data and no backend: set `VITE_ENABLE_DEMO_DATA=true` in `
 * [Deployment & Hosting Guide](docs/DEPLOYMENT.md)
 * [Security Baseline & POPIA Compliance](docs/SECURITY.md)
 * [Progress Tracker & Requirements Matrix](docs/PROGRESS.md)
+* [Pilot Evaluation Plan](docs/PILOT_GUIDE.md)
 * [Contributing Guide](CONTRIBUTING.md)

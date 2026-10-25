@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { Building2, User } from 'lucide-react';
 import type { Role } from '../../../domain/types';
+import { ThemeToggle } from '../../../shared/components/ThemeToggle';
+import type { ColorTheme } from '../../../app/useColorTheme';
 
 interface Props {
   displayName: string;
@@ -8,6 +10,8 @@ interface Props {
   minimumAge: number;
   onComplete: (displayName: string, email: string, role: Role, minimumAgeConfirmed: boolean) => void;
   onSignOut: () => void;
+  theme: ColorTheme;
+  onToggleTheme: () => void;
 }
 
 type SelfAssignableRole = Exclude<Role, 'admin'>;
@@ -18,7 +22,15 @@ const OPTIONS: { role: SelfAssignableRole; title: string; description: string; i
 ];
 
 /** Shown once, after first sign-in, so a person can choose how they will use BASA. */
-export const OnboardingPage: React.FC<Props> = ({ displayName, email, minimumAge, onComplete, onSignOut }) => {
+export const OnboardingPage: React.FC<Props> = ({
+  displayName,
+  email,
+  minimumAge,
+  onComplete,
+  onSignOut,
+  theme,
+  onToggleTheme,
+}) => {
   const [name, setName] = useState(displayName);
   const [role, setRole] = useState<SelfAssignableRole>('candidate');
   const [minimumAgeConfirmed, setMinimumAgeConfirmed] = useState(false);
@@ -30,7 +42,10 @@ export const OnboardingPage: React.FC<Props> = ({ displayName, email, minimumAge
   };
 
   return (
-    <main className="min-h-screen bg-[#faf8f5] flex items-center justify-center p-4">
+    <main className="min-h-screen bg-[#faf8f5] flex items-center justify-center p-4 relative">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+      </div>
       <form onSubmit={submit} className="w-full max-w-md bg-white border border-stone-200 rounded-2xl shadow-xl p-6 sm:p-8 space-y-5">
         <div className="space-y-1 text-center">
           <h1 className="text-2xl font-bold text-stone-900">Welcome to BASA</h1>

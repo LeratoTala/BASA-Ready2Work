@@ -139,7 +139,7 @@ export const OpportunityDetailModal: React.FC<Props> = ({
             <div>
               <h4 className="text-xs font-bold text-stone-900">Match Compatibility Score</h4>
               <p className="text-[11px] text-stone-600">
-                Formula: S (50%) + E (25%) + A (15%) + L (10%)
+                A guide to fit—not hiring odds or a guarantee. Formula: S (50%) + E (25%) + A (15%) + L (10%).
               </p>
             </div>
           </div>
@@ -155,8 +155,12 @@ export const OpportunityDetailModal: React.FC<Props> = ({
         {showBreakdown && (
           <div className="bg-stone-50 border-b border-stone-200 p-5 text-xs space-y-3">
             <h5 className="font-bold text-stone-900 uppercase tracking-wider text-[11px]">
-              Transparent Matching Breakdown (Formula 7.1)
+              How the recommendation is calculated
             </h5>
+            <p className="text-stone-600">
+              This score is a recommendation aid, not a prediction of hiring success. Employers make hiring decisions;
+              a lower score does not automatically disqualify you.
+            </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
               <div className="bg-white p-2.5 rounded border border-stone-200">
                 <span className="text-stone-500 block">Skill Alignment (S)</span>

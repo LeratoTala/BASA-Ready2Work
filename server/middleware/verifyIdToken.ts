@@ -82,10 +82,7 @@ export async function verifyAppCheck(req: Request, res: Response, next: NextFunc
 
   const appCheckToken = (req.headers['x-firebase-appcheck'] as string | undefined)?.trim();
   if (!appCheckToken) {
-    // Allow through in non-production; in production warn but don't hard-block yet to ease rollout.
-    // Change to a 401 once App Check is fully rolled out on the client.
-    console.warn('App Check token missing from request to', req.path);
-    return next();
+    return res.status(401).json({ error: 'App integrity check failed. Please refresh and try again.' });
   }
 
   try {

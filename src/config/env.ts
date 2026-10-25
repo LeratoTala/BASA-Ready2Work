@@ -32,6 +32,14 @@ export const envErrors: string[] = missing.map(
   (key) => `Missing ${key}. Copy .env.example to .env and fill it in.`
 );
 
+// Warn (but don't hard-fail) when storage bucket is absent — evidence uploads will silently fail.
+if (!demoMode && read('VITE_FIREBASE_STORAGE_BUCKET') === '') {
+  console.warn(
+    '[BASA] VITE_FIREBASE_STORAGE_BUCKET is not set. ' +
+    'Evidence image uploads (FR-04) will fail. Add the bucket name to your .env file.'
+  );
+}
+
 function flag(key: string, fallback: boolean): boolean {
   const value = read(key).toLowerCase();
   if (value === '') return fallback;

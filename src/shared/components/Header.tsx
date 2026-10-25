@@ -4,7 +4,6 @@ import {
   Flame,
   Wifi,
   WifiOff,
-  PlayCircle,
   RotateCcw,
   Shield,
   Building2,
@@ -19,6 +18,8 @@ import {
 import { Role, User as UserType } from '../../domain/types';
 import { SyncIndicator } from './SyncIndicator';
 import { SyncState } from '../../services/syncService';
+import { ThemeToggle } from './ThemeToggle';
+import type { ColorTheme } from '../../app/useColorTheme';
 
 export type ViewportMode = 'desktop' | 'tablet' | 'mobile';
 
@@ -30,8 +31,9 @@ interface Props {
   onSelectTab: (tab: string) => void;
   lowDataMode: boolean;
   onToggleLowData: () => void;
-  onOpenDemoTour: () => void;
   onResetDemoData: () => void;
+  theme: ColorTheme;
+  onToggleTheme: () => void;
   syncStatus: SyncState;
   pendingCount: number;
   isOnline: boolean;
@@ -52,8 +54,9 @@ export const Header: React.FC<Props> = ({
   onSelectTab,
   lowDataMode,
   onToggleLowData,
-  onOpenDemoTour,
   onResetDemoData,
+  theme,
+  onToggleTheme,
   syncStatus,
   pendingCount,
   isOnline,
@@ -134,6 +137,8 @@ export const Header: React.FC<Props> = ({
 
           {/* Right Action buttons */}
           <div className="flex items-center gap-2 sm:gap-3">
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+
             {/* Viewport simulator: demo-only. Real devices use the responsive layout. */}
             {env.enableDemoData && (
             <div className="hidden sm:flex items-center gap-0.5 bg-stone-800 p-0.5 rounded border border-stone-700">
@@ -221,15 +226,6 @@ export const Header: React.FC<Props> = ({
 
             {env.enableDemoData && (
               <>
-            {/* 5-Min Demo Script Tour */}
-            <button
-              onClick={onOpenDemoTour}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-semibold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors cursor-pointer"
-            >
-              <PlayCircle className="w-3.5 h-3.5 text-amber-400" />
-              <span>5-Min Demo Guide</span>
-            </button>
-
             {/* Reset Seed Data */}
             <button
               onClick={onResetDemoData}

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import {
   AssessmentRecord,
+  Application,
   CandidateProfile,
   EmployerProfile,
   Job,
@@ -33,8 +34,10 @@ import {
   RubricCriterion,
   SkillClaim,
   User,
+  WorkRecord,
 } from '../../../domain/types';
 import { getRubricForSkill } from '../../../domain/rubrics';
+import { calculatePilotMetrics } from '../../../domain/pilotMetrics';
 
 interface Props {
   assessorId: string;
@@ -43,6 +46,8 @@ interface Props {
   candidateProfiles: Record<string, CandidateProfile>;
   employerProfiles?: Record<string, EmployerProfile>;
   assessments: AssessmentRecord[];
+  applications: Application[];
+  workRecords: WorkRecord[];
   jobs: Job[];
   reports: ModerationReport[];
   privacyDeletionRequests: PrivacyDeletionRequest[];
@@ -75,6 +80,8 @@ export const AdminDashboard: React.FC<Props> = ({
   candidateProfiles,
   employerProfiles = {},
   assessments,
+  applications,
+  workRecords,
   jobs,
   reports,
   privacyDeletionRequests,
@@ -115,6 +122,7 @@ export const AdminDashboard: React.FC<Props> = ({
   const pendingEndorsementCount = endorsements.filter((e) => e.status === 'pending').length;
   const pendingReportCount = reports.filter((r) => r.status === 'pending').length;
   const pendingEmployerCount = Object.values(employerProfiles).filter((e) => e.verificationStatus === 'pending').length;
+  const pilotMetrics = calculatePilotMetrics(applications, workRecords);
 
   const totalScore = rubricScores.crit1 + rubricScores.crit2 + rubricScores.crit3 + rubricScores.crit4;
 
@@ -349,6 +357,28 @@ export const AdminDashboard: React.FC<Props> = ({
               </div>
             </div>
           </div>
+
+          <section aria-labelledby="pilot-outcomes-heading" className="space-y-3">
+            <div>
+              <h2 id="pilot-outcomes-heading" className="text-sm font-bold text-stone-900">Recorded work outcomes</h2>
+              <p className="text-xs text-stone-500">
+                Platform records only—not independently verified impact. Demo data may be fictional.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {[
+                { label: 'Application records', value: pilotMetrics.applicationRecords },
+                { label: 'Currently shortlisted', value: pilotMetrics.currentlyShortlisted },
+                { label: 'Completed work records', value: pilotMetrics.completedWorkRecords },
+                { label: 'Employer-reported payouts', value: pilotMetrics.employerReportedPayouts },
+              ].map((metric) => (
+                <div key={metric.label} className="bg-white p-4 rounded-xl border border-stone-200">
+                  <span className="text-xs text-stone-500 block">{metric.label}</span>
+                  <span className="text-2xl font-extrabold text-stone-900">{metric.value}</span>
+                </div>
+              ))}
+            </div>
+          </section>
 
           {/* Quick Action Hub */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

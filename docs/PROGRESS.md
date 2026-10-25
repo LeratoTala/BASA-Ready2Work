@@ -18,6 +18,11 @@ The local Firebase emulator environment is configured for rules tests. A real Fi
 - **Work record creation**: Already implemented in `updateApplicationStatus` — when employer moves an application to `completed`, a `WorkRecord` is batch-written. The "Confirm Work & Payout Completed" button in `CandidateDetailModal` triggers this path. The `paymentConfirmation` flag is still `false` (no separate payment UI needed).
 - **PRIVACY.md**: Added full POPIA privacy notice covering data collection, sharing, retention, and deletion rights. Linked from the app footer.
 - **`.env.example`**: Added `VITE_RECAPTCHA_SITE_KEY` and documented `GEMINI_MODEL` default.
+- **Pilot outcome indicators**: Admin overview shows application, current shortlist, completed work-record, and employer-reported payout counts with a clear warning that demo data may be fictional and records are not independently verified.
+- **Matching transparency**: Candidate opportunity views now label the score as a fit guide rather than hiring odds and explain that it cannot automatically disqualify applicants.
+- **Pilot and presentation guide**: Added a proposed user-observation protocol, metric definitions and limitations, matching-validation guidance, and a concise demo story. This is a plan, not reported traction.
+- **Appearance preference**: Added a persisted light/dark mode toggle in the app header and authentication/onboarding screens; the selected palette applies across the interface.
+- **Removed demo tour**: Removed the 5-minute demo guide buttons and unused demo-tour modal.
 
 ## Functional Requirements
 
@@ -31,7 +36,7 @@ The local Firebase emulator environment is configured for rules tests. A real Fi
 | FR-06 Skill Passport | Partial | Passport and export views exist; emulator permissions and complete disclosure behavior are unverified. |
 | FR-07 Employer profile | Partial | Employer profile editing exists; no persistence integration test. |
 | FR-08 Job management | Partial | Job create/close, ZAR terms and report UI exist; employer updates are status-only in rules. Pending-report counters are implemented with Cloud Functions but are not yet deployed or emulator-tested. |
-| FR-09 Matching | Done | Pure explainable scorer and edge-case tests exist; 10 matching tests pass. |
+| FR-09 Matching | Done | Pure explainable fit heuristic and edge-case tests exist; 10 matching tests pass. Predictive value and weights are not validated by pilot outcomes. |
 | FR-10 Applications | Partial | Authenticated server transaction creates records from persisted profile/claims, recalculates matches, prevents duplicates, and grants employer access atomically; emulator denies direct client writes. No Firebase-backed end-to-end test. |
 | FR-11 Shortlisting | Partial | Employer status controls and shortlist-scoped contact access exist; emulator rules tests pass, but no full employer workflow test. |
 | FR-12 Basic moderation | Partial | Admin reporting/moderation UI and rules exist; report review, suspension and counter updates need end-to-end verification. |
@@ -85,8 +90,9 @@ The local Firebase emulator environment is configured for rules tests. A real Fi
 | T-21 | Done | Designated mentor review submission transitions claim to Mentor-reviewed. |
 | T-22 | Done | Client self-promotion is prevented; honest verification caveats returned for all states. |
 | T-23 | Done | Unit tests cover pending report count increases, resolution/dismissal decreases and reopening. |
+| T-24 | Done | Pilot metrics test application stages, completed work records, payout confirmations and empty data. |
 
-Latest checks: `npm run typecheck`, `npm test` (64 tests across 18 suites), `npm run build`, and the Cloud Functions TypeScript build pass. The Functions dependency audit reports 0 vulnerabilities. `npm run test:rules` could not run because Java is not installed/on PATH; it must be rerun in an environment with Java. The client build still warns that the Firebase chunk exceeds 500 kB. Feature flags `notificationsInApp`, `locationFilters`, `peerEndorsement`, `microTasks`, `mentorReview`, and `offlineDrafts` are enabled; all other roadmap flags remain default OFF per Section 20.
+Latest checks: `npm test` passes (67 tests across 20 suites); `npm run typecheck` and `npm run build` pass. The Functions TypeScript build passed previously, and its dependency audit reports 0 vulnerabilities. `npm run test:rules` could not run because Java is not installed/on PATH; it must be rerun in an environment with Java. The client build still warns that the Firebase chunk exceeds 500 kB. Feature flags `notificationsInApp`, `locationFilters`, `peerEndorsement`, `microTasks`, `mentorReview`, and `offlineDrafts` are enabled; all other roadmap flags remain default OFF per Section 20.
 
 ## Security and Privacy Changes This Session
 

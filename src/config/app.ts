@@ -25,6 +25,7 @@ export const STORAGE_KEYS = {
   endorsements: `${APP.storagePrefix}endorsements`,
   mentorReviews: `${APP.storagePrefix}mentorReviews`,
   lowDataMode: `${APP.storagePrefix}lowDataMode`,
+  colorTheme: `${APP.storagePrefix}colorTheme`,
   profileDraft: `${APP.storagePrefix}profileDraft`,
   syncQueue: `${APP.storagePrefix}sync_queue`,
   lastSync: `${APP.storagePrefix}last_sync_timestamp`,
