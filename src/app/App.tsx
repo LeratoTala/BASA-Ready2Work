@@ -425,6 +425,7 @@ export default function App() {
                 assessorName={currentUser.displayName}
                 claims={store.skillClaims}
                 candidateProfiles={store.candidateProfiles}
+                employerProfiles={store.employerProfiles}
                 assessments={store.assessments}
                 jobs={store.jobs}
                 reports={store.reports}
@@ -434,6 +435,8 @@ export default function App() {
                 onSubmitAssessment={store.submitAssessment}
                 onResolveReport={store.resolveReport}
                 onReviewPrivacyDeletionRequest={store.reviewPrivacyDeletionRequest}
+                onCompletePrivacyDeletion={store.completePrivacyDeletion}
+                onVerifyEmployer={store.updateEmployerVerification}
                 onApproveEndorsement={store.approvePeerEndorsement}
                 onSubmitMentorReview={store.submitMentorReview}
                 onToggleJobStatus={store.toggleJobStatus}
@@ -459,7 +462,9 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-4 text-[11px]">
             <span>Fair Work · Zero Upfront Fees</span>
             <span>·</span>
-            <span>POPIA Protected</span>
+            <a href="/PRIVACY.md" target="_blank" rel="noopener noreferrer" className="text-stone-400 hover:text-amber-400 underline">
+              Privacy Notice (POPIA)
+            </a>
             {env.enableDemoData && (
               <>
                 <span>·</span>

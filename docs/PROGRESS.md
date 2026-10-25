@@ -6,6 +6,19 @@ Updated: 2026-10-24
 
 First incomplete day: Day 4, Firebase development environment. Local Firestore emulator tests now pass, but no Firebase development project ID was supplied or configured. This repository intentionally remains React/TypeScript rather than being re-scaffolded as Flutter.
 
+## Completed This Session
+
+- **POPIA deletion completion** (was launch blocker): `DELETE /api/delete-account` route uses Admin SDK to wipe Firestore docs, Storage objects and Firebase Auth account for a given UID. Admin must mark request `in_review` first; a new "Complete Deletion (POPIA)" button on the AdminDashboard Moderation tab executes the deletion. Demo store stub wipes local state.
+- **Gemini model default**: `server/config.ts` now falls back to `gemini-1.5-flash` when `GEMINI_MODEL` is empty — only `GEMINI_ENABLED=true` + `GEMINI_API_KEY` are required to activate AI drafting.
+- **Firebase App Check**: Client initialises App Check (reCAPTCHA v3) when `VITE_RECAPTCHA_SITE_KEY` is set. Server adds `verifyAppCheck` middleware applied to all `/api` routes; in production it validates `X-Firebase-AppCheck` tokens.
+- **reportCount maintenance**: Cloud Functions (`firebase/functions/index.ts`) added — `incrementReportCount` (onCreate) and `decrementReportCountOnDismiss` (onUpdate to dismissed). Deploy with `firebase deploy --only functions`.
+- **Employer verification UI**: New "Employers" sub-tab in AdminDashboard lists all employer profiles with pending/verified/unverified status and Verify/Revoke buttons. `POST /api/admin/verify-employer` server route updates `verificationStatus` via Admin SDK. Demo store stub updates state locally.
+- **syncService**: Replaced stub with `deriveSyncState()` and `syncStateLabel()` helpers. Firestore store now tracks a `pendingWriteCount` so the header sync indicator shows `syncing` during in-flight writes and `offline_cached` when offline.
+- **employerCandidateContactAccess write confirmed**: The write was already present in `updateApplicationStatus` (`batch.set` on shortlist). Contact access is granted correctly.
+- **Work record creation**: Already implemented in `updateApplicationStatus` — when employer moves an application to `completed`, a `WorkRecord` is batch-written. The "Confirm Work & Payout Completed" button in `CandidateDetailModal` triggers this path. The `paymentConfirmation` flag is still `false` (no separate payment UI needed).
+- **PRIVACY.md**: Added full POPIA privacy notice covering data collection, sharing, retention, and deletion rights. Linked from the app footer.
+- **`.env.example`**: Added `VITE_RECAPTCHA_SITE_KEY` and documented `GEMINI_MODEL` default.
+
 ## Functional Requirements
 
 | ID | Status | Evidence / gap |

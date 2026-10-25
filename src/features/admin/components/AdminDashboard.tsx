@@ -19,10 +19,12 @@ import {
   Ban,
   CheckCircle,
   ExternalLink,
+  Trash2,
 } from 'lucide-react';
 import {
   AssessmentRecord,
   CandidateProfile,
+  EmployerProfile,
   Job,
   MentorReview,
   ModerationReport,
@@ -39,6 +41,7 @@ interface Props {
   assessorName: string;
   claims: SkillClaim[];
   candidateProfiles: Record<string, CandidateProfile>;
+  employerProfiles?: Record<string, EmployerProfile>;
   assessments: AssessmentRecord[];
   jobs: Job[];
   reports: ModerationReport[];
@@ -48,6 +51,8 @@ interface Props {
   onSubmitAssessment: (assessment: Omit<AssessmentRecord, 'id' | 'createdAt'>, claimId: string) => void;
   onResolveReport: (reportId: string, action: 'dismiss' | 'suspend_job') => void;
   onReviewPrivacyDeletionRequest: (uid: string, status: 'in_review' | 'declined') => Promise<void>;
+  onCompletePrivacyDeletion?: (uid: string) => Promise<void>;
+  onVerifyEmployer?: (uid: string, status: 'verified' | 'unverified') => Promise<void>;
   onApproveEndorsement?: (endorsementId: string) => Promise<void>;
   onSubmitMentorReview?: (
     claimId: string,
@@ -68,6 +73,7 @@ export const AdminDashboard: React.FC<Props> = ({
   assessorName,
   claims,
   candidateProfiles,
+  employerProfiles = {},
   assessments,
   jobs,
   reports,
@@ -77,6 +83,8 @@ export const AdminDashboard: React.FC<Props> = ({
   onSubmitAssessment,
   onResolveReport,
   onReviewPrivacyDeletionRequest,
+  onCompletePrivacyDeletion,
+  onVerifyEmployer,
   onApproveEndorsement,
   onSubmitMentorReview,
   onToggleJobStatus,
@@ -86,6 +94,8 @@ export const AdminDashboard: React.FC<Props> = ({
   const [selectedClaimForGrading, setSelectedClaimForGrading] = useState<SkillClaim | null>(null);
   const [jobFilter, setJobFilter] = useState<'all' | 'open' | 'closed' | 'flagged'>('all');
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [deletionWorking, setDeletionWorking] = useState<string | null>(null);
+  const [verifyWorking, setVerifyWorking] = useState<string | null>(null);
   const [rubricScores, setRubricScores] = useState({
     crit1: 24,
     crit2: 23,
@@ -104,6 +114,7 @@ export const AdminDashboard: React.FC<Props> = ({
   const taskAssessedCount = claims.filter((c) => c.verificationStatus === 'Task-assessed').length;
   const pendingEndorsementCount = endorsements.filter((e) => e.status === 'pending').length;
   const pendingReportCount = reports.filter((r) => r.status === 'pending').length;
+  const pendingEmployerCount = Object.values(employerProfiles).filter((e) => e.verificationStatus === 'pending').length;
 
   const totalScore = rubricScores.crit1 + rubricScores.crit2 + rubricScores.crit3 + rubricScores.crit4;
 
@@ -224,6 +235,14 @@ export const AdminDashboard: React.FC<Props> = ({
               Jobs ({jobs.length})
             </button>
             <button
+              onClick={() => onSelectSubTab?.('employers')}
+              className={`px-2.5 py-1 rounded cursor-pointer font-medium transition-colors ${
+                activeSubTab === 'employers' ? 'bg-amber-600 text-white' : 'text-stone-300 hover:text-white'
+              }`}
+            >
+              Employers {pendingEmployerCount > 0 && <span className="ml-1 bg-rose-500 text-white text-[9px] px-1 rounded-full">{pendingEmployerCount}</span>}
+            </button>
+            <button
               onClick={() => onSelectSubTab?.('assessments')}
               className={`px-2.5 py-1 rounded cursor-pointer font-medium transition-colors ${
                 activeSubTab === 'assessments' ? 'bg-amber-600 text-white' : 'text-stone-300 hover:text-white'
@@ -244,12 +263,14 @@ export const AdminDashboard: React.FC<Props> = ({
 
         <h1 className="text-2xl font-bold tracking-tight text-white">
           {activeSubTab === 'jobs' && 'Live Job Opportunities & Verification'}
+          {activeSubTab === 'employers' && 'Employer Verification'}
           {activeSubTab === 'assessments' && 'Practical Rubrics, Endorsements & Mentor Reviews'}
           {activeSubTab === 'reports' && 'Community Moderation & Safety Reports'}
           {(activeSubTab === 'overview' || !activeSubTab) && 'Pilot Overview & Quality Control'}
         </h1>
         <p className="text-stone-300 text-xs">
           {activeSubTab === 'jobs' && 'Inspect pay terms, verify employer job listings, and suspend deceptive or exploitative posts.'}
+          {activeSubTab === 'employers' && 'Review pending employer registrations and grant or revoke verified status.'}
           {activeSubTab === 'assessments' && 'Grade candidate demonstrations against 100-point rubrics and approve peer contractor endorsements.'}
           {activeSubTab === 'reports' && 'Protect young jobseekers from scam postings, upfront fees, and handle POPIA account deletion tickets.'}
           {(activeSubTab === 'overview' || !activeSubTab) && 'Monitor pilot metrics against FNB App of the Year targets and review key platform operations.'}
@@ -533,6 +554,117 @@ export const AdminDashboard: React.FC<Props> = ({
                         <Flag className="w-3 h-3 text-amber-600" />
                         {job.reportCount} Report(s)
                       </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ==================== TAB 2.5: EMPLOYER VERIFICATION ==================== */}
+      {activeSubTab === 'employers' && (
+        <div className="bg-white rounded-xl border border-stone-200 p-6 space-y-4 shadow-xs">
+          <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+            <div>
+              <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-amber-600" />
+                Employer Verification ({Object.values(employerProfiles).length})
+              </h2>
+              <p className="text-xs text-stone-500">
+                Review employer registrations and grant verified status. Verified employers get a
+                shield badge on all their job listings.
+              </p>
+            </div>
+          </div>
+
+          {Object.values(employerProfiles).length === 0 ? (
+            <p className="text-xs text-stone-500 italic py-4">No employer profiles found.</p>
+          ) : (
+            <div className="space-y-3">
+              {Object.values(employerProfiles).map((emp) => (
+                <div
+                  key={emp.uid}
+                  className="p-4 rounded-xl border border-stone-200 bg-stone-50/60 text-xs space-y-3"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-sm text-stone-900">{emp.businessName}</h3>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                            emp.verificationStatus === 'verified'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : emp.verificationStatus === 'pending'
+                              ? 'bg-amber-100 text-amber-900'
+                              : 'bg-stone-200 text-stone-700'
+                          }`}
+                        >
+                          {emp.verificationStatus}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-stone-500 text-[11px]">
+                        <span>{emp.industry}</span>
+                        <span>·</span>
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3 h-3" /> {emp.locationArea}
+                        </span>
+                        <span>·</span>
+                        <span>{emp.contactEmail}</span>
+                        <span>·</span>
+                        <span>Joined {new Date(emp.createdAt).toLocaleDateString()}</span>
+                      </div>
+                      {emp.description && (
+                        <p className="text-stone-600 bg-white p-2 rounded border border-stone-100 mt-1">
+                          {emp.description}
+                        </p>
+                      )}
+                    </div>
+
+                    {onVerifyEmployer && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        {emp.verificationStatus !== 'verified' && (
+                          <button
+                            type="button"
+                            disabled={verifyWorking === emp.uid}
+                            onClick={async () => {
+                              setVerifyWorking(emp.uid);
+                              try {
+                                await onVerifyEmployer(emp.uid, 'verified');
+                                setActionNotice(`"${emp.businessName}" has been verified.`);
+                                setTimeout(() => setActionNotice(null), 3500);
+                              } finally {
+                                setVerifyWorking(null);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-semibold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            <span>{verifyWorking === emp.uid ? 'Verifying…' : 'Grant Verified'}</span>
+                          </button>
+                        )}
+                        {emp.verificationStatus === 'verified' && (
+                          <button
+                            type="button"
+                            disabled={verifyWorking === emp.uid}
+                            onClick={async () => {
+                              setVerifyWorking(emp.uid);
+                              try {
+                                await onVerifyEmployer(emp.uid, 'unverified');
+                                setActionNotice(`"${emp.businessName}" verification revoked.`);
+                                setTimeout(() => setActionNotice(null), 3500);
+                              } finally {
+                                setVerifyWorking(null);
+                              }
+                            }}
+                            className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded font-semibold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span>Revoke Verified</span>
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -941,13 +1073,35 @@ export const AdminDashboard: React.FC<Props> = ({
                       <p className="text-stone-600">Requested {new Date(request.requestedAt).toLocaleDateString()} · Status: {request.status.replace('_', ' ')}</p>
                     </div>
                     {request.status !== 'declined' && (
-                      <div className="flex gap-2">
+                      <div className="flex gap-2 flex-wrap">
                         {request.status === 'pending' && (
-                          <button onClick={() => void onReviewPrivacyDeletionRequest(request.uid, 'in_review')} className="px-3 py-2 border border-stone-300 bg-white font-semibold text-stone-800 cursor-pointer">
+                          <button onClick={() => void onReviewPrivacyDeletionRequest(request.uid, 'in_review')} className="px-3 py-2 border border-stone-300 bg-white font-semibold text-stone-800 cursor-pointer rounded">
                             Start review
                           </button>
                         )}
-                        <button onClick={() => void onReviewPrivacyDeletionRequest(request.uid, 'declined')} className="px-3 py-2 border border-stone-300 bg-white font-semibold text-stone-800 cursor-pointer">
+                        {request.status === 'in_review' && onCompletePrivacyDeletion && (
+                          <button
+                            disabled={deletionWorking === request.uid}
+                            onClick={async () => {
+                              if (!window.confirm(`Permanently delete ALL data for account ${request.uid}? This cannot be undone.`)) return;
+                              setDeletionWorking(request.uid);
+                              try {
+                                await onCompletePrivacyDeletion(request.uid);
+                                setActionNotice(`Account ${request.uid} has been permanently deleted (POPIA compliant).`);
+                                setTimeout(() => setActionNotice(null), 5000);
+                              } catch (err: any) {
+                                setActionNotice(`Deletion failed: ${err?.message ?? 'Unknown error'}`);
+                              } finally {
+                                setDeletionWorking(null);
+                              }
+                            }}
+                            className="px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>{deletionWorking === request.uid ? 'Deleting…' : 'Complete Deletion (POPIA)'}</span>
+                          </button>
+                        )}
+                        <button onClick={() => void onReviewPrivacyDeletionRequest(request.uid, 'declined')} className="px-3 py-2 border border-stone-300 bg-white font-semibold text-stone-800 cursor-pointer rounded">
                           Decline request
                         </button>
                       </div>

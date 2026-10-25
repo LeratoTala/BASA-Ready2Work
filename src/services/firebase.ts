@@ -6,6 +6,7 @@ import {
   persistentMultipleTabManager,
   type Firestore,
 } from 'firebase/firestore';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { env } from '../config/env';
 
 interface FirebaseServices {
@@ -20,11 +21,23 @@ let services: FirebaseServices | null = null;
 /**
  * Lazily initialises Firebase on first use so demo mode (no backend) never needs Firebase config.
  * Firestore uses a persistent local cache: reads work offline and writes queue until reconnect.
+ * App Check (reCAPTCHA v3) is activated when VITE_RECAPTCHA_SITE_KEY is set, protecting all
+ * Firebase resources from abuse without requiring users to solve puzzles.
  */
 export function getFirebase(): FirebaseServices {
   if (services) return services;
   const { firestoreDatabaseId, ...options } = env.firebase;
   const app = getApps()[0] ?? initializeApp(options);
+
+  // App Check — enabled when a reCAPTCHA v3 site key is configured.
+  // Obtain a key at https://www.google.com/recaptcha/admin and set VITE_RECAPTCHA_SITE_KEY in .env
+  if (env.recaptchaSiteKey) {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(env.recaptchaSiteKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  }
+
   const db = initializeFirestore(
     app,
     { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) },

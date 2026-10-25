@@ -56,6 +56,7 @@ import {
 import { COLLECTIONS } from '../../config/app';
 import { friendlyFirebaseError, getFirebase } from '../../services/firebase';
 import type { SyncState } from '../../services/syncService';
+import { deriveSyncState } from '../../services/syncService';
 import { useLocalPrefs } from './useLocalPrefs';
 import type { BasaStore } from './types';
 import { env } from '../../config/env';
@@ -105,6 +106,16 @@ export function useFirestoreStore(): BasaStore {
     console.warn('BASA data error:', error);
     setLastError(friendlyFirebaseError(error));
   }, []);
+
+  // Pending write counter — incremented before a fire() call, decremented on settle.
+  const [pendingWriteCount, setPendingWriteCount] = useState(0);
+
+  const fire = (promise: Promise<unknown>) => {
+    setPendingWriteCount((c) => c + 1);
+    promise
+      .catch(reportError)
+      .finally(() => setPendingWriteCount((c) => Math.max(0, c - 1)));
+  };
 
   // ---- connectivity ----
   useEffect(() => {
@@ -381,9 +392,6 @@ export function useFirestoreStore(): BasaStore {
     if (!currentUser) throw new Error('Authentication required');
     return currentUser;
   };
-  const fire = (promise: Promise<unknown>) => {
-    promise.catch(reportError);
-  };
 
   // ---- auth actions ----
   const signInWithGoogle = async (): Promise<unknown> => {
@@ -522,6 +530,24 @@ export function useFirestoreStore(): BasaStore {
     // verificationStatus is admin-controlled; strip it from employer edits.
     const { verificationStatus: _ignored, ...safe } = updates;
     fire(setDoc(doc(db, COLLECTIONS.employerProfiles, profileUid), clean({ ...safe, uid: profileUid }), { merge: true }));
+  };
+
+  /**
+   * Admin-only: update an employer's verification status.
+   * Requires the Admin SDK on the server because Firestore rules block client updates to verificationStatus.
+   * In this store we call the server route; alternatively an admin can use the Firebase console directly.
+   */
+  const updateEmployerVerification = async (employerUid: string, status: 'verified' | 'unverified'): Promise<void> => {
+    const user = requireUser();
+    if (user.role !== 'admin') throw new Error('Admin authorization required.');
+    const token = await firebaseUser!.getIdToken();
+    const response = await fetch(`${env.apiBaseUrl}/api/admin/verify-employer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ employerUid, status }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'Could not update employer verification status.');
   };
 
   // ---- skills & assessments ----
@@ -889,11 +915,33 @@ export function useFirestoreStore(): BasaStore {
     });
   };
 
+  /**
+   * POPIA deletion completion (FR-03 launch blocker).
+   * Calls the server-side DELETE /api/delete-account route which uses the Admin SDK to wipe
+   * all Firestore documents, Storage files, and the Firebase Auth account for the given UID.
+   * Only works when the deletion request is already in `in_review` state.
+   */
+  const completePrivacyDeletion = async (requestUid: string): Promise<void> => {
+    const user = requireUser();
+    if (user.role !== 'admin') throw new Error('Admin authorization required.');
+    const token = await firebaseUser!.getIdToken();
+    const response = await fetch(`${env.apiBaseUrl}/api/delete-account`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        'X-Target-Uid': requestUid,
+      },
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || 'Account deletion failed. Please try again.');
+  };
+
   const switchUser = (_uid: string) => undefined; // demo-only
   const resetDemoData = () => undefined; // demo-only
   const triggerSync = async () => undefined; // handled by the Firestore SDK
 
-  const syncStatus: SyncState = isOnline ? 'synced' : 'offline_cached';
+  const syncStatus: SyncState = deriveSyncState(isOnline, pendingWriteCount > 0);
 
   return {
     users: currentUser ? (role === 'admin' ? allUsers : [currentUser]) : [],
@@ -906,6 +954,7 @@ export function useFirestoreStore(): BasaStore {
     employerProfiles,
     currentEmployerProfile: currentUser ? employerProfiles[currentUser.uid] : null,
     updateEmployerProfile,
+    updateEmployerVerification,
     skillClaims,
     currentCandidateClaims: currentUser ? skillClaims.filter((c) => c.candidateId === currentUser.uid) : [],
     addSkillClaim,
@@ -931,6 +980,7 @@ export function useFirestoreStore(): BasaStore {
     privacyDeletionRequests,
     requestPrivacyDeletion,
     reviewPrivacyDeletionRequest,
+    completePrivacyDeletion,
     // In-App Notifications (R1 / FR-15)
     notifications,
     unreadNotificationCount: notifications.filter((n) => !n.readAt).length,
@@ -945,7 +995,7 @@ export function useFirestoreStore(): BasaStore {
     saveDraft: prefs.saveDraft,
     resetDemoData,
     syncStatus,
-    pendingSyncCount: 0,
+    pendingSyncCount: pendingWriteCount,
     isOnline,
     triggerSync,
     signInWithGoogle,

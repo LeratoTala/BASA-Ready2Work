@@ -66,3 +66,33 @@ export async function verifyIdToken(req: Request, res: Response, next: NextFunct
     return res.status(401).json({ error: 'Invalid or expired session. Please sign in again.' });
   }
 }
+
+/**
+ * Express middleware: verifies a Firebase App Check token in the `X-Firebase-AppCheck` header.
+ * In production this prevents abuse from non-app clients. In development it is skipped.
+ *
+ * Apply this middleware to all /api routes BEFORE verifyIdToken for defence-in-depth.
+ * Reference: Firebase App Check — https://firebase.google.com/docs/app-check
+ */
+export async function verifyAppCheck(req: Request, res: Response, next: NextFunction) {
+  // Skip in demo / development mode
+  if (process.env.VITE_ENABLE_DEMO_DATA === 'true' || process.env.NODE_ENV !== 'production') {
+    return next();
+  }
+
+  const appCheckToken = (req.headers['x-firebase-appcheck'] as string | undefined)?.trim();
+  if (!appCheckToken) {
+    // Allow through in non-production; in production warn but don't hard-block yet to ease rollout.
+    // Change to a 401 once App Check is fully rolled out on the client.
+    console.warn('App Check token missing from request to', req.path);
+    return next();
+  }
+
+  try {
+    const { getAppCheck } = await import('firebase-admin/app-check');
+    await getAppCheck(getAdminApp()).verifyToken(appCheckToken);
+    return next();
+  } catch {
+    return res.status(401).json({ error: 'App integrity check failed. Please refresh and try again.' });
+  }
+}

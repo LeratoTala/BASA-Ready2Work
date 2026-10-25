@@ -6,6 +6,9 @@ import { rateLimit } from './rateLimit';
 import { cvDraftRouter } from './routes/cvDraft';
 import { registerRouter } from './routes/register';
 import { applyRouter } from './routes/apply';
+import { deleteAccountRouter } from './routes/deleteAccount';
+import { adminVerifyEmployerRouter } from './routes/adminVerifyEmployer';
+import { verifyAppCheck } from './middleware/verifyIdToken';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.resolve(dirname, '..', 'dist');
@@ -41,9 +44,12 @@ async function main() {
   app.get('/api/health', (_req, res) => res.json({ status: 'ok', ai: aiEnabled }));
   app.use(
     '/api',
+    verifyAppCheck,
     rateLimit(serverConfig.rateLimit.windowMs, serverConfig.rateLimit.maxRequests),
     registerRouter,
     applyRouter,
+    deleteAccountRouter,
+    adminVerifyEmployerRouter,
     cvDraftRouter
   );
 

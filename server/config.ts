@@ -21,7 +21,8 @@ export const serverConfig = {
   gemini: {
     enabled: process.env.GEMINI_ENABLED === 'true',
     apiKey: (process.env.GEMINI_API_KEY ?? '').trim(),
-    model: (process.env.GEMINI_MODEL ?? '').trim(),
+    /** Default to gemini-1.5-flash so only GEMINI_ENABLED + GEMINI_API_KEY are required. */
+    model: (process.env.GEMINI_MODEL ?? '').trim() || 'gemini-1.5-flash',
     timeoutMs: int(process.env.GEMINI_TIMEOUT_MS, 8000),
     temperature: Number(process.env.GEMINI_TEMPERATURE ?? '0.3'),
   },

@@ -374,6 +374,16 @@ export function useDemoStore() {
     });
   };
 
+  /** Admin-only: set employer verificationStatus in demo mode. */
+  const updateEmployerVerification = async (employerUid: string, status: 'verified' | 'unverified'): Promise<void> => {
+    if (!currentUser || currentUser.role !== 'admin') throw new Error('Admin authorization required.');
+    setEmployerProfiles((prev) => {
+      const existing = prev[employerUid];
+      if (!existing) return prev;
+      return { ...prev, [employerUid]: { ...existing, verificationStatus: status } };
+    });
+  };
+
   // Add Skill Claim
   const addSkillClaim = async (claim: Omit<SkillClaim, 'id' | 'createdAt'>) => {
     if (!currentUser) throw new Error('Authentication required');
@@ -872,6 +882,27 @@ export function useDemoStore() {
       : request));
   };
 
+  /**
+   * Demo-mode stub for POPIA deletion completion.
+   * In demo mode, this simply removes the user and all their data from localStorage state.
+   */
+  const completePrivacyDeletion = async (requestUid: string): Promise<void> => {
+    if (!currentUser || currentUser.role !== 'admin') throw new Error('Admin authorization required.');
+    setPrivacyDeletionRequests((prev) => prev.filter((r) => r.uid !== requestUid));
+    setUsers((prev) => prev.filter((u) => u.uid !== requestUid));
+    setCandidateProfiles((prev) => {
+      const next = { ...prev };
+      delete next[requestUid];
+      return next;
+    });
+    setSkillClaims((prev) => prev.filter((c) => c.candidateId !== requestUid));
+    setApplications((prev) => prev.filter((a) => a.candidateId !== requestUid));
+    setWorkRecords((prev) => prev.filter((w) => w.candidateId !== requestUid));
+    setNotifications((prev) => prev.filter((n) => n.userId !== requestUid));
+    setEndorsements((prev) => prev.filter((e) => e.candidateId !== requestUid));
+    setMentorReviews((prev) => prev.filter((m) => m.candidateId !== requestUid));
+  };
+
   // Reset to initial demo seed data anytime
   const resetDemoData = () => {
     if (!env.enableDemoData) return;
@@ -901,6 +932,7 @@ export function useDemoStore() {
     employerProfiles,
     currentEmployerProfile: currentUser ? employerProfiles[currentUser.uid] : null,
     updateEmployerProfile,
+    updateEmployerVerification,
     skillClaims,
     currentCandidateClaims: currentUser
       ? skillClaims.filter((c) => c.candidateId === currentUser.uid)
@@ -935,6 +967,7 @@ export function useDemoStore() {
       : privacyDeletionRequests.filter((request) => request.uid === currentUser?.uid),
     requestPrivacyDeletion,
     reviewPrivacyDeletionRequest,
+    completePrivacyDeletion,
     // In-App Notifications (R1 / FR-15)
     notifications: currentUser ? notifications.filter((n) => n.userId === currentUser.uid) : [],
     unreadNotificationCount: currentUser

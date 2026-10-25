@@ -55,6 +55,8 @@ export const env = {
   },
   /** Base URL of the BASA API (CV drafting). Empty string = same origin. */
   apiBaseUrl: read('VITE_API_BASE_URL'),
+  /** reCAPTCHA v3 site key for Firebase App Check. Empty = App Check disabled (dev/demo only). */
+  recaptchaSiteKey: read('VITE_RECAPTCHA_SITE_KEY'),
   /** Seed fictional demo data and expose the demo tour / persona switcher. Never enable in production. */
   enableDemoData: flag('VITE_ENABLE_DEMO_DATA', false),
   minimumUserAge: positiveInteger('VITE_MINIMUM_USER_AGE', 18),
