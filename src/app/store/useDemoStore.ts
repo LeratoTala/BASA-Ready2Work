@@ -837,6 +837,7 @@ export function useDemoStore() {
     if (currentUser.role !== 'admin') throw new Error('Admin authorization required.');
     const rep = reports.find((r) => r.id === reportId);
     if (!rep) return;
+    if (rep.status !== 'pending') return;
 
     if (action === 'suspend_job' && rep.targetType === 'job') {
       setJobs((prev) =>
@@ -853,12 +854,21 @@ export function useDemoStore() {
     setReports((prev) =>
       prev.map((r) => {
         if (r.id === reportId) {
-          const updated = { ...r, status: 'resolved' as const };
+          const updated = { ...r, status: action === 'dismiss' ? 'dismissed' as const : 'resolved' as const };
           return updated;
         }
         return r;
       })
     );
+    if (rep.targetType === 'job') {
+      setJobs((prev) =>
+        prev.map((job) =>
+          job.id === rep.targetId
+            ? { ...job, reportCount: Math.max(0, job.reportCount - 1) }
+            : job
+        )
+      );
+    }
   };
 
   const requestPrivacyDeletion = async () => {

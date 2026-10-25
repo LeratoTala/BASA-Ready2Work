@@ -4,14 +4,14 @@ Updated: 2026-10-24
 
 ## Plan Position
 
-First incomplete day: Day 4, Firebase development environment. Local Firestore emulator tests now pass, but no Firebase development project ID was supplied or configured. This repository intentionally remains React/TypeScript rather than being re-scaffolded as Flutter.
+The local Firebase emulator environment is configured for rules tests. A real Firebase development project ID has not been supplied, so live Firebase integration and deployment remain unverified. The project intentionally remains React/TypeScript.
 
 ## Completed This Session
 
-- **POPIA deletion completion** (was launch blocker): `DELETE /api/delete-account` route uses Admin SDK to wipe Firestore docs, Storage objects and Firebase Auth account for a given UID. Admin must mark request `in_review` first; a new "Complete Deletion (POPIA)" button on the AdminDashboard Moderation tab executes the deletion. Demo store stub wipes local state.
+- **POPIA deletion workflow**: `DELETE /api/delete-account` uses the Admin SDK to delete Firestore records, Storage evidence and the Firebase Auth account after an admin marks the request `in_review`. The AdminDashboard has a completion action. The live workflow still needs integration verification.
 - **Gemini model default**: `server/config.ts` now falls back to `gemini-1.5-flash` when `GEMINI_MODEL` is empty — only `GEMINI_ENABLED=true` + `GEMINI_API_KEY` are required to activate AI drafting.
 - **Firebase App Check**: Client initialises App Check (reCAPTCHA v3) when `VITE_RECAPTCHA_SITE_KEY` is set. Server adds `verifyAppCheck` middleware applied to all `/api` routes; in production it validates `X-Firebase-AppCheck` tokens.
-- **reportCount maintenance**: Cloud Functions (`firebase/functions/index.ts`) added — `incrementReportCount` (onCreate) and `decrementReportCountOnDismiss` (onUpdate to dismissed). Deploy with `firebase deploy --only functions`.
+- **Report counts**: Cloud Functions are configured for deployment and maintain `reportCount` for pending job reports. Resolving or dismissing a report decrements the count; reopening one increments it. Deployment and emulator verification remain open.
 - **Employer verification UI**: New "Employers" sub-tab in AdminDashboard lists all employer profiles with pending/verified/unverified status and Verify/Revoke buttons. `POST /api/admin/verify-employer` server route updates `verificationStatus` via Admin SDK. Demo store stub updates state locally.
 - **syncService**: Replaced stub with `deriveSyncState()` and `syncStateLabel()` helpers. Firestore store now tracks a `pendingWriteCount` so the header sync indicator shows `syncing` during in-flight writes and `offline_cached` when offline.
 - **employerCandidateContactAccess write confirmed**: The write was already present in `updateApplicationStatus` (`batch.set` on shortlist). Contact access is granted correctly.
@@ -24,17 +24,17 @@ First incomplete day: Day 4, Firebase development environment. Local Firestore e
 | ID | Status | Evidence / gap |
 |---|---|---|
 | FR-01 Authentication | Done | Multi-provider sign-in (Google, Apple, Email/Password, South African Phone SMS OTP) with invisible reCAPTCHA; trusted role onboarding; minimum-age attestation; cross-OS compatibility. |
-| FR-02 Role-based access | Partial | Admin custom claim, trusted registration route, deny-client-create rule; Firestore rules suite passes, but no live Firebase integration test. |
-| FR-03 Candidate profile | Partial | Firestore profile editing, legacy contact migration and an in-app deletion request/review ticket exist; no integration test or deletion-completion workflow. |
-| FR-04 Skill evidence | Partial | Claims persist as `Self-reported`; optional private JPEG/PNG/WebP uploads (5 MB max) use owner/admin Storage rules; no browser end-to-end test or assessment attachment preview. |
+| FR-02 Role-based access | Partial | Admin custom claim, trusted registration route and deny-client-create rule are implemented; emulator rules tests pass, but live integration is unverified. |
+| FR-03 Candidate profile | Partial | Profile editing, legacy contact migration and the POPIA request/review/completion workflow exist; Firebase-backed end-to-end deletion is unverified. |
+| FR-04 Skill evidence | Partial | Claims persist as `Self-reported`; optional private JPEG/PNG/WebP uploads (5 MB max) use owner/admin Storage rules; browser end-to-end verification and assessment attachment preview remain open. |
 | FR-05 Verification states | Done | Four honest labels (Self-reported, Peer-endorsed, Task-assessed, Mentor-reviewed) with clear disclaimers; peer endorsements, 100-point rubric micro-tasks, and mentor reviews fully wired. |
 | FR-06 Skill Passport | Partial | Passport and export views exist; emulator permissions and complete disclosure behavior are unverified. |
 | FR-07 Employer profile | Partial | Employer profile editing exists; no persistence integration test. |
-| FR-08 Job management | Partial | Job create/close, ZAR terms and report UI exist; employer updates are status-only in rules. Report counter maintenance remains incomplete. |
+| FR-08 Job management | Partial | Job create/close, ZAR terms and report UI exist; employer updates are status-only in rules. Pending-report counters are implemented with Cloud Functions but are not yet deployed or emulator-tested. |
 | FR-09 Matching | Done | Pure explainable scorer and edge-case tests exist; 10 matching tests pass. |
 | FR-10 Applications | Partial | Authenticated server transaction creates records from persisted profile/claims, recalculates matches, prevents duplicates, and grants employer access atomically; emulator denies direct client writes. No Firebase-backed end-to-end test. |
 | FR-11 Shortlisting | Partial | Employer status controls and shortlist-scoped contact access exist; emulator rules tests pass, but no full employer workflow test. |
-| FR-12 Basic moderation | Partial | Admin reporting/moderation UI and rules exist; report review and suspension workflow need end-to-end verification. |
+| FR-12 Basic moderation | Partial | Admin reporting/moderation UI and rules exist; report review, suspension and counter updates need end-to-end verification. |
 | FR-13 Offline-friendly drafts | Partial | Local draft support exists; recovery/connectivity integration is unverified. |
 | FR-14 AI CV drafting | Partial | Server-side endpoint is token-protected, default-off, and excludes profile identifiers; provider terms and enabled-model behavior need review. |
 | FR-15 In-app notifications | Done | Dedicated notification center modal, unread badge counter in header, fine-grained preferences toggles, idempotent deterministic IDs, Firestore rules, and tests T-13, T-14, T-15 pass. |
@@ -84,8 +84,9 @@ First incomplete day: Day 4, Firebase development environment. Local Firestore e
 | T-20 | Done | Peer endorsement request creation and approval transitions claim to Peer-endorsed. |
 | T-21 | Done | Designated mentor review submission transitions claim to Mentor-reviewed. |
 | T-22 | Done | Client self-promotion is prevented; honest verification caveats returned for all states. |
+| T-23 | Done | Unit tests cover pending report count increases, resolution/dismissal decreases and reopening. |
 
-Latest checks: `npm run typecheck` passed; `npm test` passed (60 tests across 17 test suites); Firestore/Storage security rules pass; `npm run build` passed. Feature flags `notificationsInApp`, `locationFilters`, `peerEndorsement`, `microTasks`, `mentorReview`, and `offlineDrafts` are enabled; all other roadmap flags remain default OFF per Section 20.
+Latest checks: `npm run typecheck`, `npm test` (64 tests across 18 suites), `npm run build`, and the Cloud Functions TypeScript build pass. The Functions dependency audit reports 0 vulnerabilities. `npm run test:rules` could not run because Java is not installed/on PATH; it must be rerun in an environment with Java. The client build still warns that the Firebase chunk exceeds 500 kB. Feature flags `notificationsInApp`, `locationFilters`, `peerEndorsement`, `microTasks`, `mentorReview`, and `offlineDrafts` are enabled; all other roadmap flags remain default OFF per Section 20.
 
 ## Security and Privacy Changes This Session
 
@@ -96,17 +97,17 @@ Latest checks: `npm run typecheck` passed; `npm test` passed (60 tests across 17
 - Employer work records are tied to the selected-to-completed application batch and immutable to clients afterward.
 - Candidate-created claims remain self-reported; client entry of third-party contact details was removed.
 - Signup requires a configurable minimum-age attestation and stores only a boolean, not a birth date; the default threshold is 18 pending product/legal policy confirmation.
-- Candidate deletion requests can be submitted and reviewed, but no in-app operation marks them completed or deletes Firebase Auth/Firestore data; the operator runbook and retention policy remain launch blockers.
+- Candidate deletion requests can be submitted and reviewed, and an admin-only endpoint completes deletion from Firestore, Storage and Firebase Auth. The workflow requires live integration verification; the privacy contact and evidence-retention policy still need owner approval before public use.
 - Optional evidence images are private Storage objects; employer screens receive only the candidate's text description.
 - Evidence uploads accept JPEG/PNG/WebP up to 5 MB; Firestore stores a private object path and cleans the object up if claim persistence fails.
 
 ## Next Tasks
 
-1. Run a fresh production build and verify the production container; Docker Desktop was unavailable for the last image build.
-2. Add end-to-end tests for registration, profile save, job post, server application, shortlist, and withdrawal against a configured Firebase project/emulators.
-3. Define and implement the operator deletion-completion workflow; publish a privacy contact plus evidence-retention policy before public use.
-4. Confirm minimum sign-up age/work rules, enable Firebase App Check, and verify runtime IAM/production domains.
-5. Verify evidence upload and application flows in a configured Firebase project/browser, then assess accessibility/low-data performance and address the large Firebase bundle.
+1. Set a Firebase development project ID, then deploy/test rules, Storage and Cloud Functions against it.
+2. Add/run end-to-end tests for registration, profile save, job post, application, shortlist, withdrawal, evidence upload and account deletion against Firebase emulators or a development project.
+3. Obtain owner approval for the privacy contact, evidence-retention policy and minimum-age/work rules before public use.
+4. Confirm App Check enforcement, runtime IAM and production domains; verify AI provider terms before enabling drafting.
+5. Assess accessibility and low-data performance, and investigate the large Firebase bundle.
 
 ## Decisions Needed Before Public Pilot
 

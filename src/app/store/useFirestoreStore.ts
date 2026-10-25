@@ -873,7 +873,7 @@ export function useFirestoreStore(): BasaStore {
       status: 'pending',
       createdAt: nowIso(),
     };
-    // reportCount is NOT incremented here: reporters cannot write to jobs. Admins count pending reports per job.
+    // A trusted Firestore trigger maintains the job's pending-report count.
     fire(setDoc(ref, clean(newReport)));
     return newReport;
   };
@@ -887,7 +887,9 @@ export function useFirestoreStore(): BasaStore {
     if (action === 'suspend_job' && report.targetType === 'job') {
       batch.update(doc(db, COLLECTIONS.jobs, report.targetId), { status: 'flagged' });
     }
-    batch.update(doc(db, COLLECTIONS.reports, reportId), { status: 'resolved' });
+    batch.update(doc(db, COLLECTIONS.reports, reportId), {
+      status: action === 'dismiss' ? 'dismissed' : 'resolved',
+    });
     fire(batch.commit());
   };
 

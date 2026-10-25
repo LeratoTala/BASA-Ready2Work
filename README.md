@@ -183,7 +183,7 @@ Try it with fictional data and no backend: set `VITE_ENABLE_DEMO_DATA=true` in `
 - [x] **Roadmap R1: In-App Notifications (FR-15).** Dedicated notification center modal, unread badge counter in header, fine-grained preferences toggles, and idempotent alerts (tests T-13, T-14, T-15 pass).
 - [x] **Roadmap R2: Location-Aware Filters (FR-16).** Centroid-based distance estimation between 30+ South African areas, interactive candidate distance & work mode filters, without GPS tracking (tests T-16, T-17, T-18 pass).
 - [x] **Roadmap R3: Verification Flows (FR-19).** Peer endorsement request/review queue, practical 100-pt micro-tasks rubrics, designated mentor reviews, and live admin job moderation (tests T-19, T-20, T-21, T-22 pass).
-- [ ] **Roadmap R4: Micro-Internships & Work Records (FR-21).** Micro-internship listings, milestone sign-offs, and immutable completion work records.
+- [ ] **Roadmap R4: Micro-Internships (FR-21).** Micro-internship listings and milestone sign-offs are still outstanding. Immutable completion work records are already created when an application is marked completed; see the progress tracker for verification status.
 
 ---
 

@@ -4,8 +4,8 @@
  *
  *   node scripts/set-admin-claim.mjs <email> [--revoke]
  *
- * Requires: `npm i -D firebase-admin` and GOOGLE_APPLICATION_CREDENTIALS pointing at a
- * service-account key kept OUTSIDE the repository. Run this from a trusted machine only.
+ * Requires Application Default Credentials or GOOGLE_APPLICATION_CREDENTIALS pointing at
+ * a service-account key kept OUTSIDE the repository. Run this from a trusted machine only.
  * The user must sign out and back in for the claim to take effect.
  */
 import { initializeApp, applicationDefault } from 'firebase-admin/app';

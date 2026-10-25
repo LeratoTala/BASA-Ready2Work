@@ -6,6 +6,12 @@ npm i -g firebase-tools && firebase login
 cp .firebaserc.example .firebaserc        # set your project id
 firebase deploy --only firestore:rules,firestore:indexes,storage
 ```
+The repository configures Cloud Functions in `firebase.json`; report-count triggers are deployed with:
+```bash
+node scripts/recount-job-reports.mjs
+firebase deploy --only functions
+```
+Run the recount once before deploying the triggers, with `FIREBASE_PROJECT_ID` set for the target project and Application Default Credentials available. Then deploy the functions. Use the real Firebase project ID in `.firebaserc` (copy `.firebaserc.example` and replace its placeholder). The project ID is required for live integration; never commit service-account credentials.
 Enable the authentication sign-in providers in **Firebase Console → Authentication → Sign-in method**:
 - **Google:** Enable.
 - **Apple:** Enable (Services ID & Key for iOS/Safari users).
@@ -15,10 +21,9 @@ Add your production domain to **Authorized domains**.
 
 ## 2. Grant Yourself Assessor/Admin Rights
 ```bash
-npm i -D firebase-admin
-export GOOGLE_APPLICATION_CREDENTIALS=/secure/path/service-account.json   # keep outside repo
 node scripts/set-admin-claim.mjs you@example.com
 ```
+Use Application Default Credentials or set `GOOGLE_APPLICATION_CREDENTIALS` to a trusted service-account key stored outside the repository.
 *Note: Public users can only self-register as Candidate or Employer. Admin rights can only be granted using this backend script.*
 
 ## 3. Where the Owner Manages & Oversees Everything After Deploying
@@ -28,7 +33,7 @@ node scripts/set-admin-claim.mjs you@example.com
      - **Pilot Overview:** High-level metrics tracking candidates, businesses, open jobs, and assessed skills.
      - **Manage Jobs:** View all posted jobs, audit ZAR pay rates, verify employers, and suspend suspicious listings.
      - **Assessor Workspace:** Grade candidate practical rubrics and approve peer contractor endorsements.
-     - **Moderation Reports:** Resolve community fraud reports and manage POPIA deletion tickets.
+     - **Moderation Reports:** Resolve community fraud reports and complete POPIA deletion requests.
 2. **In the Cloud Console (Infrastructure Governance):**
    - **Firebase Console (console.firebase.google.com):** User management, Firestore collections, private evidence storage buckets, and App Check bot protection.
    - **Google Cloud Console (console.cloud.google.com):** Cloud Run containers, CPU/memory auto-scaling, domain SSL, and IAM roles.

@@ -40,7 +40,7 @@ Registration is handled by the authenticated `/api/register` route, which derive
 
 Design decisions worth knowing:
 - New skill claims are always **Self-reported**. Peer/mentor/assessed labels come from other people, never from the candidate's own form.
-- Reporters cannot write to jobs, so `reportCount` is not incremented client-side. Add a Cloud Function trigger to maintain it, or count pending reports in the admin view.
+- Reporters cannot write to jobs, so `reportCount` is maintained by the deployed Cloud Function triggers under `firebase/functions/`; it tracks pending job reports.
 - Candidate profiles are readable by employers only when `popiaVisibility` allows it and, for `employers_only`, the candidate has applied to that employer.
 - Candidate contact details live in `candidatePrivateProfiles`; employers receive access only in the same valid shortlist transition that updates an application. Existing legacy contact fields are moved on the candidate's next sign-in.
 - Optional evidence images are stored privately in Firebase Storage. Only the candidate and admin role can read raw files; employer views use text evidence.
