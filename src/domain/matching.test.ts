@@ -10,14 +10,24 @@ describe('calculateMatchScore', () => {
     assert.ok(Math.abs(sum - 1) < 1e-9);
   });
 
-  it('scores a perfect, assessed, local match at 100', () => {
+  it('scores a perfect, reviewed, local match at 100', () => {
+    const result = calculateMatchScore(
+      makeJob(),
+      makeCandidate(),
+      [makeClaim('Skill A', 'Mentor-reviewed'), makeClaim('Skill B', 'Mentor-reviewed')]
+    );
+    assert.equal(result.totalScore, 100);
+    assert.deepEqual(result.missingSkills, []);
+  });
+
+  it('scores Task-assessed at 85 evidence strength in the E term (Section 28.2)', () => {
     const result = calculateMatchScore(
       makeJob(),
       makeCandidate(),
       [makeClaim('Skill A', 'Task-assessed'), makeClaim('Skill B', 'Task-assessed')]
     );
-    assert.equal(result.totalScore, 100);
-    assert.deepEqual(result.missingSkills, []);
+    assert.equal(result.evidenceStrength, 85);
+    assert.equal(result.totalScore, 96);
   });
 
   it('lists missing required skills and lowers the score', () => {

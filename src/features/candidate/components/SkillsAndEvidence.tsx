@@ -12,20 +12,39 @@ import {
   Users,
   Check,
   X,
+  Image as ImageIcon,
+  Eye,
+  Info,
+  ExternalLink,
+  Clock,
+  AlertTriangle,
 } from 'lucide-react';
-import { CandidateProfile, SkillClaim, VerificationStatus } from '../../../domain/types';
+import { CandidateProfile, CredentialEvidence, EvidenceItem, SkillClaim, VerificationStatus } from '../../../domain/types';
 import { SKILL_DEFINITIONS } from '../../../domain/skillCatalogue';
 import { VerificationBadge } from '../../../shared/components/VerificationBadge';
 import { env } from '../../../config/env';
 import { FEATURE_FLAGS } from '../../../config/featureFlags';
 import { getRubricForSkill } from '../../../domain/rubrics';
+import { maskCredentialId, isCredentialExpired } from '../../../domain/credentialValidation';
+import { CREDENTIAL_EXPLANATIONS } from '../../../config/credentialRules';
+import { AddCredentialModal } from './AddCredentialModal';
 
 interface Props {
   candidate: CandidateProfile;
   claims: SkillClaim[];
-  onAddClaim: (claim: Omit<SkillClaim, 'id' | 'createdAt'>, evidenceFile?: File) => Promise<SkillClaim>;
+  onAddClaim: (
+    claim: Omit<SkillClaim, 'id' | 'createdAt'>,
+    evidenceFile?: File,
+    evidenceFiles?: File[]
+  ) => Promise<SkillClaim>;
   onOpenPassport: () => void;
   onOpenAIDrafter: () => void;
+  onAddCredential?: (
+    claimId: string,
+    credential: CredentialEvidence,
+    file?: File,
+    associatedSkills?: string[]
+  ) => Promise<void>;
   onRequestPeerEndorsement?: (
     claimId: string,
     params: {
@@ -52,6 +71,7 @@ export const SkillsAndEvidence: React.FC<Props> = ({
   onAddClaim,
   onOpenPassport,
   onOpenAIDrafter,
+  onAddCredential,
   onRequestPeerEndorsement,
   onRequestMentorReview,
 }) => {
@@ -62,10 +82,17 @@ export const SkillsAndEvidence: React.FC<Props> = ({
   const [evidenceType, setEvidenceType] = useState<'photo_video' | 'client_review' | 'reference_note' | 'work_sample' | 'practical_demo'>('reference_note');
   const [evidenceTitle, setEvidenceTitle] = useState('');
   const [evidenceDescription, setEvidenceDescription] = useState('');
-  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [evidenceFiles, setEvidenceFiles] = useState<File[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [notification, setNotification] = useState<string | null>(null);
+
+  // Document Inspection & Label Guide Modals
+  const [inspectingItem, setInspectingItem] = useState<{ item: EvidenceItem; skillName: string } | null>(null);
+  const [showLabelGuideModal, setShowLabelGuideModal] = useState(false);
+  const [showCredentialGuideModal, setShowCredentialGuideModal] = useState(false);
+  const [credentialModalClaim, setCredentialModalClaim] = useState<SkillClaim | null>(null);
+  const [isStandaloneCredentialModalOpen, setIsStandaloneCredentialModalOpen] = useState(false);
 
   // R3 Verification Modals
   const [endorsementClaim, setEndorsementClaim] = useState<SkillClaim | null>(null);
@@ -92,25 +119,46 @@ export const SkillsAndEvidence: React.FC<Props> = ({
 
     const status: VerificationStatus = 'Self-reported';
 
-    try {
-      const savedClaim = await onAddClaim({
-        candidateId: candidate.uid,
-        skillId: selectedSkillId === 'custom' ? `custom-${Date.now()}` : selectedSkillId,
-        skillName,
-        selfReportedLevel,
-        evidenceType,
-        evidenceTitle: evidenceTitle.trim() || `${skillName} Practical Experience`,
-        evidenceDescription: evidenceDescription.trim(),
-        evidenceUrlOrText: evidenceDescription.trim() || evidenceTitle.trim(),
-        verificationStatus: status,
-      }, evidenceFile ?? undefined);
+    const items: EvidenceItem[] = evidenceFiles.map((file, idx) => {
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      const isCert = isPdf || /cert|diploma|trade|nqa|training/i.test(file.name);
+      return {
+        id: `ev-${Date.now()}-${idx}`,
+        type: isCert ? 'certificate' : 'photo_video',
+        title: file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '),
+        fileName: file.name,
+        fileSize: `${Math.round(file.size / 1024)} KB`,
+        mimeType: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'),
+        fileUrl: URL.createObjectURL(file),
+        description: evidenceDescription.trim() || evidenceTitle.trim(),
+        uploadedAt: new Date().toISOString(),
+      };
+    });
 
-      const hasPrivateImage = savedClaim.evidenceUrlOrText.startsWith('candidate-evidence/');
-      setNotification(`Skill claim for "${skillName}" recorded as ${status}${hasPrivateImage ? ' with a private image' : ''}.`);
+    try {
+      const savedClaim = await onAddClaim(
+        {
+          candidateId: candidate.uid,
+          skillId: selectedSkillId === 'custom' ? `custom-${Date.now()}` : selectedSkillId,
+          skillName,
+          selfReportedLevel,
+          evidenceType,
+          evidenceTitle: evidenceTitle.trim() || `${skillName} Practical Experience`,
+          evidenceDescription: evidenceDescription.trim(),
+          evidenceUrlOrText: items.length > 0 ? (items[0].fileName || '') : (evidenceDescription.trim() || evidenceTitle.trim()),
+          verificationStatus: status,
+          evidenceItems: items.length > 0 ? items : undefined,
+        },
+        evidenceFiles[0] ?? undefined,
+        evidenceFiles
+      );
+
+      const hasDocuments = (savedClaim.evidenceItems && savedClaim.evidenceItems.length > 0) || savedClaim.evidenceUrlOrText.startsWith('candidate-evidence/');
+      setNotification(`Skill claim for "${skillName}" recorded as ${status}${hasDocuments ? ' with attached evidence documents' : ''}.`);
       setShowAddForm(false);
       setEvidenceTitle('');
       setEvidenceDescription('');
-      setEvidenceFile(null);
+      setEvidenceFiles([]);
       setCustomSkillName('');
       setTimeout(() => setNotification(null), 4000);
     } catch (error) {
@@ -145,6 +193,16 @@ export const SkillsAndEvidence: React.FC<Props> = ({
             <Award className="w-3.5 h-3.5 text-amber-400" />
             <span>View Skill Passport</span>
           </button>
+          {FEATURE_FLAGS.credentialEvidence && (
+            <button
+              type="button"
+              onClick={() => setIsStandaloneCredentialModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-purple-700 text-white hover:bg-purple-800 transition-colors cursor-pointer"
+            >
+              <Award className="w-4 h-4 text-purple-200" />
+              <span>Add Badge or Certificate</span>
+            </button>
+          )}
           <button
             onClick={() => setShowAddForm(!showAddForm)}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors cursor-pointer"
@@ -263,18 +321,81 @@ export const SkillsAndEvidence: React.FC<Props> = ({
               />
             </div>
 
-            {!env.enableDemoData && (
-              <label className="block">
-                <span className="block font-semibold text-stone-700 mb-1">Optional evidence image</span>
+            {/* Evidence Documents & Media Uploader */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block font-semibold text-stone-700">
+                  Upload Evidence Documents or Photos (Optional)
+                </label>
+                <span className="text-[11px] text-stone-500">PDF documents, JPEG, PNG or WebP up to 5 MB each</span>
+              </div>
+
+              <div className="border-2 border-dashed border-stone-200 hover:border-amber-400 rounded-lg p-3 text-center transition-colors bg-stone-50/50">
                 <input
                   type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(event) => setEvidenceFile(event.target.files?.[0] ?? null)}
-                  className="block w-full text-xs text-stone-700"
+                  id="evidence-file-input"
+                  multiple
+                  accept="application/pdf,image/jpeg,image/png,image/webp"
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files || []);
+                    if (files.length > 0) {
+                      setEvidenceFiles((prev) => [...prev, ...files]);
+                    }
+                  }}
+                  className="hidden"
                 />
-                <span className="block text-[11px] text-stone-500 mt-1">JPEG, PNG or WebP, up to 5 MB. Do not include private contact details.</span>
-              </label>
-            )}
+                <label
+                  htmlFor="evidence-file-input"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-stone-300 text-stone-700 font-medium hover:bg-stone-50 cursor-pointer shadow-2xs text-xs"
+                >
+                  <Upload className="w-3.5 h-3.5 text-stone-500" />
+                  <span>Choose PDF Certificates or Photos</span>
+                </label>
+                <p className="text-[11px] text-stone-400 mt-1">
+                  You can upload multiple files under this skill (e.g. trade certificate, college diploma, reference letter, photo).
+                </p>
+              </div>
+
+              {/* Selected Files Preview List */}
+              {evidenceFiles.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <span className="font-semibold text-stone-600 text-[11px] block">
+                    Attached Files for Submission ({evidenceFiles.length}):
+                  </span>
+                  <div className="space-y-1">
+                    {evidenceFiles.map((file, idx) => {
+                      const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+                      return (
+                        <div
+                          key={`${file.name}-${idx}`}
+                          className="flex items-center justify-between bg-stone-100 rounded px-2.5 py-1.5 text-xs text-stone-700 border border-stone-200"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            {isPdf ? (
+                              <FileText className="w-4 h-4 text-red-600 shrink-0" />
+                            ) : (
+                              <ImageIcon className="w-4 h-4 text-blue-600 shrink-0" />
+                            )}
+                            <span className="font-medium truncate">{file.name}</span>
+                            <span className="text-[10px] text-stone-400 shrink-0">
+                              ({(file.size / 1024).toFixed(0)} KB)
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setEvidenceFiles((prev) => prev.filter((_, i) => i !== idx))}
+                            className="text-stone-400 hover:text-red-600 p-0.5 rounded cursor-pointer"
+                            title="Remove file"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {saveError && <p className="text-red-700 text-xs" role="alert">{saveError}</p>}
 
@@ -298,12 +419,22 @@ export const SkillsAndEvidence: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Honest Verification Legend (Section 3.3) */}
-      <div className="bg-stone-50 rounded-lg p-4 border border-stone-200 text-xs">
-        <h3 className="font-bold text-stone-900 mb-2 flex items-center gap-1.5">
-          <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          Honest Verification Standards (Section 3.3)
-        </h3>
+      {/* Honest Verification Legend (Section 3.3 & Section 29.2) */}
+      <div className="bg-stone-50 rounded-lg p-4 border border-stone-200 text-xs space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-stone-900 flex items-center gap-1.5">
+            <ShieldCheck className="w-4 h-4 text-emerald-600" />
+            Honest Verification Standards (Section 3.3)
+          </h3>
+          <button
+            type="button"
+            onClick={() => setShowLabelGuideModal(true)}
+            className="text-[11px] font-semibold text-amber-800 hover:text-amber-950 underline flex items-center gap-1 cursor-pointer"
+          >
+            <HelpCircle className="w-3.5 h-3.5 text-amber-600" />
+            What does each label mean?
+          </button>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-stone-600">
           <div className="p-2 bg-white rounded border border-stone-200">
             <span className="font-semibold text-stone-800 block">Self-reported</span>
@@ -375,53 +506,200 @@ export const SkillsAndEvidence: React.FC<Props> = ({
                     <span>Reviewed by Mentor {claim.mentorName} (Mentor-reviewed)</span>
                   </div>
                 )}
+
+                {/* Attached Evidence Dossier */}
+                {claim.evidenceItems && claim.evidenceItems.length > 0 && (
+                  <div className="pt-2 border-t border-stone-200/80 space-y-1.5">
+                    <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">
+                      Attached Documents & Evidence ({claim.evidenceItems.length}):
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {claim.evidenceItems.map((item) => {
+                        const isPdf = Boolean(item.mimeType?.includes('pdf') || item.fileName?.endsWith('.pdf'));
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setInspectingItem({ item, skillName: claim.skillName })}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white hover:bg-stone-100 border border-stone-300 text-stone-700 text-[11px] font-medium transition-colors shadow-2xs cursor-pointer group"
+                          >
+                            {isPdf ? (
+                              <FileText className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                            ) : (
+                              <ImageIcon className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                            )}
+                            <span className="group-hover:text-amber-800 truncate max-w-[160px]">
+                              {item.title || item.fileName}
+                            </span>
+                            <span className="text-[10px] text-stone-400 shrink-0">({item.fileSize})</span>
+                            <Eye className="w-3 h-3 text-stone-400 group-hover:text-amber-600 ml-0.5" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {/* Attached Badges & Certificates (Section 35) */}
+                {claim.credentials && claim.credentials.length > 0 && (
+                  <div className="pt-2 border-t border-stone-200/80 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">
+                        Badges & Certificates ({claim.credentials.length}):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowCredentialGuideModal(true)}
+                        className="text-[10px] text-purple-700 hover:text-purple-900 underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <HelpCircle className="w-3 h-3" />
+                        What do badge labels mean?
+                      </button>
+                    </div>
+                    <div className="space-y-1.5">
+                      {claim.credentials.map((cred) => {
+                        const isExpired = isCredentialExpired(cred.expiresOn);
+                        return (
+                          <div
+                            key={cred.id}
+                            className="p-2.5 rounded-lg bg-white border border-stone-200 flex flex-wrap items-center justify-between gap-2 shadow-2xs"
+                          >
+                            <div className="flex items-start gap-2 min-w-0">
+                              <Award className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="font-bold text-stone-900 text-xs truncate">{cred.credentialName}</span>
+                                  <span className="text-stone-400 text-xs">·</span>
+                                  <span className="text-stone-600 text-xs">{cred.issuer}</span>
+                                  {cred.isAccredited && (
+                                    <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase tracking-wider bg-purple-100 text-purple-800 border border-purple-200">
+                                      Accredited
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex flex-wrap items-center gap-2 text-[11px] text-stone-500 pt-0.5">
+                                  {cred.credentialId ? (
+                                    <span className="font-mono text-stone-600">ID: {maskCredentialId(cred.credentialId)}</span>
+                                  ) : (
+                                    <span className="italic text-stone-400">Institutional (no ID required)</span>
+                                  )}
+                                  {cred.issuedOn && <span>Issued: {cred.issuedOn}</span>}
+                                  {cred.expiresOn && (
+                                    <span className={isExpired ? 'text-rose-600 font-semibold' : ''}>
+                                      Expires: {cred.expiresOn}
+                                    </span>
+                                  )}
+                                </div>
+                                {cred.checkNote && (
+                                  <p className="text-[10px] text-stone-500 pt-0.5 italic">Note: {cred.checkNote}</p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              {isExpired ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-stone-100 text-stone-600 border border-stone-200">
+                                  <Clock className="w-3 h-3" />
+                                  Expired
+                                </span>
+                              ) : cred.checkStatus === 'checked_ok' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  Checked with issuer
+                                </span>
+                              ) : cred.checkStatus === 'checked_mismatch' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                                  <AlertTriangle className="w-3 h-3 text-rose-600" />
+                                  Detail mismatch
+                                </span>
+                              ) : cred.checkStatus === 'needs_review' ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                  <Clock className="w-3 h-3 text-amber-600" />
+                                  Needs review
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-stone-100 text-stone-700 border border-stone-200">
+                                  <Clock className="w-3 h-3 text-stone-500" />
+                                  Not checked yet
+                                </span>
+                              )}
+
+                              {cred.verifyUrl && (
+                                <a
+                                  href={cred.verifyUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="p-1 text-stone-400 hover:text-amber-600 transition-colors"
+                                  title="Open official verification page (opens in new tab)"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* R3 Verification Action Bar */}
-              {claim.verificationStatus === 'Self-reported' && (
-                <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-stone-100">
-                  {FEATURE_FLAGS.peerEndorsement && (
-                    <button
-                      type="button"
-                      onClick={() => setEndorsementClaim(claim)}
-                      className="px-2.5 py-1 text-xs font-semibold rounded bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition-colors flex items-center gap-1 cursor-pointer"
-                    >
-                      <Users className="w-3.5 h-3.5 text-amber-700" />
-                      <span>Request Peer Endorsement</span>
-                    </button>
-                  )}
-                  {FEATURE_FLAGS.microTasks && (
-                    <button
-                      type="button"
-                      onClick={() => setRubricClaim(claim)}
-                      className="px-2.5 py-1 text-xs font-semibold rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 transition-colors flex items-center gap-1 cursor-pointer"
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>View Assessment Rubric</span>
-                    </button>
-                  )}
-                  {FEATURE_FLAGS.mentorReview && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        if (onRequestMentorReview) {
-                          await onRequestMentorReview(claim.id, {
-                            mentorName: 'Designated Youth Mentor',
-                            feedback: 'Portfolio evidence queued for review.',
-                            decision: 'needs_more_evidence',
-                          });
-                          setNotification(`Portfolio evidence for "${claim.skillName}" submitted for mentor review.`);
-                          setTimeout(() => setNotification(null), 4000);
-                        }
-                      }}
-                      className="px-2.5 py-1 text-xs font-semibold rounded bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 transition-colors flex items-center gap-1 cursor-pointer"
-                    >
-                      <Award className="w-3.5 h-3.5 text-blue-700" />
-                      <span>Request Mentor Review</span>
-                    </button>
-                  )}
-                </div>
-              )}
+              {/* Verification & Credential Action Bar */}
+              <div className="pt-2 flex flex-wrap items-center gap-2 border-t border-stone-100">
+                {FEATURE_FLAGS.credentialEvidence && (
+                  <button
+                    type="button"
+                    onClick={() => setCredentialModalClaim(claim)}
+                    className="px-2.5 py-1 text-xs font-semibold rounded bg-purple-50 hover:bg-purple-100 text-purple-900 border border-purple-200 transition-colors flex items-center gap-1 cursor-pointer"
+                  >
+                    <Award className="w-3.5 h-3.5 text-purple-700" />
+                    <span>Add Badge or Certificate</span>
+                  </button>
+                )}
+                {claim.verificationStatus === 'Self-reported' && (
+                  <>
+                    {FEATURE_FLAGS.peerEndorsement && (
+                      <button
+                        type="button"
+                        onClick={() => setEndorsementClaim(claim)}
+                        className="px-2.5 py-1 text-xs font-semibold rounded bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Users className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Request Peer Endorsement</span>
+                      </button>
+                    )}
+                    {FEATURE_FLAGS.microTasks && (
+                      <button
+                        type="button"
+                        onClick={() => setRubricClaim(claim)}
+                        className="px-2.5 py-1 text-xs font-semibold rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>View Assessment Rubric</span>
+                      </button>
+                    )}
+                    {FEATURE_FLAGS.mentorReview && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (onRequestMentorReview) {
+                            await onRequestMentorReview(claim.id, {
+                              mentorName: 'Designated Youth Mentor',
+                              feedback: 'Portfolio evidence queued for review.',
+                              decision: 'needs_more_evidence',
+                            });
+                            setNotification(`Portfolio evidence for "${claim.skillName}" submitted for mentor review.`);
+                            setTimeout(() => setNotification(null), 4000);
+                          }
+                        }}
+                        className="px-2.5 py-1 text-xs font-semibold rounded bg-blue-50 hover:bg-blue-100 text-blue-900 border border-blue-200 transition-colors flex items-center gap-1 cursor-pointer"
+                      >
+                        <Award className="w-3.5 h-3.5 text-blue-700" />
+                        <span>Request Mentor Review</span>
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           ))
         )}
@@ -616,6 +894,364 @@ export const SkillsAndEvidence: React.FC<Props> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Document Inspector Modal (View uploaded PDF / Image) */}
+      {inspectingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-stone-200 overflow-hidden my-6">
+            <div className="bg-stone-900 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {Boolean(inspectingItem.item.mimeType?.includes('pdf') || inspectingItem.item.fileName?.endsWith('.pdf')) ? (
+                  <FileText className="w-5 h-5 text-red-400" />
+                ) : (
+                  <ImageIcon className="w-5 h-5 text-blue-400" />
+                )}
+                <div>
+                  <h3 className="font-bold text-sm">Evidence Document Inspector</h3>
+                  <p className="text-xs text-stone-300">Skill: {inspectingItem.skillName}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectingItem(null)}
+                className="text-stone-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs text-stone-700">
+              <div className="bg-stone-50 rounded-lg p-3 border border-stone-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-stone-900 text-sm">{inspectingItem.item.title}</span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold uppercase bg-amber-100 text-amber-900 border border-amber-200">
+                    {inspectingItem.item.type.replace('_', ' ')}
+                  </span>
+                </div>
+                <div className="text-[11px] text-stone-500 space-y-1">
+                  <p><strong>File Name:</strong> {inspectingItem.item.fileName}</p>
+                  <p><strong>File Size:</strong> {inspectingItem.item.fileSize}</p>
+                  <p><strong>Format:</strong> {inspectingItem.item.mimeType}</p>
+                  {inspectingItem.item.uploadedAt && (
+                    <p><strong>Uploaded:</strong> {new Date(inspectingItem.item.uploadedAt).toLocaleDateString()}</p>
+                  )}
+                </div>
+              </div>
+
+              {inspectingItem.item.description && (
+                <div className="space-y-1">
+                  <span className="font-semibold text-stone-800 text-xs">Attached Description / Scope:</span>
+                  <p className="p-2.5 bg-stone-50 rounded border border-stone-200 text-stone-600 leading-relaxed">
+                    {inspectingItem.item.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Document Preview Display */}
+              <div className="border border-stone-200 rounded-lg p-4 bg-stone-100 text-center space-y-2">
+                {Boolean(inspectingItem.item.mimeType?.includes('pdf') || inspectingItem.item.fileName?.endsWith('.pdf')) ? (
+                  <div className="space-y-2">
+                    <FileText className="w-12 h-12 text-red-500 mx-auto" />
+                    <p className="font-semibold text-stone-800 text-xs">Portable Document Format (PDF)</p>
+                    <p className="text-[11px] text-stone-500">
+                      Standard verified document certificate. Ready for assessor or employer review.
+                    </p>
+                    {inspectingItem.item.fileUrl && !inspectingItem.item.fileUrl.startsWith('candidate-evidence/') && (
+                      <a
+                        href={inspectingItem.item.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 hover:bg-stone-800 text-white font-medium rounded text-xs transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Open Document Preview</span>
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {inspectingItem.item.fileUrl && !inspectingItem.item.fileUrl.startsWith('candidate-evidence/') ? (
+                      <img
+                        src={inspectingItem.item.fileUrl}
+                        alt={inspectingItem.item.title}
+                        className="max-h-56 mx-auto rounded object-contain border border-stone-300"
+                      />
+                    ) : (
+                      <>
+                        <ImageIcon className="w-12 h-12 text-blue-500 mx-auto" />
+                        <p className="font-semibold text-stone-800 text-xs">Work Evidence Photo</p>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setInspectingItem(null)}
+                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white font-semibold rounded text-xs"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Honest Skill Passport Label Meaning Modal (Section 29.2) */}
+      {showLabelGuideModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-stone-200 overflow-hidden">
+            <div className="bg-stone-900 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h3 className="font-bold text-sm">What does each label mean?</h3>
+                  <p className="text-xs text-stone-300">Plain-language guide (Grade 6 reading level)</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLabelGuideModal(false)}
+                className="text-stone-400 hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5 text-xs">
+              <div className="p-3 bg-stone-50 rounded-lg border border-stone-200 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-stone-800">Self-reported</span>
+                  <span className="text-[10px] uppercase font-bold text-stone-500 bg-stone-200 px-1.5 py-0.5 rounded">
+                    Entry Level
+                  </span>
+                </div>
+                <p className="text-stone-600 leading-relaxed text-[11px]">
+                  You entered this skill into your profile yourself. No one else has checked or tested it yet.
+                </p>
+              </div>
+
+              <div className="p-3 bg-amber-50/60 rounded-lg border border-amber-200 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-amber-900">Peer-endorsed</span>
+                  <span className="text-[10px] uppercase font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
+                    Workplace Verified
+                  </span>
+                </div>
+                <p className="text-stone-600 leading-relaxed text-[11px]">
+                  A coworker, client, or supervisor who worked side-by-side with you confirmed they personally saw you do this work.
+                </p>
+              </div>
+
+              <div className="p-3 bg-emerald-50/60 rounded-lg border border-emerald-200 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-emerald-900">Task-assessed</span>
+                  <span className="text-[10px] uppercase font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                    Gold Standard
+                  </span>
+                </div>
+                <p className="text-stone-600 leading-relaxed text-[11px]">
+                  A certified assessor watched you perform a practical benchmark test or evaluated verified trade credentials against a 100-point rubric.
+                </p>
+              </div>
+
+              <div className="p-3 bg-blue-50/60 rounded-lg border border-blue-200 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-blue-900">Mentor-reviewed</span>
+                  <span className="text-[10px] uppercase font-bold text-blue-800 bg-blue-100 px-1.5 py-0.5 rounded">
+                    Expert Portfolio
+                  </span>
+                </div>
+                <p className="text-stone-600 leading-relaxed text-[11px]">
+                  An experienced industry mentor carefully inspected your submitted work photos, certificates, or client reviews and signed off on your quality.
+                </p>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowLabelGuideModal(false)}
+                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white font-semibold rounded text-xs"
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Credential Meaning Guide Modal (Section 35.4) */}
+      {showCredentialGuideModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full border border-stone-200 overflow-hidden">
+            <div className="bg-stone-900 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Award className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h3 className="font-bold text-sm">What do badge and certificate labels mean?</h3>
+                  <p className="text-xs text-stone-300">Grade 6 plain-language guide</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCredentialGuideModal(false)}
+                className="text-stone-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5 text-xs max-h-[75vh] overflow-y-auto">
+              <div className="p-3 bg-stone-50 rounded-lg border border-stone-200 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-stone-800">{CREDENTIAL_EXPLANATIONS.unchecked.badge}</span>
+                  <span className="text-[10px] uppercase font-bold text-stone-600 bg-stone-200 px-1.5 py-0.5 rounded">
+                    Pending
+                  </span>
+                </div>
+                <p className="text-stone-600 leading-relaxed text-[11px]">
+                  {CREDENTIAL_EXPLANATIONS.unchecked.plainText}
+                </p>
+              </div>
+
+              <div className="p-3 bg-emerald-50/60 rounded-lg border border-emerald-200 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-emerald-900">{CREDENTIAL_EXPLANATIONS.checked_ok.badge}</span>
+                  <span className="text-[10px] uppercase font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.5 rounded">
+                    Verified
+                  </span>
+                </div>
+                <p className="text-stone-600 leading-relaxed text-[11px]">
+                  {CREDENTIAL_EXPLANATIONS.checked_ok.plainText}
+                </p>
+              </div>
+
+              <div className="p-3 bg-rose-50/60 rounded-lg border border-rose-200 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-rose-900">{CREDENTIAL_EXPLANATIONS.checked_mismatch.badge}</span>
+                  <span className="text-[10px] uppercase font-bold text-rose-800 bg-rose-100 px-1.5 py-0.5 rounded">
+                    Mismatch
+                  </span>
+                </div>
+                <p className="text-stone-600 leading-relaxed text-[11px]">
+                  {CREDENTIAL_EXPLANATIONS.checked_mismatch.plainText}
+                </p>
+              </div>
+
+              <div className="p-3 bg-amber-50/60 rounded-lg border border-amber-200 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-amber-900">{CREDENTIAL_EXPLANATIONS.needs_review.badge}</span>
+                  <span className="text-[10px] uppercase font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded">
+                    Assessor Review
+                  </span>
+                </div>
+                <p className="text-stone-600 leading-relaxed text-[11px]">
+                  {CREDENTIAL_EXPLANATIONS.needs_review.plainText}
+                </p>
+              </div>
+
+              <div className="p-3 bg-purple-50/60 rounded-lg border border-purple-200 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-purple-900">{CREDENTIAL_EXPLANATIONS.accredited.badge}</span>
+                  <span className="text-[10px] uppercase font-bold text-purple-800 bg-purple-100 px-1.5 py-0.5 rounded">
+                    SAQA / Statutory
+                  </span>
+                </div>
+                <p className="text-stone-600 leading-relaxed text-[11px]">
+                  {CREDENTIAL_EXPLANATIONS.accredited.plainText}
+                </p>
+              </div>
+
+              <div className="p-3 bg-stone-100 rounded-lg border border-stone-300 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-stone-700">{CREDENTIAL_EXPLANATIONS.expired.badge}</span>
+                  <span className="text-[10px] uppercase font-bold text-stone-600 bg-stone-200 px-1.5 py-0.5 rounded">
+                    Expired
+                  </span>
+                </div>
+                <p className="text-stone-600 leading-relaxed text-[11px]">
+                  {CREDENTIAL_EXPLANATIONS.expired.plainText}
+                </p>
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowCredentialGuideModal(false)}
+                  className="px-4 py-2 bg-stone-900 hover:bg-stone-800 text-white font-semibold rounded text-xs cursor-pointer"
+                >
+                  Understood
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Credential Modal (Section 35.2 & Multi-Skill Modular Credentials) */}
+      {(credentialModalClaim || isStandaloneCredentialModalOpen) && (
+        <AddCredentialModal
+          isOpen={!!credentialModalClaim || isStandaloneCredentialModalOpen}
+          onClose={() => {
+            setCredentialModalClaim(null);
+            setIsStandaloneCredentialModalOpen(false);
+          }}
+          skillName={credentialModalClaim?.skillName}
+          claimId={credentialModalClaim?.id}
+          onSaveCredential={async (cred, file, associatedSkills) => {
+            const targetSkills =
+              associatedSkills && associatedSkills.length > 0
+                ? associatedSkills
+                : credentialModalClaim
+                ? [credentialModalClaim.skillName]
+                : [];
+
+            if (targetSkills.length === 0) return;
+
+            let attachedCount = 0;
+            for (const skillName of targetSkills) {
+              const existingClaim = claims.find(
+                (c) => c.skillName.toLowerCase() === skillName.toLowerCase()
+              );
+              if (existingClaim) {
+                if (onAddCredential) {
+                  await onAddCredential(existingClaim.id, cred, file, targetSkills);
+                  attachedCount++;
+                }
+              } else {
+                const skillDef = SKILL_DEFINITIONS.find(
+                  (s) => s.name.toLowerCase() === skillName.toLowerCase()
+                );
+                const skillId =
+                  skillDef?.id ||
+                  `custom-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+                await onAddClaim({
+                  candidateId: candidate.uid,
+                  skillId,
+                  skillName,
+                  selfReportedLevel: 'Intermediate',
+                  evidenceType: 'work_sample',
+                  evidenceTitle: `Certified via ${cred.issuer} - ${cred.credentialName}`,
+                  evidenceDescription: `Modular vocational credential "${cred.credentialName}" issued by ${cred.issuer} covering ${skillName}.`,
+                  evidenceUrlOrText: cred.verifyUrl || cred.fileRef || 'Certificate Evidence',
+                  verificationStatus: 'Self-reported',
+                  credentials: [cred],
+                });
+                attachedCount++;
+              }
+            }
+
+            setNotification(
+              `Badge / certificate "${cred.credentialName}" saved and linked across ${attachedCount} skill(s) on your Skill Passport.`
+            );
+            setTimeout(() => setNotification(null), 5000);
+          }}
+        />
       )}
     </div>
   );

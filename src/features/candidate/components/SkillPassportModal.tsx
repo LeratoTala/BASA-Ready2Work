@@ -125,6 +125,37 @@ export const SkillPassportModal: React.FC<Props> = ({ isOpen, onClose, candidate
                           Endorsed by: <span className="font-medium text-stone-700">{claim.peerEndorserName}</span>
                         </p>
                       )}
+                      {claim.credentials && claim.credentials.length > 0 && (
+                        <div className="pt-2 border-t border-stone-200/60 space-y-1">
+                          <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">
+                            Credentials & Badges ({claim.credentials.length}):
+                          </span>
+                          <div className="space-y-1">
+                            {claim.credentials.map((cred) => (
+                              <div
+                                key={cred.id}
+                                className="flex items-center justify-between text-xs bg-white p-2 rounded border border-stone-200"
+                              >
+                                <div className="flex items-center gap-1.5 truncate">
+                                  <Award className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+                                  <span className="font-semibold text-stone-800 truncate">{cred.credentialName}</span>
+                                  <span className="text-stone-400">·</span>
+                                  <span className="text-stone-600 truncate">{cred.issuer}</span>
+                                </div>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 ml-2 ${
+                                  cred.checkStatus === 'checked_ok'
+                                    ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                    : cred.checkStatus === 'checked_mismatch'
+                                    ? 'bg-rose-50 text-rose-800 border border-rose-200'
+                                    : 'bg-stone-100 text-stone-600'
+                                }`}>
+                                  {cred.checkStatus === 'checked_ok' ? 'Checked with issuer' : cred.checkStatus === 'checked_mismatch' ? 'Detail mismatch' : 'Not checked yet'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

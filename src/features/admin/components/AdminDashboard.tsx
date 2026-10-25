@@ -20,6 +20,10 @@ import {
   CheckCircle,
   ExternalLink,
   Trash2,
+  Eye,
+  Calendar,
+  AlertCircle,
+  X,
 } from 'lucide-react';
 import {
   AssessmentRecord,
@@ -35,9 +39,11 @@ import {
   SkillClaim,
   User,
   WorkRecord,
+  CredentialEvidence,
 } from '../../../domain/types';
 import { getRubricForSkill } from '../../../domain/rubrics';
 import { calculatePilotMetrics } from '../../../domain/pilotMetrics';
+import { maskCredentialId, isCredentialExpired } from '../../../domain/credentialValidation';
 
 interface Props {
   assessorId: string;
@@ -69,6 +75,12 @@ interface Props {
     }
   ) => Promise<any>;
   onToggleJobStatus?: (jobId: string) => void;
+  onReviewCredential?: (
+    claimId: string,
+    credentialId: string,
+    status: 'checked_ok' | 'checked_mismatch' | 'needs_review',
+    note: string
+  ) => Promise<any>;
   activeSubTab?: string;
   onSelectSubTab?: (tab: string) => void;
 }
@@ -95,14 +107,28 @@ export const AdminDashboard: React.FC<Props> = ({
   onApproveEndorsement,
   onSubmitMentorReview,
   onToggleJobStatus,
+  onReviewCredential,
   activeSubTab = 'overview',
   onSelectSubTab,
 }) => {
   const [selectedClaimForGrading, setSelectedClaimForGrading] = useState<SkillClaim | null>(null);
   const [jobFilter, setJobFilter] = useState<'all' | 'open' | 'closed' | 'flagged'>('all');
+  const [inspectingJob, setInspectingJob] = useState<Job | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+
+  const SA_STATUTORY_MINIMUM_WAGE_HOURLY = 27.58;
+
+  const calculateEffectiveHourlyRate = (job: Job): number => {
+    if (job.compensationUnit === 'hourly') return job.compensationAmount;
+    if (job.compensationUnit === 'daily') return job.compensationAmount / 8;
+    return job.compensationAmount;
+  };
   const [deletionWorking, setDeletionWorking] = useState<string | null>(null);
   const [verifyWorking, setVerifyWorking] = useState<string | null>(null);
+  const [revealedCredIds, setRevealedCredIds] = useState<Record<string, boolean>>({});
+  const [credentialNotes, setCredentialNotes] = useState<Record<string, string>>({});
+  const [credentialWorking, setCredentialWorking] = useState<string | null>(null);
+  const [credFilter, setCredFilter] = useState<'all' | 'pending' | 'checked'>('pending');
   const [rubricScores, setRubricScores] = useState({
     crit1: 24,
     crit2: 23,
@@ -122,6 +148,16 @@ export const AdminDashboard: React.FC<Props> = ({
   const pendingEndorsementCount = endorsements.filter((e) => e.status === 'pending').length;
   const pendingReportCount = reports.filter((r) => r.status === 'pending').length;
   const pendingEmployerCount = Object.values(employerProfiles).filter((e) => e.verificationStatus === 'pending').length;
+  const allCredentialsWithClaim = claims.flatMap((claim) =>
+    (claim.credentials || []).map((cred) => ({
+      claim,
+      cred,
+      candidate: candidateProfiles[claim.candidateId],
+    }))
+  );
+  const pendingCredCount = allCredentialsWithClaim.filter(
+    (item) => item.cred.checkStatus === 'unchecked' || item.cred.checkStatus === 'needs_review'
+  ).length;
   const pilotMetrics = calculatePilotMetrics(applications, workRecords, claims);
 
   const totalScore = rubricScores.crit1 + rubricScores.crit2 + rubricScores.crit3 + rubricScores.crit4;
@@ -259,6 +295,14 @@ export const AdminDashboard: React.FC<Props> = ({
               Rubrics & Verification
             </button>
             <button
+              onClick={() => onSelectSubTab?.('credentials')}
+              className={`px-2.5 py-1 rounded cursor-pointer font-medium transition-colors ${
+                activeSubTab === 'credentials' ? 'bg-amber-600 text-white' : 'text-stone-300 hover:text-white'
+              }`}
+            >
+              Credentials {pendingCredCount > 0 && <span className="ml-1 bg-purple-500 text-white text-[9px] px-1 rounded-full">{pendingCredCount}</span>}
+            </button>
+            <button
               onClick={() => onSelectSubTab?.('reports')}
               className={`px-2.5 py-1 rounded cursor-pointer font-medium transition-colors ${
                 activeSubTab === 'reports' ? 'bg-amber-600 text-white' : 'text-stone-300 hover:text-white'
@@ -273,6 +317,7 @@ export const AdminDashboard: React.FC<Props> = ({
           {activeSubTab === 'jobs' && 'Live Job Opportunities & Verification'}
           {activeSubTab === 'employers' && 'Employer Verification'}
           {activeSubTab === 'assessments' && 'Practical Rubrics, Endorsements & Mentor Reviews'}
+          {activeSubTab === 'credentials' && 'Candidate Credentials & Badges Review Queue'}
           {activeSubTab === 'reports' && 'Community Moderation & Safety Reports'}
           {(activeSubTab === 'overview' || !activeSubTab) && 'Pilot Overview & Quality Control'}
         </h1>
@@ -280,6 +325,7 @@ export const AdminDashboard: React.FC<Props> = ({
           {activeSubTab === 'jobs' && 'Inspect pay terms, verify employer job listings, and suspend deceptive or exploitative posts.'}
           {activeSubTab === 'employers' && 'Review pending employer registrations and grant or revoke verified status.'}
           {activeSubTab === 'assessments' && 'Grade candidate demonstrations against 100-point rubrics and approve peer contractor endorsements.'}
+          {activeSubTab === 'credentials' && 'Verify third-party certificates, proctored exams, and course badges without SSRF risks.'}
           {activeSubTab === 'reports' && 'Protect young jobseekers from scam postings, upfront fees, and handle POPIA account deletion tickets.'}
           {(activeSubTab === 'overview' || !activeSubTab) && 'Monitor pilot metrics against FNB App of the Year targets and review key platform operations.'}
         </p>
@@ -598,6 +644,14 @@ export const AdminDashboard: React.FC<Props> = ({
 
                     {/* Admin Status Actions */}
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setInspectingJob(job)}
+                        className="px-3 py-1.5 rounded font-semibold text-xs flex items-center gap-1.5 cursor-pointer bg-white border border-stone-300 text-stone-700 hover:bg-stone-50 transition-colors shadow-2xs"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-stone-600" />
+                        <span>Inspect Terms & NMW</span>
+                      </button>
                       {onToggleJobStatus && (
                         <button
                           type="button"
@@ -1199,6 +1253,569 @@ export const AdminDashboard: React.FC<Props> = ({
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ==================== TAB: CREDENTIALS REVIEW QUEUE (Section 35.8) ==================== */}
+      {activeSubTab === 'credentials' && (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-4 rounded-xl border border-stone-200">
+            <div>
+              <h2 className="font-bold text-base text-stone-900">Assessor Credential Verification Queue</h2>
+              <p className="text-xs text-stone-500">
+                Review third-party certificates, SAQA qualifications, and course badges. External URLs are opened manually by assessors (zero SSRF risk).
+              </p>
+            </div>
+
+            <div className="flex items-center gap-1 text-xs">
+              <button
+                type="button"
+                onClick={() => setCredFilter('pending')}
+                className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer transition-colors ${
+                  credFilter === 'pending' ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                }`}
+              >
+                Pending Review ({pendingCredCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCredFilter('checked')}
+                className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer transition-colors ${
+                  credFilter === 'checked' ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                }`}
+              >
+                Checked / Resolved ({allCredentialsWithClaim.length - pendingCredCount})
+              </button>
+              <button
+                type="button"
+                onClick={() => setCredFilter('all')}
+                className={`px-3 py-1.5 rounded-lg font-semibold cursor-pointer transition-colors ${
+                  credFilter === 'all' ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                }`}
+              >
+                All ({allCredentialsWithClaim.length})
+              </button>
+            </div>
+          </div>
+
+          {allCredentialsWithClaim.filter((item) => {
+            if (credFilter === 'pending') return item.cred.checkStatus === 'unchecked' || item.cred.checkStatus === 'needs_review';
+            if (credFilter === 'checked') return item.cred.checkStatus === 'checked_ok' || item.cred.checkStatus === 'checked_mismatch';
+            return true;
+          }).length === 0 ? (
+            <div className="bg-white rounded-xl border border-stone-200 p-8 text-center space-y-2">
+              <Award className="w-10 h-10 text-stone-300 mx-auto" />
+              <h3 className="font-bold text-sm text-stone-700">No credentials in this view</h3>
+              <p className="text-xs text-stone-500">All submitted candidate badges and certificates have been reviewed or none match the selected filter.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {allCredentialsWithClaim
+                .filter((item) => {
+                  if (credFilter === 'pending') return item.cred.checkStatus === 'unchecked' || item.cred.checkStatus === 'needs_review';
+                  if (credFilter === 'checked') return item.cred.checkStatus === 'checked_ok' || item.cred.checkStatus === 'checked_mismatch';
+                  return true;
+                })
+                .map(({ claim, cred, candidate }) => {
+                  const isExpired = isCredentialExpired(cred.expiresOn);
+                  const isRevealed = !!revealedCredIds[cred.id];
+                  const currentNote = credentialNotes[cred.id] ?? '';
+
+                  return (
+                    <div
+                      key={cred.id}
+                      className="bg-white rounded-xl border border-stone-200 p-5 shadow-xs space-y-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-stone-100 pb-3">
+                        <div className="space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-bold text-base text-stone-900">{cred.credentialName}</span>
+                            <span className="text-xs text-stone-400">·</span>
+                            <span className="text-xs font-semibold text-stone-700">{cred.issuer}</span>
+                            {cred.isAccredited && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-800 border border-purple-200">
+                                Accredited SAQA / Statutory
+                              </span>
+                            )}
+                            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-stone-100 text-stone-600 capitalize">
+                              {cred.credentialCategory?.replace('_', ' ') || 'course badge'}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-stone-500">
+                            Candidate: <strong className="text-stone-800">{candidate?.fullName || 'Candidate'}</strong>
+                            {candidate?.headline ? ` (${candidate.headline})` : ''} · Skill Claim: <strong className="text-stone-800">{claim.skillName}</strong> (Current Status: <span className="font-semibold text-amber-800">{claim.verificationStatus}</span>)
+                          </p>
+
+                          {cred.associatedSkills && cred.associatedSkills.length > 0 && (
+                            <div className="pt-1 flex flex-wrap items-center gap-1">
+                              <span className="text-[11px] font-bold text-stone-600">
+                                Covers {cred.associatedSkills.length} Skills on Passport:
+                              </span>
+                              {cred.associatedSkills.map((sk) => (
+                                <span
+                                  key={sk}
+                                  className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-semibold text-[10px] border border-amber-200"
+                                >
+                                  {sk}
+                                </span>
+                              ))}
+                              <span className="text-[10px] text-stone-500 italic">
+                                (Approving verifies all {cred.associatedSkills.length} linked skills)
+                              </span>
+                            </div>
+                          )}
+
+                          {cred.associatedSkills && cred.associatedSkills.length > 0 && (
+                            <div className="pt-1 flex flex-wrap items-center gap-1">
+                              <span className="text-[11px] font-bold text-stone-600">
+                                Covers {cred.associatedSkills.length} Skills on Passport:
+                              </span>
+                              {cred.associatedSkills.map((sk) => (
+                                <span
+                                  key={sk}
+                                  className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-semibold text-[10px] border border-amber-200"
+                                >
+                                  {sk}
+                                </span>
+                              ))}
+                              <span className="text-[10px] text-stone-500 italic">
+                                (Approving verifies all {cred.associatedSkills.length} linked skills)
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div>
+                          {isExpired ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold bg-stone-100 text-stone-600 border border-stone-200">
+                              <Clock className="w-3.5 h-3.5" />
+                              Expired
+                            </span>
+                          ) : cred.checkStatus === 'checked_ok' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Checked OK
+                            </span>
+                          ) : cred.checkStatus === 'checked_mismatch' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                              Detail Mismatch
+                            </span>
+                          ) : cred.checkStatus === 'needs_review' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              <Clock className="w-3.5 h-3.5 text-amber-600" />
+                              Needs Review
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-xs font-bold bg-stone-100 text-stone-700 border border-stone-200">
+                              <Clock className="w-3.5 h-3.5 text-stone-500" />
+                              Unchecked
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                        <div className="space-y-2 bg-stone-50 p-3 rounded-lg border border-stone-200">
+                          <span className="font-semibold text-stone-800 block">Credential Details</span>
+                          <div className="space-y-1.5 text-stone-600">
+                            <div className="flex items-center justify-between">
+                              <span>Credential ID:</span>
+                              {cred.credentialId ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-mono font-bold text-stone-800 bg-white px-2 py-0.5 rounded border border-stone-200">
+                                    {isRevealed ? cred.credentialId : maskCredentialId(cred.credentialId)}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setRevealedCredIds((prev) => ({ ...prev, [cred.id]: !prev[cred.id] }))
+                                    }
+                                    className="text-[11px] text-amber-800 hover:text-amber-950 underline cursor-pointer"
+                                  >
+                                    {isRevealed ? 'Hide' : 'Reveal'}
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="italic text-stone-500">None provided (no ID required)</span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <span>Issue Date:</span>
+                              <span>{cred.issuedOn || 'Not provided'}</span>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                              <span>Expiry Date:</span>
+                              <span className={isExpired ? 'text-rose-600 font-bold' : ''}>
+                                {cred.expiresOn || 'No expiration'} {isExpired && '(Expired)'}
+                              </span>
+                            </div>
+
+                            {cred.duplicateHash && (
+                              <div className="text-[10px] text-stone-500 pt-1 font-mono truncate">
+                                Hash: {cred.duplicateHash.slice(0, 16)}…
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 bg-stone-50 p-3 rounded-lg border border-stone-200">
+                          <span className="font-semibold text-stone-800 block">Verification Assets (Zero-SSRF)</span>
+                          <div className="space-y-2 text-stone-600">
+                            {cred.verifyUrl ? (
+                              <div>
+                                <a
+                                  href={cred.verifyUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-stone-100 border border-stone-300 rounded text-amber-800 font-medium transition-colors"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5 text-amber-600" />
+                                  <span>Open Official Verification Site</span>
+                                </a>
+                                <p className="text-[10px] text-stone-400 mt-1">
+                                  Opens in a secure new browser tab. The server never automatedly fetches candidate URLs.
+                                </p>
+                              </div>
+                            ) : (
+                              <p className="text-stone-500 italic">No verification website URL provided.</p>
+                            )}
+
+                            {cred.fileRef && (
+                              <div className="pt-1">
+                                <span className="text-[11px] text-stone-700 block font-medium">Uploaded Certificate File:</span>
+                                <span className="font-mono text-[10px] text-stone-500 break-all">{cred.fileRef}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Audit trail */}
+                      {cred.checkedBy && (
+                        <div className="text-xs p-2.5 rounded bg-stone-100 text-stone-600 border border-stone-200">
+                          <strong>Audit Record:</strong> Reviewed by <span className="font-mono">{cred.checkedBy}</span>
+                          {cred.checkedAt ? ` on ${new Date(cred.checkedAt).toLocaleString()}` : ''}.
+                          {cred.checkNote ? ` Assessor note: "${cred.checkNote}"` : ''}
+                        </div>
+                      )}
+
+                      {/* Assessor action controls */}
+                      <div className="space-y-2 pt-2 border-t border-stone-100">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                          <input
+                            type="text"
+                            placeholder="Add an assessor note (e.g. Verified candidate name matches Credly record)..."
+                            value={currentNote}
+                            onChange={(e) =>
+                              setCredentialNotes((prev) => ({ ...prev, [cred.id]: e.target.value }))
+                            }
+                            className="flex-1 text-xs p-2 border border-stone-300 rounded bg-white"
+                          />
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={credentialWorking === cred.id}
+                              onClick={async () => {
+                                if (!onReviewCredential) return;
+                                setCredentialWorking(cred.id);
+                                try {
+                                  await onReviewCredential(
+                                    claim.id,
+                                    cred.id,
+                                    'checked_ok',
+                                    currentNote.trim() || 'Verified with issuer by assessor.'
+                                  );
+                                  setActionNotice(`Credential "${cred.credentialName}" marked as Checked OK.`);
+                                  setTimeout(() => setActionNotice(null), 4000);
+                                } finally {
+                                  setCredentialWorking(null);
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Mark Checked (OK)</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={credentialWorking === cred.id}
+                              onClick={async () => {
+                                if (!onReviewCredential) return;
+                                setCredentialWorking(cred.id);
+                                try {
+                                  await onReviewCredential(
+                                    claim.id,
+                                    cred.id,
+                                    'checked_mismatch',
+                                    currentNote.trim() || 'Name or details mismatch with candidate profile.'
+                                  );
+                                  setActionNotice(`Credential "${cred.credentialName}" marked as Mismatch.`);
+                                  setTimeout(() => setActionNotice(null), 4000);
+                                } finally {
+                                  setCredentialWorking(null);
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-xs rounded transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span>Mark Mismatch</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={credentialWorking === cred.id}
+                              onClick={async () => {
+                                if (!onReviewCredential) return;
+                                setCredentialWorking(cred.id);
+                                try {
+                                  await onReviewCredential(
+                                    claim.id,
+                                    cred.id,
+                                    'needs_review',
+                                    currentNote.trim() || 'Additional verification required from candidate.'
+                                  );
+                                  setActionNotice(`Credential "${cred.credentialName}" marked as Needs Review.`);
+                                  setTimeout(() => setActionNotice(null), 4000);
+                                } finally {
+                                  setCredentialWorking(null);
+                                }
+                              }}
+                              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded transition-colors cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                            >
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>Needs Review</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </div>
+      )}
+
+
+      {/* Inspect Job Pay Terms & NMW Compliance Modal */}
+      {inspectingJob && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full border border-stone-200 overflow-hidden my-6">
+            {/* Modal Header */}
+            <div className="bg-stone-900 text-white p-5 flex items-start justify-between border-b border-stone-800">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400 bg-amber-950/60 border border-amber-800 px-2 py-0.5 rounded">
+                    Admin Terms & Compliance Inspector
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                      inspectingJob.status === 'open'
+                        ? 'bg-emerald-900 text-emerald-200'
+                        : inspectingJob.status === 'flagged'
+                        ? 'bg-rose-900 text-rose-200'
+                        : 'bg-stone-800 text-stone-300'
+                    }`}
+                  >
+                    {inspectingJob.status}
+                  </span>
+                </div>
+                <h3 className="text-xl font-bold text-white">{inspectingJob.title}</h3>
+                <p className="text-xs text-stone-300 flex items-center gap-1.5">
+                  <Building2 className="w-3.5 h-3.5 text-stone-400" />
+                  <span>{inspectingJob.employerName}</span>
+                  {inspectingJob.employerVerified && (
+                    <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-0.5">
+                      <ShieldCheck className="w-3 h-3 text-emerald-400" /> Verified Employer
+                    </span>
+                  )}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectingJob(null)}
+                className="text-stone-400 hover:text-white p-1 rounded cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 text-xs max-h-[75vh] overflow-y-auto">
+              {/* Compensation & Statutory NMW Card */}
+              <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between border-b border-stone-200 pb-2">
+                  <span className="font-bold text-sm text-stone-900 flex items-center gap-1.5">
+                    <DollarSign className="w-4 h-4 text-emerald-700" />
+                    Compensation & South African Statutory Wage Check
+                  </span>
+                  <span className="font-extrabold text-sm text-emerald-800">
+                    R{inspectingJob.compensationAmount.toLocaleString()} / {inspectingJob.compensationUnit}
+                  </span>
+                </div>
+
+                {(() => {
+                  const effectiveHourly = calculateEffectiveHourlyRate(inspectingJob);
+                  const isCompliant = effectiveHourly >= SA_STATUTORY_MINIMUM_WAGE_HOURLY;
+
+                  return (
+                    <div className="space-y-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-stone-600 text-xs">
+                        <div className="p-2.5 bg-white rounded border border-stone-200">
+                          <span className="text-stone-400 block text-[10px] uppercase font-bold">Effective Hourly Rate</span>
+                          <span className="text-base font-bold text-stone-900">R{effectiveHourly.toFixed(2)}</span>
+                          <span className="text-[10px] text-stone-400 block">/ hour equivalent</span>
+                        </div>
+                        <div className="p-2.5 bg-white rounded border border-stone-200">
+                          <span className="text-stone-400 block text-[10px] uppercase font-bold">SA National Minimum Wage</span>
+                          <span className="text-base font-bold text-stone-900">R{SA_STATUTORY_MINIMUM_WAGE_HOURLY.toFixed(2)}</span>
+                          <span className="text-[10px] text-stone-400 block">statutory threshold</span>
+                        </div>
+                        <div className="p-2.5 bg-white rounded border border-stone-200">
+                          <span className="text-stone-400 block text-[10px] uppercase font-bold">Compliance Status</span>
+                          <span className={`text-base font-bold ${isCompliant ? 'text-emerald-700' : 'text-rose-700'}`}>
+                            {isCompliant ? 'Compliant' : 'Non-Compliant'}
+                          </span>
+                          <span className="text-[10px] text-stone-400 block">Dept of Labour NMW</span>
+                        </div>
+                      </div>
+
+                      {isCompliant ? (
+                        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg flex items-start gap-2">
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold">✓ Compliant with South African National Minimum Wage</p>
+                            <p className="text-[11px] text-emerald-700 mt-0.5">
+                              The effective rate of R{effectiveHourly.toFixed(2)}/hr meets or exceeds the statutory R{SA_STATUTORY_MINIMUM_WAGE_HOURLY}/hr threshold. Youth workers are not at risk of sub-minimum compensation.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-900 rounded-lg flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-bold">⚠️ Statutory Violation Alert: Rate Below National Minimum Wage</p>
+                            <p className="text-[11px] text-rose-700 mt-0.5">
+                              The calculated effective rate of R{effectiveHourly.toFixed(2)}/hr is BELOW the statutory R{SA_STATUTORY_MINIMUM_WAGE_HOURLY}/hr benchmark under the National Minimum Wage Act. This posting should be suspended under Section 30 fraud and exploitation protections until corrected.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Working Arrangements & Timeline */}
+              <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-3">
+                <span className="font-bold text-sm text-stone-900 flex items-center gap-1.5 border-b border-stone-200 pb-2">
+                  <Calendar className="w-4 h-4 text-amber-700" />
+                  Contract Dates & Working Arrangements
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-stone-600">
+                  <div>
+                    <span className="text-stone-400 block text-[10px] uppercase font-bold">Start Date</span>
+                    <span className="font-medium text-stone-800">{inspectingJob.startDate || 'Immediate'}</span>
+                  </div>
+                  <div>
+                    <span className="text-stone-400 block text-[10px] uppercase font-bold">Expected End Date / Duration</span>
+                    <span className="font-medium text-stone-800">{inspectingJob.endDate || 'Ongoing / Indefinite'}</span>
+                  </div>
+                  <div>
+                    <span className="text-stone-400 block text-[10px] uppercase font-bold">Application Deadline</span>
+                    <span className="font-medium text-stone-800">{inspectingJob.applicationDeadline}</span>
+                  </div>
+                  <div>
+                    <span className="text-stone-400 block text-[10px] uppercase font-bold">Location & Work Mode</span>
+                    <span className="font-medium text-stone-800">{inspectingJob.locationArea} ({inspectingJob.workMode})</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Responsibilities & Description */}
+              <div className="bg-stone-50 border border-stone-200 rounded-xl p-4 space-y-3">
+                <span className="font-bold text-sm text-stone-900 flex items-center gap-1.5 border-b border-stone-200 pb-2">
+                  <FileText className="w-4 h-4 text-blue-700" />
+                  Scope of Work & Responsibilities
+                </span>
+                <p className="text-stone-700 leading-relaxed bg-white p-3 rounded border border-stone-200">
+                  {inspectingJob.description}
+                </p>
+
+                {inspectingJob.responsibilities && inspectingJob.responsibilities.length > 0 && (
+                  <div>
+                    <span className="font-semibold text-stone-800 block text-[11px] mb-1">
+                      Key Responsibilities ({inspectingJob.responsibilities.length}):
+                    </span>
+                    <ul className="list-disc pl-4 space-y-1 text-stone-600">
+                      {inspectingJob.responsibilities.map((resp, idx) => (
+                        <li key={idx}>{resp}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div>
+                  <span className="font-semibold text-stone-800 block text-[11px] mb-1">
+                    Required Skills:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(inspectingJob.requiredSkillNames || inspectingJob.requiredSkillIds || []).map((sk, idx) => (
+                      <span key={idx} className="px-2 py-0.5 rounded bg-stone-200 text-stone-800 font-medium text-[11px]">
+                        {sk}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="bg-stone-100 p-4 border-t border-stone-200 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setInspectingJob(null)}
+                className="px-4 py-2 border border-stone-300 rounded text-stone-700 hover:bg-stone-200 font-semibold text-xs cursor-pointer"
+              >
+                Close Inspection
+              </button>
+
+              {onToggleJobStatus && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleToggleJob(inspectingJob.id, inspectingJob.title, inspectingJob.status);
+                    setInspectingJob((prev) =>
+                      prev ? { ...prev, status: prev.status === 'open' ? 'flagged' : 'open' } : null
+                    );
+                  }}
+                  className={`px-4 py-2 rounded font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors ${
+                    inspectingJob.status === 'open'
+                      ? 'bg-rose-600 text-white hover:bg-rose-700'
+                      : 'bg-emerald-600 text-white hover:bg-emerald-700'
+                  }`}
+                >
+                  {inspectingJob.status === 'open' ? (
+                    <>
+                      <Ban className="w-3.5 h-3.5 text-white" />
+                      <span>Suspend Listing</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-3.5 h-3.5 text-white" />
+                      <span>Reopen Listing</span>
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

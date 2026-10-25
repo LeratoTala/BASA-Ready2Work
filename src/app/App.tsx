@@ -165,6 +165,7 @@ export default function App() {
         onSetViewportMode={setViewportMode}
         unreadNotificationCount={store.unreadNotificationCount}
         onOpenNotifications={() => setIsNotificationsOpen(true)}
+        onSubmitFeedback={store.submitFeedback}
         theme={theme}
         onToggleTheme={toggleTheme}
       />
@@ -290,6 +291,9 @@ export default function App() {
                 onAddClaim={store.addSkillClaim}
                 onOpenPassport={() => setIsPassportOpen(true)}
                 onOpenAIDrafter={() => setIsAIDrafterOpen(true)}
+                onAddCredential={store.addCredentialToClaim}
+                onRequestPeerEndorsement={store.requestPeerEndorsement}
+                onRequestMentorReview={store.submitMentorReview}
               />
             )}
 
@@ -327,6 +331,7 @@ export default function App() {
                   onAddClaim={store.addSkillClaim}
                   onOpenPassport={() => setIsPassportOpen(true)}
                   onOpenAIDrafter={() => setIsAIDrafterOpen(true)}
+                  onAddCredential={store.addCredentialToClaim}
                   onRequestPeerEndorsement={store.requestPeerEndorsement}
                   onRequestMentorReview={store.submitMentorReview}
                 />
@@ -404,6 +409,7 @@ export default function App() {
                 onSelectApplication={(app) => setSelectedAppForModal(app)}
                 candidateProfiles={store.candidateProfiles}
                 skillClaims={store.skillClaims}
+                onConfirmPayout={store.confirmWorkPayout}
               />
             )}
           </>
@@ -443,6 +449,7 @@ export default function App() {
                 onApproveEndorsement={store.approvePeerEndorsement}
                 onSubmitMentorReview={store.submitMentorReview}
                 onToggleJobStatus={store.toggleJobStatus}
+                onReviewCredential={store.reviewCredential}
                 activeSubTab={activeTab}
                 onSelectSubTab={setActiveTab}
               />
@@ -513,8 +520,7 @@ export default function App() {
           hasApplied={store.applications.some(
             (a) =>
               a.jobId === selectedJobForModal.job.id &&
-              a.candidateId === currentUser.uid &&
-              a.status !== 'withdrawn'
+              a.candidateId === currentUser.uid
           )}
           onApply={handleApplyToJob}
           onReport={handleReportJob}
@@ -539,12 +545,20 @@ export default function App() {
           candidateClaims={store.skillClaims.filter(
             (c) => c.candidateId === selectedAppForModal.candidateId
           )}
+          candidateWorkRecords={store.workRecords.filter(
+            (w) => w.candidateId === selectedAppForModal.candidateId
+          )}
           currentEmployerId={currentUser.uid}
           onUpdateStatus={(appId, newStatus, notes, payout) => {
             store.updateApplicationStatus(appId, newStatus, notes, payout);
             // Refresh modal application state
             const updated = store.applications.find((a) => a.id === appId);
             if (updated) setSelectedAppForModal({ ...updated, status: newStatus });
+          }}
+          onConfirmPayout={(appId) => {
+            store.confirmWorkPayout(appId);
+            const updated = store.applications.find((a) => a.id === appId);
+            if (updated) setSelectedAppForModal({ ...updated, payoutConfirmed: true });
           }}
         />
       )}

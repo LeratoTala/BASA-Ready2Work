@@ -160,13 +160,41 @@ export const ApplicationsView: React.FC<Props> = ({ applications, onWithdraw }) 
                 )}
 
                 {isCompleted && (
-                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 flex items-center justify-between">
+                  <div
+                    className={`p-3.5 rounded-lg border text-xs flex items-center justify-between gap-2 ${
+                      app.payoutConfirmed
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-950'
+                        : 'bg-amber-50 border-amber-200 text-amber-950'
+                    }`}
+                  >
                     <div className="flex items-center gap-2">
-                      <FileCheck className="w-4 h-4 text-emerald-600" />
+                      {app.payoutConfirmed ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                      )}
                       <span>
-                        The employer marked this work complete. Payment is recorded separately and may not be confirmed.
+                        {app.payoutConfirmed ? (
+                          <>
+                            <strong>Work Completed &amp; Paid:</strong> The employer has confirmed that your payment was processed.
+                          </>
+                        ) : (
+                          <>
+                            <strong>Work Completed · Payment Pending:</strong> The employer confirmed completion of your work. Payment confirmation is pending.
+                          </>
+                        )}
                       </span>
                     </div>
+
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 ${
+                        app.payoutConfirmed
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-amber-200 text-amber-900 border border-amber-300'
+                      }`}
+                    >
+                      {app.payoutConfirmed ? 'Paid' : 'Payment Pending'}
+                    </span>
                   </div>
                 )}
               </div>

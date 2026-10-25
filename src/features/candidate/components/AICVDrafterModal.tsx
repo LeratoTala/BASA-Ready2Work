@@ -201,11 +201,12 @@ export const AICVDrafterModal: React.FC<Props> = ({
           {/* Generated Result Preview with editable control */}
           {generatedDraft && (
             <div className="space-y-3 pt-4 border-t border-stone-200">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
-                  <Check className="w-3.5 h-3.5 text-emerald-600" /> Fact-Constrained Draft Ready
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  Written with AI help - not verified
                 </span>
-                <span className="text-xs text-stone-500">You can edit the text directly below</span>
+                <span className="text-xs text-stone-500">Fact-constrained draft. You can edit directly below.</span>
               </div>
 
               <div>

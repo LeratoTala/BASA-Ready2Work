@@ -59,10 +59,80 @@ export interface EmployerProfile {
 export interface SkillDefinition {
   id: string;
   name: string;
-  category: 'Technical & Trades' | 'Hospitality & Retail' | 'Digital & Admin' | 'Care & Community';
+  category:
+    | 'Technical & Trades'
+    | 'Hospitality & Retail'
+    | 'Digital & Admin'
+    | 'Care & Community'
+    | 'Logistics & Driving'
+    | 'Creative & Beauty'
+    | 'Agriculture & Environment'
+    | string;
   assessmentTemplateId?: string;
   description: string;
   active: boolean;
+}
+
+export type CredentialCheckStatus = 'unchecked' | 'checked_ok' | 'checked_mismatch' | 'needs_review';
+export type CredentialCategory = 'proctored_exam' | 'course_badge' | 'trade_certificate' | 'other';
+
+export interface CredentialEvidence {
+  id: string;
+  type: 'credential';
+  issuer: string;
+  credentialName: string;
+  credentialId?: string; // Optional (Section 35.2, 35.7)
+  verifyUrl?: string; // Optional, https only
+  issuedOn?: string; // Optional ISO date
+  expiresOn?: string; // Optional ISO date
+  fileRef?: string; // Optional Storage path or preview URL
+  credentialCategory?: CredentialCategory;
+  isAccredited?: boolean; // Strictly for confirmed SAQA-registered qualifications (Section 35.4)
+  checkStatus: CredentialCheckStatus; // Server/admin written only
+  checkedBy?: string; // Server/admin UID
+  checkedAt?: string; // Server ISO timestamp
+  checkNote?: string; // Assessor verification or mismatch audit note
+  duplicateHash?: string; // Salted hash for cross-account duplicate detection
+  associatedSkills?: string[]; // Multiple skills covered by this single badge/certificate
+}
+
+export interface EvidenceItem {
+  id: string;
+  type: 'document_pdf' | 'photo' | 'photo_video' | 'work_sample' | 'certificate' | 'reference_letter' | 'link' | 'credential';
+  title: string;
+  fileUrl?: string;
+  fileName?: string;
+  fileSize?: number | string;
+  mimeType?: string;
+  description?: string;
+  uploadedAt: string;
+  credential?: CredentialEvidence;
+}
+
+export interface EvidenceAnalysisResult {
+  summary: string;
+  extractedFacts: string[];
+  matchedCredentials: {
+    institutionName?: string;
+    certificateTitle?: string;
+    issueDate?: string;
+    candidateNameMatched?: boolean;
+  };
+  criteriaFindings: {
+    technicalExecution: string;
+    safetyCompliance: string;
+    equipmentCare: string;
+    efficiencyTroubleshooting: string;
+  };
+  suggestedScores: {
+    crit1: number;
+    crit2: number;
+    crit3: number;
+    crit4: number;
+    total: number;
+  };
+  assessorGuidance: string;
+  analyzedAt: string;
 }
 
 export interface SkillClaim {
@@ -75,6 +145,9 @@ export interface SkillClaim {
   evidenceTitle: string;
   evidenceDescription: string;
   evidenceUrlOrText: string;
+  evidenceItems?: EvidenceItem[];
+  credentials?: CredentialEvidence[];
+  aiAnalysis?: EvidenceAnalysisResult;
   verificationStatus: VerificationStatus;
   peerEndorserName?: string;
   peerEndorserContact?: string;
@@ -138,6 +211,7 @@ export interface AssessmentRecord {
   assessorName: string;
   decision: 'approved' | 'revision_requested' | 'rejected';
   feedback: string;
+  aiAnalysis?: EvidenceAnalysisResult;
   createdAt: string;
 }
 
@@ -205,6 +279,8 @@ export interface Application {
   submittedAt: string;
   updatedAt: string;
   employerNotes?: string;
+  payoutConfirmed?: boolean;
+  paidAt?: string;
 }
 
 export interface WorkRecord {
@@ -271,4 +347,16 @@ export interface NotificationPreferences {
   transport_update: boolean;
   mentor_message: boolean;
 }
+
+export interface FeedbackRecord {
+  id: string;
+  userId: string;
+  userRole: Role;
+  userName: string;
+  rating: number; // 1 to 5
+  workedWell: string;
+  needsImprovement: string;
+  createdAt: string;
+}
+
 

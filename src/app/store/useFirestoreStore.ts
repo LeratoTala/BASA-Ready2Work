@@ -45,7 +45,11 @@ import type {
   NotificationType,
   PeerEndorsement,
   MentorReview,
+  CredentialEvidence,
+  FeedbackRecord,
+  EvidenceItem,
 } from '../../domain/types';
+import { resolveSkillLabelFromCredential } from '../../config/credentialRules';
 import { applicationId, isValidTransition } from '../../domain/applicationStatus';
 import {
   DEFAULT_NOTIFICATION_PREFERENCES,
@@ -553,17 +557,41 @@ export function useFirestoreStore(): BasaStore {
   // ---- skills & assessments ----
   const addSkillClaim = async (
     claim: Omit<SkillClaim, 'id' | 'createdAt'>,
-    evidenceFile?: File
+    evidenceFile?: File,
+    evidenceFiles?: File[]
   ): Promise<SkillClaim> => {
     const user = requireUser();
     if (user.role !== 'candidate') throw new Error('Only candidates can register skill claims.');
     const ref = doc(collection(db, COLLECTIONS.skillClaims));
-    const evidencePath = evidenceFile
-      ? await uploadCandidateEvidence(user.uid, ref.id, evidenceFile)
-      : claim.evidenceUrlOrText;
+
+    const uploadedItems: EvidenceItem[] = claim.evidenceItems ? [...claim.evidenceItems] : [];
+    const filesToUpload = evidenceFiles && evidenceFiles.length > 0 ? evidenceFiles : (evidenceFile ? [evidenceFile] : []);
+
+    for (let i = 0; i < filesToUpload.length; i++) {
+      const file = filesToUpload[i];
+      const fileId = `doc-${Date.now()}-${i}`;
+      const path = await uploadCandidateEvidence(user.uid, ref.id, file, fileId);
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      const isCert = isPdf || /cert|diploma|trade|nqa|training/i.test(file.name);
+      uploadedItems.push({
+        id: fileId,
+        type: isCert ? 'certificate' : 'photo_video',
+        title: file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '),
+        fileName: file.name,
+        fileSize: `${Math.round(file.size / 1024)} KB`,
+        mimeType: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'),
+        fileUrl: path,
+        description: claim.evidenceDescription || claim.evidenceTitle,
+        uploadedAt: nowIso(),
+      });
+    }
+
+    const evidencePath = (uploadedItems.length > 0 && uploadedItems[0].fileUrl) ? uploadedItems[0].fileUrl : (claim.evidenceUrlOrText || '');
+
     // New claims are ALWAYS self-reported. Peer/mentor/assessed labels are granted by others, never typed in by the candidate.
     const newClaim: SkillClaim = {
       ...claim,
+      evidenceItems: uploadedItems.length > 0 ? uploadedItems : undefined,
       evidenceUrlOrText: evidencePath,
       candidateId: user.uid,
       verificationStatus: 'Self-reported',
@@ -577,10 +605,89 @@ export function useFirestoreStore(): BasaStore {
     try {
       await batch.commit();
     } catch (error) {
-      if (evidenceFile) await deleteCandidateEvidence(evidencePath).catch(() => undefined);
+      for (const item of uploadedItems) {
+        if (item.fileUrl && item.fileUrl.startsWith('candidate-evidence/')) {
+          await deleteCandidateEvidence(item.fileUrl).catch(() => undefined);
+        }
+      }
       throw error;
     }
     return newClaim;
+  };
+
+  // Section 35 & Multi-Skill: Add Credential or Badge to Skill Claim
+  const addCredentialToClaim = async (
+    claimId: string,
+    credential: CredentialEvidence,
+    file?: File,
+    associatedSkills?: string[]
+  ): Promise<void> => {
+    const user = requireUser();
+    if (user.role !== 'candidate') throw new Error('Only candidates can add badges or certificates.');
+    let fileUrl = credential.fileRef;
+    if (file) {
+      fileUrl = await uploadCandidateEvidence(user.uid, claimId, file, `cred-${credential.id}`);
+    }
+    const cred: CredentialEvidence = {
+      ...credential,
+      fileRef: fileUrl,
+      checkStatus: 'unchecked',
+      associatedSkills: associatedSkills || credential.associatedSkills,
+    };
+    delete cred.checkedBy;
+    delete cred.checkedAt;
+    delete cred.checkNote;
+
+    const claimRef = doc(db, COLLECTIONS.skillClaims, claimId);
+    await updateDoc(claimRef, {
+      credentials: arrayUnion(clean(cred)),
+    });
+  };
+
+  // Section 35.5: Review Credential (Assessor/Admin) - updates all matching claims for candidate
+  const reviewCredential = async (
+    claimId: string,
+    credentialId: string,
+    decision: 'checked_ok' | 'checked_mismatch' | 'needs_review',
+    note: string
+  ): Promise<void> => {
+    const user = requireUser();
+    if (user.role !== 'admin') throw new Error('Only assessors can review credentials.');
+    const targetClaim = skillClaims.find((c) => c.id === claimId);
+    if (!targetClaim) throw new Error('Claim not found.');
+
+    const matchingClaims = skillClaims.filter(
+      (c) =>
+        c.candidateId === targetClaim.candidateId &&
+        (c.id === claimId || (c.credentials || []).some((cr) => cr.id === credentialId))
+    );
+
+    const batch = writeBatch(db);
+    for (const c of matchingClaims) {
+      const creds = c.credentials || [];
+      let targetCred: CredentialEvidence | undefined;
+      const updatedCreds = creds.map((cred) => {
+        if (cred.id === credentialId) {
+          targetCred = {
+            ...cred,
+            checkStatus: decision,
+            checkedBy: user.uid,
+            checkedAt: nowIso(),
+            checkNote: note.trim(),
+          };
+          return targetCred;
+        }
+        return cred;
+      });
+
+      const newStatus = resolveSkillLabelFromCredential(c.verificationStatus, targetCred);
+      const claimRef = doc(db, COLLECTIONS.skillClaims, c.id);
+      batch.update(claimRef, {
+        credentials: clean(updatedCreds),
+        verificationStatus: newStatus,
+      });
+    }
+    await batch.commit();
   };
 
   const submitAssessment = (assessment: Omit<AssessmentRecord, 'id' | 'createdAt'>, claimId: string): AssessmentRecord => {
@@ -775,7 +882,12 @@ export function useFirestoreStore(): BasaStore {
     }
 
     const batch = writeBatch(db);
-    const update: Record<string, unknown> = { status: newStatus, updatedAt: nowIso() };
+    const isPaid = newStatus === 'completed' ? Boolean(payoutConfirmed) : false;
+    const update: Record<string, unknown> = {
+      status: newStatus,
+      updatedAt: nowIso(),
+      ...(newStatus === 'completed' ? { payoutConfirmed: isPaid } : {}),
+    };
     if (user.role === 'employer' && employerNotes !== undefined) update.employerNotes = employerNotes;
     batch.update(doc(db, COLLECTIONS.applications, appId), update);
 
@@ -830,6 +942,31 @@ export function useFirestoreStore(): BasaStore {
     batch.set(doc(db, COLLECTIONS.notifications, notifId), clean(notifRecord));
 
     fire(batch.commit());
+  };
+
+  const confirmWorkPayout = async (applicationId: string) => {
+    const user = requireUser();
+    const app = applications.find((a) => a.id === applicationId);
+    if (!app) throw new Error('Application not found');
+    if (user.role === 'employer' && app.employerId !== user.uid) {
+      throw new Error('Access denied: You cannot modify records for another employer.');
+    }
+    const batch = writeBatch(db);
+    batch.update(doc(db, COLLECTIONS.applications, applicationId), {
+      payoutConfirmed: true,
+      paidAt: nowIso(),
+      updatedAt: nowIso(),
+    });
+
+    const relatedWork = workRecords.find((w) => w.applicationId === applicationId);
+    if (relatedWork) {
+      batch.update(doc(db, COLLECTIONS.workRecords, relatedWork.id), {
+        payoutConfirmed: true,
+        confirmedAt: nowIso(),
+      });
+    }
+
+    await batch.commit();
   };
 
   // ---- notifications management (R1 / FR-15) ----
@@ -960,6 +1097,8 @@ export function useFirestoreStore(): BasaStore {
     skillClaims,
     currentCandidateClaims: currentUser ? skillClaims.filter((c) => c.candidateId === currentUser.uid) : [],
     addSkillClaim,
+    addCredentialToClaim,
+    reviewCredential,
     assessments,
     submitAssessment,
     endorsements,
@@ -975,6 +1114,7 @@ export function useFirestoreStore(): BasaStore {
     currentEmployerApplications: currentUser ? applications.filter((a) => a.employerId === currentUser.uid) : [],
     applyToJob,
     updateApplicationStatus,
+    confirmWorkPayout,
     workRecords,
     reports,
     submitReport,
@@ -996,6 +1136,15 @@ export function useFirestoreStore(): BasaStore {
     profileDraft: prefs.profileDraft,
     saveDraft: prefs.saveDraft,
     resetDemoData,
+    feedbackList: [] as FeedbackRecord[],
+    submitFeedback: (feedback: Omit<FeedbackRecord, 'id' | 'createdAt'>): FeedbackRecord => {
+      const rec: FeedbackRecord = {
+        ...feedback,
+        id: `fb-${Date.now()}`,
+        createdAt: nowIso(),
+      };
+      return rec;
+    },
     syncStatus,
     pendingSyncCount: pendingWriteCount,
     isOnline,

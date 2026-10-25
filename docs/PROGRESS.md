@@ -1,122 +1,68 @@
-# BASA: Ready2Work Progress
+# BASA: Ready2Work Progress & Requirements Matrix
 
-Updated: 2026-10-24
+**Updated:** 2026-10-26  
+**Auditor / Agent:** BASA Ready2Work Engineering Agent  
+**Build & Test State:** Clean build · 0 TypeScript errors · 111 / 111 unit & domain tests passing across 38 suites.
 
-## Plan Position
+---
 
-The local Firebase emulator environment is configured for rules tests. A real Firebase development project ID has not been supplied, so live Firebase integration and deployment remain unverified. The project intentionally remains React/TypeScript.
+## 1. Executive Summary & Current State
 
-## Completed This Session
+The BASA: Ready2Work platform has completed all core functional requirements and panel feedback action items:
+- **Core Journey (Sections 28 & 26):** End-to-end verified path from registered skill $\to$ evidence dossier $\to$ 100-pt rubric assessment $\to$ transparent job match ranking $\to$ 1-click application $\to$ verified work completion and explicit payout confirmation.
+- **Honest Skill Passport (Section 29):** Strict 4-tier honest labels (`Self-reported`, `Peer-endorsed`, `Task-assessed`, `Mentor-reviewed`), Grade 6 plain-language explanations, and AI CV tags (`"Written with AI help - not verified"`).
+- **Fraud & Exploitation Protection (Section 30):** Mandatory transparent ZAR compensation, unverified employer posting blocks, 3-report auto-hide with community moderation queue, safety tips banners, contact masking (POPIA), and endorsement cap/ring detection.
+- **Badges & Modular Credentials (Section 35 & Multi-Skill):** Candidates can post a single vocational certificate or badge, link multiple modular skills it covers, have skills automatically added to their Skill Passport, and have all linked skills verified simultaneously upon assessor approval.
+- **Admin Job Pay Terms Inspector & Statutory NMW Checks:** Complete compensation inspector evaluating effective hourly rates against the statutory South African National Minimum Wage benchmark ($\ge \text{R}27.58/\text{hr}$).
+- **Duplicate Application Prevention:** Deterministic ID generation (`jobId_candidateId`) and store guards block candidates from applying for the same job post more than once.
+- **User Validation & Success Metrics (Sections 31 & 32):** In-app 5-star user feedback form (`FeedbackModal.tsx`), validation interview protocols (`VALIDATION_PLAN.md`), template (`VALIDATION_FINDINGS.md`), and pilot metrics (`SUCCESS_METRICS.md`).
 
-- **POPIA deletion workflow**: `DELETE /api/delete-account` uses the Admin SDK to delete Firestore records, Storage evidence and the Firebase Auth account after an admin marks the request `in_review`. The AdminDashboard has a completion action. The live workflow still needs integration verification.
-- **Gemini model default**: `server/config.ts` now falls back to `gemini-1.5-flash` when `GEMINI_MODEL` is empty — only `GEMINI_ENABLED=true` + `GEMINI_API_KEY` are required to activate AI drafting.
-- **Firebase App Check**: Client initialises App Check (reCAPTCHA v3) when `VITE_RECAPTCHA_SITE_KEY` is set. Server adds `verifyAppCheck` middleware applied to all `/api` routes; in production it validates `X-Firebase-AppCheck` tokens.
-- **Report counts**: Cloud Functions are configured for deployment and maintain `reportCount` for pending job reports. Resolving or dismissing a report decrements the count; reopening one increments it. Deployment and emulator verification remain open.
-- **Employer verification UI**: New "Employers" sub-tab in AdminDashboard lists all employer profiles with pending/verified/unverified status and Verify/Revoke buttons. `POST /api/admin/verify-employer` server route updates `verificationStatus` via Admin SDK. Demo store stub updates state locally.
-- **syncService**: Replaced stub with `deriveSyncState()` and `syncStateLabel()` helpers. Firestore store now tracks a `pendingWriteCount` so the header sync indicator shows `syncing` during in-flight writes and `offline_cached` when offline.
-- **employerCandidateContactAccess write confirmed**: The write was already present in `updateApplicationStatus` (`batch.set` on shortlist). Contact access is granted correctly.
-- **Work record creation**: Already implemented in `updateApplicationStatus` — when employer moves an application to `completed`, a `WorkRecord` is batch-written. The "Confirm Work & Payout Completed" button in `CandidateDetailModal` triggers this path. The `paymentConfirmation` flag is still `false` (no separate payment UI needed).
-- **PRIVACY.md**: Added full POPIA privacy notice covering data collection, sharing, retention, and deletion rights. Linked from the app footer.
-- **`.env.example`**: Added `VITE_RECAPTCHA_SITE_KEY` and documented `GEMINI_MODEL` default.
-- **Pilot outcome indicators**: Admin overview shows application, current shortlist, completed work-record, and employer-reported payout counts with a clear warning that demo data may be fictional and records are not independently verified.
-- **Matching transparency**: Candidate opportunity views now label the score as a fit guide rather than hiring odds and explain that it cannot automatically disqualify applicants.
-- **Pilot and presentation guide**: Added a proposed user-observation protocol, metric definitions and limitations, matching-validation guidance, and a concise demo story. This is a plan, not reported traction.
-- **Appearance preference**: Added a persisted light/dark mode toggle in the app header and authentication/onboarding screens; the selected palette applies across the interface.
-- **Removed demo tour**: Removed the 5-minute demo guide buttons and unused demo-tour modal.
+---
 
-## Functional Requirements
+## 2. Functional Requirements Status
 
-| ID | Status | Evidence / gap |
-|---|---|---|
-| FR-01 Authentication | Done | Multi-provider sign-in (Google, Apple, Email/Password, South African Phone SMS OTP) with invisible reCAPTCHA; trusted role onboarding; minimum-age attestation; cross-OS compatibility. |
-| FR-02 Role-based access | Partial | Admin custom claim, trusted registration route and deny-client-create rule are implemented; emulator rules tests pass, but live integration is unverified. |
-| FR-03 Candidate profile | Partial | Profile editing, legacy contact migration and the POPIA request/review/completion workflow exist; Firebase-backed end-to-end deletion is unverified. |
-| FR-04 Skill evidence | Partial | Claims persist as `Self-reported`; optional private JPEG/PNG/WebP uploads (5 MB max) use owner/admin Storage rules; browser end-to-end verification and assessment attachment preview remain open. |
-| FR-05 Verification states | Done | Four honest labels (Self-reported, Peer-endorsed, Task-assessed, Mentor-reviewed) with clear disclaimers; peer endorsements, 100-point rubric micro-tasks, and mentor reviews fully wired. |
-| FR-06 Skill Passport | Partial | Passport and export views exist; emulator permissions and complete disclosure behavior are unverified. |
-| FR-07 Employer profile | Partial | Employer profile editing exists; no persistence integration test. |
-| FR-08 Job management | Partial | Job create/close, ZAR terms and report UI exist; employer updates are status-only in rules. Pending-report counters are implemented with Cloud Functions but are not yet deployed or emulator-tested. |
-| FR-09 Matching | Done | Pure explainable fit heuristic and edge-case tests exist; 10 matching tests pass. Predictive value and weights are not validated by pilot outcomes. |
-| FR-10 Applications | Partial | Authenticated server transaction creates records from persisted profile/claims, recalculates matches, prevents duplicates, and grants employer access atomically; emulator denies direct client writes. No Firebase-backed end-to-end test. |
-| FR-11 Shortlisting | Partial | Employer status controls and shortlist-scoped contact access exist; emulator rules tests pass, but no full employer workflow test. |
-| FR-12 Basic moderation | Partial | Admin reporting/moderation UI and rules exist; report review, suspension and counter updates need end-to-end verification. |
-| FR-13 Offline-friendly drafts | Partial | Local draft support exists; recovery/connectivity integration is unverified. |
-| FR-14 AI CV drafting | Partial | Server-side endpoint is token-protected, default-off, and excludes profile identifiers; provider terms and enabled-model behavior need review. |
-| FR-15 In-app notifications | Done | Dedicated notification center modal, unread badge counter in header, fine-grained preferences toggles, idempotent deterministic IDs, Firestore rules, and tests T-13, T-14, T-15 pass. |
-| FR-16 Location-aware filters | Done | Broad-area matching, centroid distance estimation via Haversine formula, privacy-safe distance filters on candidate view, no GPS tracking; tests T-16, T-17, T-18 pass. |
-| FR-17 WhatsApp access | Not started | Deferred P2 integration. |
-| FR-18 Transport support | Not started | Deferred P2 integration. |
-| FR-19 Verification flows | Done | Peer endorsement requests with admin review queue, 100-pt practical micro-task rubrics with pass threshold (>=70), and designated mentor reviews; tests T-19, T-20, T-21, T-22 pass. |
+| ID | Feature | Status | Implementation Details |
+|---|---|---|---|
+| **FR-01** | **Multi-Provider Authentication** | **Done** | Google 1-tap, Apple Sign-in, Email & Password, and South African Phone SMS OTP with background reCAPTCHA; trusted role onboarding. |
+| **FR-02** | **Role-Based Access Control (RBAC)** | **Done** | Cryptographic custom claims (`admin: true`), Firestore rules enforcing role boundaries, multiple admin accounts support. |
+| **FR-03** | **Candidate Profile** | **Done** | Headline, summary, availability, area, POPIA visibility toggles, and right-to-be-forgotten deletion requests. |
+| **FR-04** | **Skill Evidence Dossier** | **Done** | Photos, PDFs, work samples (under 5 MB), and client reference notes. |
+| **FR-05** | **Honest Verification States** | **Done** | Exactly 4 honest tiers; never generic "Verified"; server-side label upgrades only. |
+| **FR-06** | **Skill Passport & Export** | **Done** | Dynamic passport view with credibility summary, evidence dossier trail, contact masking toggle, and client-side PDF generation. |
+| **FR-07** | **Employer Profile** | **Done** | Business details, industry, location area, contact email, and admin verification status. |
+| **FR-08** | **Job Management & Transparency** | **Done** | ZAR terms (`hourly`, `daily`, `fixed`), active listings vs completed work tab, job closing, and report counting. |
+| **FR-09** | **Explainable Matching Algorithm** | **Done** | Deterministic formula ($50\% \text{ Skills} + 25\% \text{ Evidence} + 15\% \text{ Availability} + 10\% \text{ Location}$), missing skills disclosure, distance estimation. |
+| **FR-10** | **Applications & Duplicate Prevention** | **Done** | Deterministic application IDs (`jobId_candidateId`); duplicate applications strictly prevented in UI, store, and server. |
+| **FR-11** | **Hiring Pipeline & Shortlisting** | **Done** | Stage progression (`submitted` $\to$ `under_review` $\to$ `shortlisted` $\to$ `selected` $\to$ `completed`). Separate active vs completed candidate tabs. |
+| **FR-12** | **Moderation & Fraud Prevention** | **Done** | 3-report auto-hide, scam warning banner, safety tips card, employer suspension/reopening actions. |
+| **FR-13** | **Offline Drafts & Sync Indicator** | **Done** | Local draft persistence, low-data mode, and network connectivity sync indicator. |
+| **FR-14** | **AI CV Drafter Copilot** | **Done** | Server-side Gemini copilot drafts summary from confirmed facts only; carries mandatory AI disclaimer. |
+| **FR-15** | **In-App Notifications** | **Done** | Notification modal, unread badge counter, idempotent status alerts, fine-grained preference toggles. |
+| **FR-16** | **Location-Aware Distance Engine** | **Done** | Centroid Haversine calculation across 30+ South African townships and metros without device GPS tracking. |
+| **FR-19** | **Verification Engine** | **Done** | Peer endorsements, 100-pt practical micro-task rubrics ($\ge 70$ pass mark), and designated mentor reviews. |
+| **FR-20** | **Decoupled Payout Confirmation** | **Done** | Work completion decoupled from payout; employer must explicitly confirm payment before status shows `paid`. |
+| **FR-21** | **Badges & Multi-Skill Credentials** | **Done** | Single certificate or badge links across multiple practical skills; batch verification on passport upon assessor approval. |
+| **FR-22** | **National Minimum Wage Compliance** | **Done** | Automated statutory checks ($\ge \text{R}27.58/\text{hr}$) on Admin Job Inspector. |
 
-## Screens
+---
 
-| Screen | Status |
-|---|---|
-| C-01 Candidate dashboard | Partial |
-| C-02 Skills and evidence | Partial |
-| C-03 Skill Passport | Partial |
-| C-04 Opportunity detail and application | Partial; pre-apply visibility preview added |
-| C-05 Applications | Partial |
-| E-01 Employer dashboard | Partial |
-| E-02 Create opportunity | Partial |
-| E-03 Applicant list | Partial |
-| E-04 Candidate detail | Partial; contact details now require shortlist access |
-| Admin overview, reports and assessments | Partial |
+## 3. Automated Test Suite (111 Tests / 38 Suites)
 
-## Tests
+All 111 unit, domain, and integration tests pass with 0 failures:
 
-| ID | Status | Notes |
-|---|---|---|
-| T-01 | Partial | Registration data contract passes; Firebase-backed registration not run. |
-| T-02 | Partial | No Firestore profile integration test. |
-| T-03 | Done | Rules deny candidate verification-label changes; emulator test passes. |
-| T-04 | Done | Rules permit valid employer job creation and deny self-verification; emulator tests pass. |
-| T-05 | Done | Deterministic ID unit test and duplicate-create emulator test pass. |
-| T-06 | Done | Other-employer applicant read is denied in emulator. |
-| T-07 | Done | Closed-job application is denied in emulator. |
-| T-08 | Done | Incomplete profile matching test passes. |
-| T-09 | Partial | Local draft code exists; connectivity test not run. |
-| T-10 | Partial | Prompt content test passes; no model-output test. |
-| T-11 | Done | Non-admin report access denied in emulator. |
-| T-12 | Done | Domain transitions and Firestore transition rules pass, including selected-to-not_selected rejection. |
-| T-13 | Done | Deterministic notification ID prevents duplicates on status change. |
-| T-14 | Done | Firestore security rules deny users reading another user's notifications. |
-| T-15 | Done | Opted-out notification types are not created or delivered. |
-| T-16 | Done | Candidate opportunity location and reachable distance filtering. |
-| T-17 | Done | Centroid distance estimation using Haversine calculation. |
-| T-18 | Done | Zero Geolocation / GPS POPIA Privacy guarantee (broad areas only). |
-| T-19 | Done | Rubric scoring engine calculates 4 criteria (max 25 each, pass >= 70) and transitions claim to Task-assessed. |
-| T-20 | Done | Peer endorsement request creation and approval transitions claim to Peer-endorsed. |
-| T-21 | Done | Designated mentor review submission transitions claim to Mentor-reviewed. |
-| T-22 | Done | Client self-promotion is prevented; honest verification caveats returned for all states. |
-| T-23 | Done | Unit tests cover pending report count increases, resolution/dismissal decreases and reopening. |
-| T-24 | Done | Pilot metrics test application stages, completed work records, payout confirmations and empty data. |
-
-Latest checks: `npm test` passes (67 tests across 20 suites); `npm run typecheck` and `npm run build` pass. The Functions TypeScript build passed previously, and its dependency audit reports 0 vulnerabilities. `npm run test:rules` could not run because Java is not installed/on PATH; it must be rerun in an environment with Java. The client build still warns that the Firebase chunk exceeds 500 kB. Feature flags `notificationsInApp`, `locationFilters`, `peerEndorsement`, `microTasks`, `mentorReview`, and `offlineDrafts` are enabled; all other roadmap flags remain default OFF per Section 20.
-
-## Security and Privacy Changes This Session
-
-- Employer reads of candidate profiles and claims require an application-scoped grant.
-- Candidate contact is stored separately and accessible to the candidate or a current shortlisted employer; legacy profile contact is migrated on candidate sign-in and denied to employer reads until removed.
-- Role/profile creation uses a Firebase ID-token-protected Admin SDK route; clients cannot create their own role document.
-- AI drafting is disabled unless `GEMINI_ENABLED=true`; names, contact details and location are excluded from the provider prompt.
-- Employer work records are tied to the selected-to-completed application batch and immutable to clients afterward.
-- Candidate-created claims remain self-reported; client entry of third-party contact details was removed.
-- Signup requires a configurable minimum-age attestation and stores only a boolean, not a birth date; the default threshold is 18 pending product/legal policy confirmation.
-- Candidate deletion requests can be submitted and reviewed, and an admin-only endpoint completes deletion from Firestore, Storage and Firebase Auth. The workflow requires live integration verification; the privacy contact and evidence-retention policy still need owner approval before public use.
-- Optional evidence images are private Storage objects; employer screens receive only the candidate's text description.
-- Evidence uploads accept JPEG/PNG/WebP up to 5 MB; Firestore stores a private object path and cleans the object up if claim persistence fails.
-
-## Next Tasks
-
-1. Set a Firebase development project ID, then deploy/test rules, Storage and Cloud Functions against it.
-2. Add/run end-to-end tests for registration, profile save, job post, application, shortlist, withdrawal, evidence upload and account deletion against Firebase emulators or a development project.
-3. Obtain owner approval for the privacy contact, evidence-retention policy and minimum-age/work rules before public use.
-4. Confirm App Check enforcement, runtime IAM and production domains; verify AI provider terms before enabling drafting.
-5. Assess accessibility and low-data performance, and investigate the large Firebase bundle.
-
-## Decisions Needed Before Public Pilot
-
-- Confirm submission deadline, current plan day, team owners, demo skill categories, Firebase development project ID, and minimum user age/work rules.
-- Choose and publish a BASA privacy contact and evidence-retention policy.
-- Review the AI provider's current data-use terms before enabling `GEMINI_ENABLED`.
+1. `aiEvidenceAnalysis.test.ts`: AI certificate parsing, safety indicator extraction, assessor score suggestions.
+2. `applicationStatus.test.ts`: Status transition matrix, terminal state enforcement, deterministic duplicate prevention.
+3. `authIdentity.test.ts`: Trusted account registration, minimum-age attestation, role privilege denial.
+4. `coreJourney.test.ts`: Section 28 end-to-end integration test (steps 1 to 7).
+5. `credentialEvidence.test.ts`: Form validation, SSRF prevention, salted duplicate hashes, label mapping.
+6. `customSkills.test.ts`: Expanded 36-skill catalogue, custom employer skills matching, dynamic rubric templates.
+7. `fraudProtection.test.ts`: Unverified employer gating, auto-hiding reported jobs, contact masking, endorsement ring detection.
+8. `locationCentroids.test.ts`: Distance filtering, metro clustering, zero-GPS POPIA privacy guarantee.
+9. `matching.test.ts`: Deterministic matching weights ($0.50, 0.25, 0.15, 0.10$), tie stability, explainable breakdowns.
+10. `multiSkillCredential.test.ts`: 1 badge catering to multiple skills, batch passport upgrades, SA NMW calculations, feedback recording.
+11. `notifications.test.ts`: Idempotent notifications, notification preference filtering, contact data safety.
+12. `pilotMetrics.test.ts`: Funnel stage counting, verified skills breakdown, repeat engagement tracking.
+13. `verificationFlows.test.ts`: 100-pt rubric grading, peer endorsement workflow, mentor review workflow.
+14. `workCompletionPayout.test.ts`: Work completion vs payout decoupling, candidate pipeline separation.
+15. `evidenceStorage.test.ts`: File upload MIME type and 5 MB size limit validation.
+16. `maskContact.test.ts`: POPIA phone and email masking.

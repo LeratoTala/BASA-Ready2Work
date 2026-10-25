@@ -8,13 +8,62 @@ Users can switch between light and dark appearance; their selection is saved on 
 
 ---
 
-## What It Does
+## Quick Navigation: How to Use the Documentation
+
+Use this quick-reference directory to find the exact documentation file for your current task:
+
+| If your task is to... | Navigate to... | What you will find |
+|---|---|---|
+| **Audit panel feedback & requirements** | [`docs/PANEL_FEEDBACK_STATUS.md`](docs/PANEL_FEEDBACK_STATUS.md) | Item-by-item verification audit for Sections 28–35 (Core journey, honest labels, fraud protection, badges, metrics, feedback). |
+| **Understand system architecture & data schemas** | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | End-to-end data flow, state management, matching algorithm mathematics, and Firestore collection schemas. |
+| **Deploy to Google Cloud Run & Firebase** | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Production Dockerfile, Google Cloud Run continuous deployment, Firebase App Check, and environment variables. |
+| **Verify POPIA privacy & security safeguards** | [`docs/SECURITY.md`](docs/SECURITY.md) | POPIA data handling, phone/email contact masking, security rules, and right-to-be-forgotten deletion procedures. |
+| **Conduct user validation interviews (Youth & SMMEs)** | [`docs/VALIDATION_PLAN.md`](docs/VALIDATION_PLAN.md) | 5-question interview protocols for 5–10 job seekers and 3–5 small businesses, with P1/P2 prioritization rubrics. |
+| **Record & synthesize validation findings** | [`docs/VALIDATION_FINDINGS.md`](docs/VALIDATION_FINDINGS.md) | Real-world pilot validation interview notes, quotes, usability pain points, and issue tracking. |
+| **Measure pilot outcomes & sustained income** | [`docs/SUCCESS_METRICS.md`](docs/SUCCESS_METRICS.md) | 5 core funnel indicators, 3-month sustained income follow-up methodology, and aggregate counting invariants. |
+| **Pitch to judges & conduct a live walkthrough** | [`docs/PILOT_GUIDE.md`](docs/PILOT_GUIDE.md) | 5-minute judge demo script, persona walkthrough steps, and FNB App of the Year evaluation rubric. |
+| **Check engineering roadmap & test coverage** | [`docs/PROGRESS.md`](docs/PROGRESS.md) | Comprehensive engineering changelog, functional requirements matrix (FR-01 to FR-22), and 111 automated tests. |
+
+---
+
+## Core Capabilities by Role
 
 | Role | Core Capabilities |
 |---|---|
-| **Candidate (Youth Jobseeker)** | Build a verifiable Skill Passport with honest status labels, attach work photos/evidence, request peer contractor endorsements, take 100-pt practical rubric tests, see explainable job matches ranked by commute distance, and apply in one click. |
-| **Employer** | Post opportunities with mandatory transparent ZAR pay terms (`R250/day`, `R4,500/month`), inspect vetted applicant evidence instead of unverified paper CVs, and advance candidates through valid hiring stages (`Applied` → `Shortlisted` → `Selected`). |
-| **Assessor & Administrator** | Grade bench tests against standardized 100-pt rubrics, approve peer contractor endorsements, verify and moderate job postings to prevent scams/exploitation, review community reports, and monitor pilot employment targets. |
+| **Candidate (Youth Jobseeker)** | Build a verifiable Skill Passport with honest status labels, attach work photos/evidence, post single certificates covering multiple modular skills, request peer contractor endorsements, take 100-pt practical rubric tests, see explainable job matches ranked by commute distance, submit 1-click applications (duplicate applications strictly prevented), and track payment confirmation. |
+| **Employer** | Post opportunities with mandatory transparent ZAR pay terms (`hourly`, `daily`, or `fixed`), inspect vetted applicant evidence instead of unverified paper CVs, advance candidates through hiring stages, view active listings vs. finished engagements, and explicitly confirm candidate payments. |
+| **Assessor & Administrator** | Grade bench tests against standardized 100-pt rubrics, approve peer contractor endorsements, review badges/certificates and upgrade all linked passport skills simultaneously, inspect job compensation against statutory South African National Minimum Wage ($\ge \text{R}27.58/\text{hr}$), resolve community reports, and operate multiple administrative roles (Assessor vs Moderator). |
+
+---
+
+## Key Features & Safety Guardrails
+
+### 1. 1 Badge or Certificate for Multiple Skills
+* In South Africa, modular TVET and vocational awards (e.g. *Commercial Kitchen Operations & Food Safety*) certify multiple competencies.
+* Candidates can upload a single certificate/badge and associate multiple skills (e.g. *Food Safety & Kitchen Hygiene*, *Barista & Espresso Brewing*, and *Inventory & Stock Control*).
+* Unrecorded skills are automatically created on the candidate's Skill Passport.
+* When an assessor reviews and approves the credential, all linked skills on the candidate's passport are verified simultaneously.
+
+### 2. Duplicate Application Prevention
+* Deterministic application IDs (`jobId_candidateId`) and store guards ensure that a candidate can **never apply for the same job post more than once**.
+* The job detail view shows an active `Already Applied (Application on File)` disabled state to eliminate duplicate submissions.
+
+### 3. Admin Job Pay Terms & National Minimum Wage (NMW) Inspector
+* Admin dashboard features an `[Inspect Terms & NMW]` tool on every live listing.
+* Automatically computes effective hourly earnings and validates compliance against the statutory South African National Minimum Wage benchmark of **$\text{R}27.58/\text{hour}$**.
+* Non-compliant postings trigger an exploitation alert with 1-click listing suspension.
+
+### 4. Work Completion Decoupled from Payment Confirmation
+* When work is completed, payout confirmation defaults to `false`.
+* The engagement shows `Work Completed · Payment Pending Confirmation` until the employer explicitly clicks `[Confirm Payment Sent]`.
+* Completed engagements move off the active applicant list into a dedicated `Completed Engagements` tab.
+
+### 5. In-App User Feedback Engine (Section 31.2)
+* Built-in 5-star rating and qualitative feedback modal accessible across candidate, employer, and admin personas via the header `Feedback` button.
+* Fully POPIA-compliant with zero tracking SDKs.
+
+### 6. Multiple Admin Accounts
+* Pre-seeded with multiple administrative accounts (e.g., **Nomsa Dlamini** for practical rubric assessments, and **Sipho Mthethwa** for platform moderation & wage compliance).
 
 ---
 
@@ -29,77 +78,21 @@ BASA: Ready2Work is built with a responsive, mobile-first architecture installab
 
 ---
 
-## How to Sign In
+## Authentication Methods
 
-The platform provides universal multi-provider authentication ([`src/features/auth/components/SignInPage.tsx`](src/features/auth/components/SignInPage.tsx)) across three convenient tabs:
+The platform provides multi-provider authentication ([`src/features/auth/components/SignInPage.tsx`](src/features/auth/components/SignInPage.tsx)):
 
-1. **Google 1-Tap Sign-In (Social Tab):**
-   * Instant authentication for users with an existing Google account (recommended for Android users).
-2. **Apple Sign-In (Social Tab):**
-   * Powered by Firebase Apple OAuth (`apple.com`). Delivers 1-tap sign-in on iPhone, iPad, and Mac, while remaining accessible from any browser.
-3. **Email & Password (Email Tab):**
-   * Standard account login and new account registration with full name, email, and password (includes show/hide password toggle).
-4. **South African Cell Phone SMS OTP (Cell Phone Tab):**
-   * For candidates without an email address. Enter a South African mobile number (`082 123 4567` or `+27 82 123 4567`), complete the invisible background reCAPTCHA, and enter the 6-digit SMS verification code.
-5. **Quick Demo Personas (Pitch & Testing Mode):**
-   * When `VITE_ENABLE_DEMO_DATA=true`, evaluators can switch between pre-seeded personas with one click:
-     * 👷 **Candidate:** Sipho Khumalo (Jobseeker in Soweto · Barista & Solar Assistant)
-     * 🏢 **Employer:** Khaya Green Solutions (Hiring Manager · Specialty Roastery & Solar)
-     * 🛡️ **Assessor/Admin:** Nandi Assessor (Technical Assessor & Moderation Workspace)
-
----
-
-## Access Rights & User Roles (RBAC)
-
-Access rights are enforced cryptographically at the database kernel level in [`firebase/firestore.rules`](firebase/firestore.rules):
-
-| Role | Access Rights & Boundaries |
-|---|---|
-| **Candidate** (`candidate`) | Can view and edit their own profile, submit skill claims, upload work evidence, request peer endorsements, view assessment rubrics, apply to open jobs, and track their applications. **Cannot view other candidates' private data or self-promote verification badges.** |
-| **Employer** (`employer`) | Can create, edit, and close their own job listings, view applicants who applied to their postings, and advance application statuses. **Can only see candidate contact details after explicitly shortlisting them.** |
-| **Assessor & Admin** (`admin: true`) | Can grade candidate demonstrations against 100-point rubrics, approve peer endorsements, review/suspend job postings, resolve community fraud reports, and process account deletion requests. |
-| **Platform Owner** | Holds cloud root access, manages cloud infrastructure, and grants/revokes admin privileges. |
-
----
-
-## How Admin Rights Are Granted
-
-**Security Principle:** Public users can **only** register as a Candidate or an Employer. To prevent unauthorized privilege escalation, there is no public "Register as Admin" button.
-
-Admin privileges are granted using **Firebase Custom Claims** through a secure backend script:
-
-1. Have your staff member or assessor sign in once via Google, Apple, or Email.
-2. From a trusted administrative terminal, run:
-   ```bash
-   node scripts/set-admin-claim.mjs staff@yourdomain.com
-   ```
-3. To revoke admin access:
-   ```bash
-   node scripts/set-admin-claim.mjs staff@yourdomain.com --revoke
-   ```
-4. The user signs out and back in. The app automatically recognizes the cryptographic `{ admin: true }` claim, reveals the **Admin Center**, and unlocks backend database permissions.
-
----
-
-## Where the Owner Manages & Oversees Everything After Deploying
-
-After deployment, the platform owner oversees operations across two layers:
-
-### 1. Inside the Live Web Application (Operational Governance)
-Log in with your owner account (with the admin claim granted) to access the **Admin Center**:
-* 📊 **Pilot Overview:** Monitor real-time metrics (Candidates, Participating Businesses, Active Jobs, Assessed Skills) against FNB App of the Year targets.
-* 💼 **Manage Jobs:** View all posted jobs, audit ZAR pay rates, verify employer credentials, and suspend deceptive or scam listings with one click.
-* 🏆 **Assessor Workspace:** Grade candidate practical rubrics ($\ge 70/100$ pass mark) and approve peer contractor endorsements.
-* 🚩 **Moderation Reports:** Resolve community fraud reports and process POPIA account deletion tickets.
-
-### 2. In Cloud Consoles (Infrastructure & Security Governance)
-* **Firebase Console ([console.firebase.google.com](https://console.firebase.google.com)):**
-  * *Authentication:* View registered users, manage auth providers, disable accounts.
-  * *Firestore Database:* Query live collections (`jobs`, `candidateProfiles`, `skillClaims`, `applications`, `endorsements`).
-  * *Storage:* Inspect uploaded evidence images and certificates.
-  * *App Check:* Protect backend APIs from bots, scraping, and unauthorized traffic.
-* **Google Cloud Console ([console.cloud.google.com](https://console.cloud.google.com)):**
-  * Monitor Google Cloud Run containers, manage CPU/memory auto-scaling, and configure custom domain SSL.
+1. **Google 1-Tap Sign-In:** Instant authentication for users with an existing Google account.
+2. **Apple Sign-In:** Powered by Firebase Apple OAuth (`apple.com`) across iOS, macOS, and web browsers.
+3. **Email & Password:** Standard login and account registration with full name, email, and password.
+4. **South African Cell Phone SMS OTP:** For candidates without an email address. Enter a South African mobile number (`082 123 4567` or `+27 82 123 4567`), complete the invisible background reCAPTCHA, and enter the 6-digit SMS verification code.
+5. **Quick Demo Personas (Pitch & Testing Mode):** When `VITE_ENABLE_DEMO_DATA=true`, evaluators can switch between pre-seeded personas with one click:
+   * 👷 **Candidate:** Thabo Ndlovu (Jobseeker in Soweto · Barista & Solar Assistant)
+   * 👷 **Candidate:** Nomvula Khumalo (Jobseeker in Alexandra · Digital Assistant)
+   * 🏢 **Employer:** Zola Artisan Café (Specialty Hospitality & Retail)
+   * 🏢 **Employer:** SunPower Solars Gauteng (Renewable Energy Employer)
+   * 🛡️ **Assessor:** Nomsa Dlamini (Practical Rubric Assessor)
+   * 🛡️ **Moderator:** Sipho Mthethwa (Platform Moderator & Compliance Officer)
 
 ---
 
@@ -122,7 +115,7 @@ Status: "Peer-endorsed"   Status: "Task-assessed"    Status: "Mentor-reviewed"
 
 * **Self-reported:** Entered by the candidate; not independently confirmed.
 * **Peer-endorsed:** Confirmed by an identified coworker, supervisor, or community contractor who observed the candidate doing the work.
-* **Task-assessed:** Evaluated against an objective 100-point rubric ($\ge 70$ pass mark) by a registered assessor.
+* **Task-assessed:** Evaluated against an objective 100-point rubric ($\ge 70$ pass mark) by a registered assessor, or verified via proctored benchmark/accredited trade credential.
 * **Mentor-reviewed:** Portfolio evaluated by an accredited trade mentor or youth employment partner.
 
 ---
@@ -140,60 +133,64 @@ $$\mathbf{M = 0.50 \cdot S + 0.25 \cdot E + 0.15 \cdot A + 0.10 \cdot L}$$
 
 ---
 
-## Getting Started
+## Getting Started & Local Setup
 
-Requires Node 20+ and npm.
+### Prerequisites
+* **Node.js:** v20.x or higher
+* **npm:** v10.x or higher
+
+### Installation & Execution Steps
 
 ```bash
+# 1. Clone repository
 git clone <your-repo-url> && cd BASA-Ready2Work
+
+# 2. Install dependencies
 npm install
-cp .env.example .env      # fill in your Firebase web config (see below)
-npm run dev               # http://localhost:3000
+
+# 3. Configure environment variables
+cp .env.example .env
+
+# 4. (Optional) Run demo seed script
+node scripts/seed_demo.mjs
+
+# 5. Start development server
+npm run dev
+# App will run at: http://localhost:3000
 ```
 
-Before pushing or validating locally, run:
+### Verification & Validation Commands
+
+Always run these commands before submitting changes:
 
 ```bash
-npm run typecheck         # TypeScript check (0 errors)
-npm test                  # 60 tests across 17 test suites (0 failures)
-npm run build             # Production Vite client build to dist/
-npm audit                 # Security vulnerability audit
-```
+# TypeScript compiler check (must return 0 errors)
+npm run typecheck
 
-Try it with fictional data and no backend: set `VITE_ENABLE_DEMO_DATA=true` in `.env`.
+# Full test suite (111 tests across 38 suites)
+npm test
+
+# Production bundle build
+npm run build
+```
 
 ---
 
-## Scripts
+## Available Scripts
 
 | Command | Purpose |
 |---|---|
-| `npm run dev` | Dev server (Vite + Express API) |
-| `npm run build` | Production client build to `dist/` |
-| `npm start` | Serve build + API in production mode |
-| `npm run typecheck` | TypeScript compiler check |
-| `npm test` | Unit & domain tests (60 tests across 17 suites) |
-| `npm run test:rules` | Firestore security rules emulator tests |
+| `npm run dev` | Start development server with hot module reloading (HMR) |
+| `npm test` | Run full automated test suite (111 tests across 38 suites) |
+| `npm run typecheck` | Verify TypeScript compilation with zero emitted errors |
+| `npm run build` | Build optimized client bundle for production to `dist/` |
+| `npm start` | Run server in production mode |
+| `node scripts/seed_demo.mjs` | Generate fresh demo candidates, employers, jobs, and claims |
+| `npm run test:rules` | Run Firebase Firestore security rules emulator tests |
 
 ---
 
-## Roadmap & Progress
+## License & Intellectual Property
 
-- [x] **Phase 1: Foundation.** Feature-based structure, config/env separation, hardened rules, unit tests, CI, Docker.
-- [x] **Phase 2: Real backend.** Firestore-backed store with role-scoped live listeners and offline cache; onboarding; admin via custom claim.
-- [x] **FR-01: Multi-Provider Authentication.** Google 1-tap, Apple Sign-in, Email & Password, and South African Phone SMS OTP with invisible reCAPTCHA.
-- [x] **Roadmap R1: In-App Notifications (FR-15).** Dedicated notification center modal, unread badge counter in header, fine-grained preferences toggles, and idempotent alerts (tests T-13, T-14, T-15 pass).
-- [x] **Roadmap R2: Location-Aware Filters (FR-16).** Centroid-based distance estimation between 30+ South African areas, interactive candidate distance & work mode filters, without GPS tracking (tests T-16, T-17, T-18 pass).
-- [x] **Roadmap R3: Verification Flows (FR-19).** Peer endorsement request/review queue, practical 100-pt micro-tasks rubrics, designated mentor reviews, and live admin job moderation (tests T-19, T-20, T-21, T-22 pass).
-- [ ] **Roadmap R4: Micro-Internships (FR-21).** Micro-internship listings and milestone sign-offs are still outstanding. Immutable completion work records are already created when an application is marked completed; see the progress tracker for verification status.
-
----
-
-## Documentation
-
-* [Architecture & Data Flow](docs/ARCHITECTURE.md)
-* [Deployment & Hosting Guide](docs/DEPLOYMENT.md)
-* [Security Baseline & POPIA Compliance](docs/SECURITY.md)
-* [Progress Tracker & Requirements Matrix](docs/PROGRESS.md)
-* [Pilot Evaluation Plan](docs/PILOT_GUIDE.md)
-* [Contributing Guide](CONTRIBUTING.md)
+Developed for the **FNB App of the Year** challenge under the **Bridge to Actual Skills & Access (BASA)** initiative.
+All rights reserved © 2026 BASA Ready2Work Team.

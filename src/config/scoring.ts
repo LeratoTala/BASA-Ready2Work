@@ -14,12 +14,16 @@ export const MATCH_WEIGHTS = {
   location: 0.1,
 } as const;
 
-/** How much each verification state contributes to evidence strength (0-100). */
+/**
+ * How much each verification state contributes to evidence strength (0-100).
+ * Based on Section 28.2: Self-reported 0.25 (25), Peer-endorsed 0.50 (50),
+ * Task-assessed 0.85 (85), Mentor-reviewed 1.0 (100).
+ */
 export const EVIDENCE_SCORES: Record<VerificationStatus, number> = {
-  'Task-assessed': 100,
-  'Mentor-reviewed': 85,
-  'Peer-endorsed': 70,
-  'Self-reported': 40,
+  'Mentor-reviewed': 100,
+  'Task-assessed': 85,
+  'Peer-endorsed': 50,
+  'Self-reported': 25,
 };
 
 export const EVIDENCE_BASELINE = {

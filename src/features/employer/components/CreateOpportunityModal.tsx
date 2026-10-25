@@ -24,6 +24,10 @@ export const CreateOpportunityModal: React.FC<Props> = ({
   ]);
   const [newResp, setNewResp] = useState('');
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([SKILL_DEFINITIONS[0].id]);
+  const [customSkills, setCustomSkills] = useState<{ id: string; name: string }[]>([]);
+  const [customSkillInput, setCustomSkillInput] = useState('');
+  const [skillSearchQuery, setSkillSearchQuery] = useState('');
+  const [activeCategoryFilter, setActiveCategoryFilter] = useState('All');
   const [locationArea, setLocationArea] = useState(defaultLocation);
   const [workMode, setWorkMode] = useState<WorkMode>('In-person');
   const [compensationAmount, setCompensationAmount] = useState<number>(450);
@@ -50,12 +54,68 @@ export const CreateOpportunityModal: React.FC<Props> = ({
     );
   };
 
+  const handleAddCustomSkill = () => {
+    const trimmed = customSkillInput.trim();
+    if (!trimmed) return;
+
+    // 1. Check if matches standard skill catalogue (case-insensitive)
+    const existingStd = SKILL_DEFINITIONS.find(
+      (s) => s.name.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existingStd) {
+      if (!selectedSkillIds.includes(existingStd.id)) {
+        setSelectedSkillIds((prev) => [...prev, existingStd.id]);
+      }
+      setCustomSkillInput('');
+      return;
+    }
+
+    // 2. Check if already added to custom skills
+    const existingCustom = customSkills.find(
+      (s) => s.name.toLowerCase() === trimmed.toLowerCase()
+    );
+    if (existingCustom) {
+      if (!selectedSkillIds.includes(existingCustom.id)) {
+        setSelectedSkillIds((prev) => [...prev, existingCustom.id]);
+      }
+      setCustomSkillInput('');
+      return;
+    }
+
+    // 3. Create new custom skill with deterministic slug ID
+    const slug = trimmed
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)/g, '');
+    const newId = `custom-skill-${slug || Date.now()}`;
+    const newSkill = { id: newId, name: trimmed };
+
+    setCustomSkills((prev) => [...prev, newSkill]);
+    setSelectedSkillIds((prev) => [...prev, newId]);
+    setCustomSkillInput('');
+  };
+
+  const allSkills = [
+    ...SKILL_DEFINITIONS.map((s) => ({ id: s.id, name: s.name })),
+    ...customSkills,
+  ];
+
+  const filteredSkills = SKILL_DEFINITIONS.filter((s) => {
+    const matchesCategory =
+      activeCategoryFilter === 'All' || s.category === activeCategoryFilter;
+    const matchesSearch =
+      !skillSearchQuery.trim() ||
+      s.name.toLowerCase().includes(skillSearchQuery.toLowerCase()) ||
+      s.description.toLowerCase().includes(skillSearchQuery.toLowerCase());
+    return matchesCategory && matchesSearch;
+  });
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || selectedSkillIds.length === 0) return;
 
     const skillNames = selectedSkillIds
-      .map((id) => SKILL_DEFINITIONS.find((s) => s.id === id)?.name)
+      .map((id) => allSkills.find((s) => s.id === id)?.name)
       .filter(Boolean) as string[];
 
     onSubmit({
@@ -213,29 +273,153 @@ export const CreateOpportunityModal: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Required Skills Selection */}
-          <div>
-            <label className="block font-semibold text-stone-700 mb-1">
-              Select Required Skills (For Matching Engine)
-            </label>
-            <div className="flex flex-wrap gap-1.5 p-2 bg-stone-50 rounded border border-stone-200">
-              {SKILL_DEFINITIONS.map((s) => {
-                const isSelected = selectedSkillIds.includes(s.id);
-                return (
+          {/* Required Skills Selection (Section 3.4 & Custom Skills) */}
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-1">
+              <label className="block font-semibold text-stone-700">
+                Required Skills ({selectedSkillIds.length} selected)
+              </label>
+              <span className="text-[11px] text-stone-500">
+                Matched against candidate Skill Passports
+              </span>
+            </div>
+
+            {/* Currently Selected Badges */}
+            {selectedSkillIds.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 p-2.5 bg-amber-50/70 border border-amber-200 rounded-lg">
+                {selectedSkillIds.map((id) => {
+                  const skill = allSkills.find((s) => s.id === id);
+                  const isCustom = customSkills.some((s) => s.id === id);
+                  return (
+                    <span
+                      key={id}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold shadow-2xs ${
+                        isCustom
+                          ? 'bg-purple-100 text-purple-900 border border-purple-300'
+                          : 'bg-white text-stone-800 border border-amber-300'
+                      }`}
+                    >
+                      <span>{skill?.name || id}</span>
+                      {isCustom && (
+                        <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-purple-200 text-purple-800 font-bold">
+                          Custom
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => toggleSkill(id)}
+                        className="text-stone-400 hover:text-stone-700 cursor-pointer ml-0.5"
+                        title="Remove requirement"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Add Custom Skill Field */}
+            <div className="bg-stone-50 p-3 rounded-lg border border-stone-200 space-y-1.5">
+              <label className="block text-[11px] font-semibold text-stone-700">
+                Can't find a skill in the list? Add a custom required skill:
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="e.g. TIG Welding, Industrial Machine Cleaning, CCTV Rigging..."
+                  value={customSkillInput}
+                  onChange={(e) => setCustomSkillInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCustomSkill();
+                    }
+                  }}
+                  className="flex-1 border border-stone-300 rounded p-1.5 text-xs bg-white"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCustomSkill}
+                  disabled={!customSkillInput.trim()}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-semibold rounded text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Skill</span>
+                </button>
+              </div>
+              <p className="text-[10px] text-stone-500">
+                Custom skills are saved to this job posting and matched against candidates who hold equivalent experience.
+              </p>
+            </div>
+
+            {/* Standard Catalogue Browser */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-stone-600">
+                  Or select from standard catalogue ({filteredSkills.length} available):
+                </span>
+                <input
+                  type="text"
+                  placeholder="Search catalogue..."
+                  value={skillSearchQuery}
+                  onChange={(e) => setSkillSearchQuery(e.target.value)}
+                  className="border border-stone-300 rounded px-2 py-1 text-[11px] bg-white w-full sm:w-48"
+                />
+              </div>
+
+              {/* Category quick filter pills */}
+              <div className="flex flex-wrap gap-1 text-[11px]">
+                {[
+                  'All',
+                  'Hospitality & Retail',
+                  'Technical & Trades',
+                  'Digital & Admin',
+                  'Logistics & Driving',
+                  'Care & Community',
+                  'Creative & Beauty',
+                  'Agriculture & Environment',
+                ].map((cat) => (
                   <button
-                    key={s.id}
+                    key={cat}
                     type="button"
-                    onClick={() => toggleSkill(s.id)}
-                    className={`px-2.5 py-1 rounded text-xs transition-colors cursor-pointer border ${
-                      isSelected
-                        ? 'bg-amber-600 text-white border-amber-600 font-semibold'
-                        : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-100'
+                    onClick={() => setActiveCategoryFilter(cat)}
+                    className={`px-2 py-0.5 rounded cursor-pointer transition-colors text-[10px] ${
+                      activeCategoryFilter === cat
+                        ? 'bg-stone-900 text-white font-semibold'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
                     }`}
                   >
-                    {s.name}
+                    {cat}
                   </button>
-                );
-              })}
+                ))}
+              </div>
+
+              {/* Skills buttons grid */}
+              <div className="flex flex-wrap gap-1.5 p-2 bg-stone-50 rounded border border-stone-200 max-h-40 overflow-y-auto">
+                {filteredSkills.map((s) => {
+                  const isSelected = selectedSkillIds.includes(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => toggleSkill(s.id)}
+                      className={`px-2.5 py-1 rounded text-xs transition-colors cursor-pointer border text-left ${
+                        isSelected
+                          ? 'bg-amber-600 text-white border-amber-600 font-semibold'
+                          : 'bg-white text-stone-700 border-stone-300 hover:bg-stone-100'
+                      }`}
+                    >
+                      {s.name}
+                    </button>
+                  );
+                })}
+                {filteredSkills.length === 0 && (
+                  <div className="py-2 px-1 text-stone-500 text-xs italic">
+                    No standard skills match "{skillSearchQuery}". Type your custom skill in the box above to add it!
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

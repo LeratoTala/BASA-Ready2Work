@@ -17,7 +17,10 @@ import {
   NotificationType,
   PeerEndorsement,
   MentorReview,
+  CredentialEvidence,
+  FeedbackRecord,
 } from '../../domain/types';
+import { resolveSkillLabelFromCredential } from '../../config/credentialRules';
 import {
   INITIAL_APPLICATIONS,
   INITIAL_ASSESSMENTS,
@@ -94,6 +97,9 @@ export function useDemoStore() {
   const [mentorReviews, setMentorReviews] = useState<MentorReview[]>(() =>
     loadStored(STORAGE_KEYS.mentorReviews, INITIAL_MENTOR_REVIEWS)
   );
+  const [feedbackList, setFeedbackList] = useState<FeedbackRecord[]>(() =>
+    loadStored('basa_feedback', [])
+  );
   const { lowDataMode, setLowDataMode, profileDraft, saveDraft } = useLocalPrefs();
   const syncStatus = 'synced' as SyncState;
   const pendingSyncCount = 0;
@@ -125,6 +131,7 @@ export function useDemoStore() {
   useEffect(() => saveStored(STORAGE_KEYS.notificationPreferences, notificationPreferences), [notificationPreferences]);
   useEffect(() => saveStored(STORAGE_KEYS.endorsements, endorsements), [endorsements]);
   useEffect(() => saveStored(STORAGE_KEYS.mentorReviews, mentorReviews), [mentorReviews]);
+  useEffect(() => saveStored('basa_feedback', feedbackList), [feedbackList]);
 
   const deliverNotification = useCallback(
     (
@@ -385,7 +392,11 @@ export function useDemoStore() {
   };
 
   // Add Skill Claim
-  const addSkillClaim = async (claim: Omit<SkillClaim, 'id' | 'createdAt'>) => {
+  const addSkillClaim = async (
+    claim: Omit<SkillClaim, 'id' | 'createdAt'>,
+    _evidenceFile?: File,
+    _evidenceFiles?: File[]
+  ) => {
     if (!currentUser) throw new Error('Authentication required');
     if (currentUser.role !== 'candidate') {
       throw new Error('Only candidates can register skill claims.');
@@ -416,6 +427,99 @@ export function useDemoStore() {
       return prev;
     });
     return newClaim;
+  };
+
+  // Section 35 & Multi-Skill: Add Credential or Badge to Skill Claim(s)
+  const addCredentialToClaim = async (
+    claimId: string,
+    credential: CredentialEvidence,
+    file?: File,
+    associatedSkills?: string[]
+  ): Promise<void> => {
+    if (!currentUser) throw new Error('Authentication required');
+    if (currentUser.role !== 'candidate') throw new Error('Only candidates can add badges or certificates.');
+
+    let fileUrl: string | undefined = credential.fileRef;
+    if (file) {
+      fileUrl = URL.createObjectURL(file);
+    }
+
+    const cred: CredentialEvidence = {
+      ...credential,
+      fileRef: fileUrl,
+      checkStatus: credential.checkStatus || 'unchecked',
+      associatedSkills: associatedSkills || credential.associatedSkills,
+    };
+
+    setSkillClaims((prev) =>
+      prev.map((c) => {
+        const isTarget =
+          c.id === claimId ||
+          (associatedSkills &&
+            associatedSkills.some(
+              (s) => s.toLowerCase() === c.skillName.toLowerCase()
+            ));
+        if (isTarget) {
+          const existing = c.credentials || [];
+          const exists = existing.some(
+            (e) =>
+              e.id === cred.id ||
+              (cred.duplicateHash && e.duplicateHash === cred.duplicateHash)
+          );
+          if (!exists) {
+            return {
+              ...c,
+              credentials: [...existing, cred],
+            };
+          }
+        }
+        return c;
+      })
+    );
+  };
+
+  // Section 35.5: Review Credential (Assessor/Admin) - verifies across all linked claims
+  const reviewCredential = async (
+    claimId: string,
+    credentialId: string,
+    decision: 'checked_ok' | 'checked_mismatch' | 'needs_review',
+    note: string
+  ): Promise<void> => {
+    if (!currentUser) throw new Error('Authentication required');
+    if (currentUser.role !== 'admin') throw new Error('Only assessors can review credentials.');
+
+    const now = new Date().toISOString();
+    setSkillClaims((prev) =>
+      prev.map((c) => {
+        const creds = c.credentials || [];
+        const hasMatchingCred = creds.some((cred) => cred.id === credentialId);
+        if (c.id === claimId || hasMatchingCred) {
+          let targetCred: CredentialEvidence | undefined;
+          const updatedCreds = creds.map((cred) => {
+            if (cred.id === credentialId) {
+              targetCred = {
+                ...cred,
+                checkStatus: decision,
+                checkedBy: currentUser.uid,
+                checkedAt: now,
+                checkNote: note.trim(),
+              };
+              return targetCred;
+            }
+            return cred;
+          });
+
+          // Resolve new label from credential mapping (Section 35.4)
+          const newStatus = resolveSkillLabelFromCredential(c.verificationStatus, targetCred);
+          return {
+            ...c,
+            credentials: updatedCreds,
+            verificationStatus: newStatus,
+          };
+        }
+        return c;
+      })
+    );
   };
 
   // Submit assessment
@@ -478,6 +582,18 @@ export function useDemoStore() {
     const claim = skillClaims.find((c) => c.id === claimId);
     if (!claim) throw new Error('Skill claim not found.');
     if (claim.candidateId !== currentUser.uid) throw new Error('You can only request endorsements for your own claims.');
+
+    // 30.5 Endorsement integrity rules
+    if (params.endorserName.trim().toLowerCase() === currentUser.displayName.trim().toLowerCase()) {
+      throw new Error('Self-endorsement is prohibited (Section 30.5).');
+    }
+    const existingForSkill = endorsements.filter((e) => e.claimId === claimId && e.status !== 'rejected');
+    if (existingForSkill.length >= 3) {
+      throw new Error('Maximum of 3 endorsements per skill reached (Section 30.5).');
+    }
+    if (existingForSkill.some((e) => e.endorserName.trim().toLowerCase() === params.endorserName.trim().toLowerCase())) {
+      throw new Error('This endorser has already submitted an endorsement for this skill (Section 30.5).');
+    }
 
     const newEndorsement: PeerEndorsement = {
       id: `endorse_${Date.now()}_${claimId}`,
@@ -622,6 +738,9 @@ export function useDemoStore() {
       throw new Error('Only employers can post opportunities.');
     }
     const empProfile = employerProfiles[currentUser.uid];
+    if (empProfile && empProfile.verificationStatus !== 'verified') {
+      throw new Error('Employer account unverified: You cannot post opportunities until an administrator verifies your business profile (Section 30.1).');
+    }
     const newJob: Job = {
       ...jobData,
       id: `job-${Date.now()}`,
@@ -759,10 +878,13 @@ export function useDemoStore() {
     setApplications((prev) =>
       prev.map((a) => {
         if (a.id === applicationId) {
+          const isPaid = newStatus === 'completed' ? Boolean(payoutConfirmed) : a.payoutConfirmed;
           const updated = {
             ...a,
             status: newStatus,
             employerNotes: employerNotes !== undefined ? employerNotes : a.employerNotes,
+            payoutConfirmed: isPaid,
+            paidAt: isPaid ? (a.paidAt || new Date().toISOString()) : undefined,
             updatedAt: new Date().toISOString(),
           };
           return updated;
@@ -784,6 +906,7 @@ export function useDemoStore() {
 
     if (newStatus === 'completed') {
       const targetJob = jobs.find((j) => j.id === app.jobId);
+      const isPaid = Boolean(payoutConfirmed);
       const newWorkRecord: WorkRecord = {
         id: `work-${Date.now()}`,
         applicationId: app.id,
@@ -795,12 +918,46 @@ export function useDemoStore() {
         employerName: app.employerName,
         completionStatus: 'completed',
         employerConfirmed: true,
-        payoutConfirmed: payoutConfirmed ?? true,
+        payoutConfirmed: isPaid,
         amountZAR: targetJob?.compensationAmount ?? 0,
         feedback: employerNotes || 'Work completed successfully according to terms.',
         confirmedAt: new Date().toISOString(),
       };
       setWorkRecords((prev) => [newWorkRecord, ...prev]);
+    }
+  };
+
+  const confirmWorkPayout = (applicationId: string) => {
+    if (!currentUser) throw new Error('Authentication required');
+    const now = new Date().toISOString();
+
+    setWorkRecords((prev) =>
+      prev.map((w) =>
+        w.applicationId === applicationId
+          ? { ...w, payoutConfirmed: true, confirmedAt: now }
+          : w
+      )
+    );
+
+    setApplications((prev) =>
+      prev.map((a) =>
+        a.id === applicationId
+          ? { ...a, payoutConfirmed: true, paidAt: now, updatedAt: now }
+          : a
+      )
+    );
+
+    const targetApp = applications.find((a) => a.id === applicationId);
+    if (targetApp) {
+      deliverNotification(
+        targetApp.candidateId,
+        'application_status',
+        'Payment Confirmed!',
+        `Your employer has confirmed payment for "${targetApp.jobTitle}".`,
+        targetApp.id,
+        'completed',
+        'applications'
+      );
     }
   };
 
@@ -821,7 +978,12 @@ export function useDemoStore() {
       setJobs((prev) =>
         prev.map((j) => {
           if (j.id === report.targetId) {
-            const updated = { ...j, reportCount: j.reportCount + 1 };
+            const newCount = j.reportCount + 1;
+            const updated = {
+              ...j,
+              reportCount: newCount,
+              status: (newCount >= 3 ? 'flagged' : j.status) as any,
+            };
             return updated;
           }
           return j;
@@ -913,6 +1075,17 @@ export function useDemoStore() {
     setMentorReviews((prev) => prev.filter((m) => m.candidateId !== requestUid));
   };
 
+  // Section 31.2: User Feedback Submission
+  const submitFeedback = (feedbackData: Omit<FeedbackRecord, 'id' | 'createdAt'>): FeedbackRecord => {
+    const newFeedback: FeedbackRecord = {
+      ...feedbackData,
+      id: `fb-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    setFeedbackList((prev) => [newFeedback, ...prev]);
+    return newFeedback;
+  };
+
   // Reset to initial demo seed data anytime
   const resetDemoData = () => {
     if (!env.enableDemoData) return;
@@ -948,6 +1121,8 @@ export function useDemoStore() {
       ? skillClaims.filter((c) => c.candidateId === currentUser.uid)
       : [],
     addSkillClaim,
+    addCredentialToClaim,
+    reviewCredential,
     assessments,
     submitAssessment,
     // Verification Flows (R3 / FR-19)
@@ -968,6 +1143,7 @@ export function useDemoStore() {
       : [],
     applyToJob,
     updateApplicationStatus,
+    confirmWorkPayout,
     workRecords,
     reports,
     submitReport,
@@ -996,6 +1172,8 @@ export function useDemoStore() {
     profileDraft,
     saveDraft,
     resetDemoData,
+    feedbackList,
+    submitFeedback,
     // Offline sync and persistence
     syncStatus,
     pendingSyncCount,

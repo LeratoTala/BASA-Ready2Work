@@ -1,5 +1,5 @@
 import { env } from '../../config/env';
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Flame,
   Wifi,
@@ -14,12 +14,14 @@ import {
   Smartphone,
   Tablet,
   Bell,
+  MessageSquare,
 } from 'lucide-react';
-import { Role, User as UserType } from '../../domain/types';
+import { Role, User as UserType, FeedbackRecord } from '../../domain/types';
 import { SyncIndicator } from './SyncIndicator';
 import { SyncState } from '../../services/syncService';
 import { ThemeToggle } from './ThemeToggle';
 import type { ColorTheme } from '../../app/useColorTheme';
+import { FeedbackModal } from '../../features/feedback/components/FeedbackModal';
 
 export type ViewportMode = 'desktop' | 'tablet' | 'mobile';
 
@@ -44,6 +46,7 @@ interface Props {
   onSetViewportMode: (mode: ViewportMode) => void;
   unreadNotificationCount?: number;
   onOpenNotifications?: () => void;
+  onSubmitFeedback?: (feedback: Omit<FeedbackRecord, 'id' | 'createdAt'>) => void;
 }
 
 export const Header: React.FC<Props> = ({
@@ -67,7 +70,9 @@ export const Header: React.FC<Props> = ({
   onSetViewportMode,
   unreadNotificationCount,
   onOpenNotifications,
+  onSubmitFeedback,
 }) => {
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
   // Navigation tabs based on role per Section 4.4 - Each persona has their own dedicated profile page
   const candidateTabs = [
     { id: 'dashboard', label: 'Home' },
@@ -89,6 +94,7 @@ export const Header: React.FC<Props> = ({
     { id: 'overview', label: 'Pilot Overview' },
     { id: 'jobs', label: 'Manage Jobs' },
     { id: 'assessments', label: 'Assessor Workspace' },
+    { id: 'credentials', label: 'Credential Review' },
     { id: 'reports', label: 'Moderation Reports' },
     { id: 'profile', label: 'Assessor Profile' },
   ];
@@ -210,6 +216,16 @@ export const Header: React.FC<Props> = ({
               </button>
             )}
 
+            {/* Feedback Button (Section 31.2) */}
+            <button
+              onClick={() => setIsFeedbackOpen(true)}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs bg-amber-500/20 text-amber-300 border border-amber-600/50 hover:bg-amber-500/30 transition-colors cursor-pointer"
+              title="Tell us what you think (Section 31.2)"
+            >
+              <MessageSquare className="w-3 h-3 text-amber-400" />
+              <span>Feedback</span>
+            </button>
+
             {/* Low Data Mode Toggle */}
             <button
               onClick={onToggleLowData}
@@ -298,6 +314,13 @@ export const Header: React.FC<Props> = ({
           )}
         </nav>
       </div>
+
+      <FeedbackModal
+        isOpen={isFeedbackOpen}
+        onClose={() => setIsFeedbackOpen(false)}
+        currentUser={currentUser}
+        onSubmitFeedback={onSubmitFeedback}
+      />
     </header>
   );
 };

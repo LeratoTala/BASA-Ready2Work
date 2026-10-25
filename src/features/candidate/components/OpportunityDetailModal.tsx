@@ -36,6 +36,7 @@ export const OpportunityDetailModal: React.FC<Props> = ({
   if (!isOpen || !job) return null;
 
   const handleApplyClick = () => {
+    if (hasApplied) return;
     setApplyError(null);
     setShowApplyPreview(true);
   };
@@ -276,14 +277,31 @@ export const OpportunityDetailModal: React.FC<Props> = ({
               <p className="text-stone-500 text-[11px]">
                 Under BASA policies, employers may never charge upfront registration or training fees.
               </p>
-              <textarea
-                rows={2}
-                required
-                placeholder="e.g. Employer requested R150 kit fee, or misleading wage details..."
-                value={reportReason}
-                onChange={(e) => setReportReason(e.target.value)}
-                className="w-full text-xs p-2 border border-stone-300 rounded bg-white"
-              />
+              <div>
+                <select
+                  className="w-full text-xs p-2 border border-stone-300 rounded bg-white mb-1.5 text-stone-800"
+                  defaultValue="asks_payment"
+                  onChange={(e) => {
+                    if (!reportReason || reportReason.startsWith('[')) {
+                      setReportReason(`[${e.target.options[e.target.selectedIndex].text}] `);
+                    }
+                  }}
+                >
+                  <option value="asks_payment">Asks for payment or fee (Strictly Prohibited)</option>
+                  <option value="unsafe">Unsafe working conditions / hazardous</option>
+                  <option value="discriminatory">Discriminatory or abusive conduct</option>
+                  <option value="fake">Fake opportunity or scam</option>
+                  <option value="other">Other issue</option>
+                </select>
+                <textarea
+                  rows={2}
+                  required
+                  placeholder="Provide brief details (e.g. Employer requested R150 kit fee, or misleading wage details)..."
+                  value={reportReason}
+                  onChange={(e) => setReportReason(e.target.value)}
+                  className="w-full text-xs p-2 border border-stone-300 rounded bg-white"
+                />
+              </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
@@ -331,6 +349,20 @@ export const OpportunityDetailModal: React.FC<Props> = ({
               <p className="text-stone-700">
                 Your email and phone number stay private unless this employer shortlists you. You can change Skill Passport visibility in your profile.
               </p>
+
+              {/* Plain-Language Safety Tips Card (Section 30.3) */}
+              <div className="bg-white rounded-lg p-3 border border-amber-300 text-stone-700 space-y-1.5 text-xs">
+                <span className="font-bold text-amber-900 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-700" />
+                  Candidate Safety Tips:
+                </span>
+                <ul className="list-disc pl-5 space-y-0.5 text-[11px] text-stone-600">
+                  <li><strong>Never pay for a job:</strong> The platform and legit employers never ask for application fees, training money, or kit purchases upfront.</li>
+                  <li><strong>Meet in public:</strong> For interviews or trial shifts, meet in a public, accessible place.</li>
+                  <li><strong>Tell someone:</strong> Always let a friend or family member know where you are going.</li>
+                  <li><strong>Protect your identity:</strong> Never share your bank PIN or national ID number before you are officially hired.</li>
+                </ul>
+              </div>
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
@@ -367,9 +399,9 @@ export const OpportunityDetailModal: React.FC<Props> = ({
             </button>
 
             {hasApplied ? (
-              <div className="flex items-center gap-1.5 px-4 py-2 bg-stone-200 text-stone-700 font-semibold text-xs rounded-lg">
+              <div className="flex items-center gap-1.5 px-4 py-2 bg-stone-200 text-stone-700 font-semibold text-xs rounded-lg cursor-not-allowed">
                 <Check className="w-4 h-4 text-emerald-600" />
-                <span>Application Submitted (Active)</span>
+                <span>Already Applied (Application on File)</span>
               </div>
             ) : isClosed ? (
               <button

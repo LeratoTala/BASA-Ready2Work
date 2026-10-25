@@ -23,6 +23,7 @@ export interface FeatureFlags {
   paymentConfirmation: boolean;
   whatsapp: boolean;
   credentials: boolean;
+  credentialEvidence: boolean;
   matchFeedback: boolean;
 }
 
@@ -42,5 +43,6 @@ export const FEATURE_FLAGS: FeatureFlags = {
   paymentConfirmation: false,// R9: Payment confirmation records
   whatsapp: false,           // R10: WhatsApp channel
   credentials: false,        // R11: Qualification entries
+  credentialEvidence: true,  // Section 35: Badges and Certificates as Evidence (Part 3B)
   matchFeedback: false,      // R12: Weight tuning & feedback
 } as const;

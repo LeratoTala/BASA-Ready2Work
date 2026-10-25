@@ -474,7 +474,7 @@ export const CandidateDashboard: React.FC<Props> = ({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredScoredJobs.map(({ job, breakdown }) => {
-              const hasApplied = applications.some((a) => a.jobId === job.id && a.status !== 'withdrawn');
+              const hasApplied = applications.some((a) => a.jobId === job.id);
 
               return (
                 <div

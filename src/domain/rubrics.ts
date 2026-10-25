@@ -146,13 +146,13 @@ export const STANDARD_RUBRICS: Record<string, RubricTemplate> = {
 /**
  * Returns the relevant rubric template for a skill.
  */
-export function getRubricForSkill(skillId: string, skillName: string): RubricTemplate {
+export function getRubricForSkill(skillId: string, skillName?: string): RubricTemplate {
   if (STANDARD_RUBRICS[skillId]) {
     return STANDARD_RUBRICS[skillId];
   }
   return {
     ...STANDARD_RUBRICS.default,
-    skillName,
+    skillName: skillName || skillId || STANDARD_RUBRICS.default.skillName,
   };
 }
 

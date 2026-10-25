@@ -139,6 +139,23 @@ service cloud.firestore {
         && resource.data.candidateId == request.auth.uid
         && !changedKeys().hasAny(['verificationStatus', 'assessmentId', 'candidateId'])) || isAdmin();
       allow delete: if (signedIn() && resource.data.candidateId == request.auth.uid) || isAdmin();
+
+      // Section 35.1: Credential sub-records.
+      // checkStatus, checkedBy, checkedAt, and checkNote are strictly server/admin written.
+      match /credentials/{credentialId} {
+        allow read: if isAdmin()
+          || (signedIn() && get(/databases/$(database)/documents/skillClaims/$(claimId)).data.candidateId == request.auth.uid)
+          || hasEmployerCandidateAccess(get(/databases/$(database)/documents/skillClaims/$(claimId)).data.candidateId);
+        allow create: if (hasRole('candidate')
+          && get(/databases/$(database)/documents/skillClaims/$(claimId)).data.candidateId == request.auth.uid
+          && incoming().checkStatus == 'unchecked'
+          && !('checkedBy' in incoming())
+          && !('checkedAt' in incoming())
+          && !('checkNote' in incoming())) || isAdmin();
+        allow update: if isAdmin();
+        allow delete: if (hasRole('candidate')
+          && get(/databases/$(database)/documents/skillClaims/$(claimId)).data.candidateId == request.auth.uid) || isAdmin();
+      }
     }
 
     // ---------- assessments (assessors only write) ----------

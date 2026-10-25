@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Application, ApplicationStatus, CandidateProfile, Job, SkillClaim } from '../../../domain/types';
-import { VerificationBadge } from '../../../shared/components/VerificationBadge';
-import { Users, Filter, ChevronRight, Award, MapPin, Building2 } from 'lucide-react';
+import { Application, CandidateProfile, Job, SkillClaim } from '../../../domain/types';
+import { Users, Filter, ChevronRight, Award, MapPin, Building2, CheckCircle2, Clock, DollarSign } from 'lucide-react';
 
 interface Props {
   applications: Application[];
@@ -9,6 +8,7 @@ interface Props {
   onSelectApplication: (app: Application) => void;
   candidateProfiles: Record<string, CandidateProfile>;
   skillClaims: SkillClaim[];
+  onConfirmPayout?: (applicationId: string) => void;
 }
 
 export const ApplicantListView: React.FC<Props> = ({
@@ -17,13 +17,24 @@ export const ApplicantListView: React.FC<Props> = ({
   onSelectApplication,
   candidateProfiles,
   skillClaims,
+  onConfirmPayout,
 }) => {
+  const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
   const [selectedJobFilter, setSelectedJobFilter] = useState<string>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
 
-  const filteredApps = applications.filter((app) => {
+  const activeApps = applications.filter(
+    (a) => a.status !== 'completed' && a.status !== 'withdrawn'
+  );
+  const completedApps = applications.filter((a) => a.status === 'completed');
+
+  const currentPool = activeTab === 'active' ? activeApps : completedApps;
+
+  const filteredApps = currentPool.filter((app) => {
     if (selectedJobFilter !== 'all' && app.jobId !== selectedJobFilter) return false;
-    if (selectedStatusFilter !== 'all' && app.status !== selectedStatusFilter) return false;
+    if (activeTab === 'active') {
+      if (selectedStatusFilter !== 'all' && app.status !== selectedStatusFilter) return false;
+    }
     return true;
   });
 
@@ -32,9 +43,9 @@ export const ApplicantListView: React.FC<Props> = ({
       {/* Title & Filter Bar */}
       <div className="bg-white rounded-xl border border-stone-200 p-6 flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-stone-900">Job Applicants & Candidate Evidence</h2>
+          <h2 className="text-xl font-bold text-stone-900">Job Applicants & Candidate Pipeline</h2>
           <p className="text-xs text-stone-500 mt-1">
-            Review candidates based on demonstrable skill evidence rather than formal credentials.
+            Review active applicants by demonstrable skills. Candidates who finish engagements move to Completed Engagements.
           </p>
         </div>
 
@@ -53,37 +64,75 @@ export const ApplicantListView: React.FC<Props> = ({
             ))}
           </select>
 
-          {/* Status Filter */}
-          <select
-            value={selectedStatusFilter}
-            onChange={(e) => setSelectedStatusFilter(e.target.value)}
-            className="border border-stone-300 rounded px-2.5 py-1.5 text-xs bg-white text-stone-800"
-          >
-            <option value="all">All Statuses</option>
-            <option value="submitted">Submitted</option>
-            <option value="under_review">Under Review</option>
-            <option value="shortlisted">Shortlisted</option>
-            <option value="selected">Selected</option>
-            <option value="completed">Work Completed</option>
-          </select>
+          {/* Active-only Status Filter */}
+          {activeTab === 'active' && (
+            <select
+              value={selectedStatusFilter}
+              onChange={(e) => setSelectedStatusFilter(e.target.value)}
+              className="border border-stone-300 rounded px-2.5 py-1.5 text-xs bg-white text-stone-800"
+            >
+              <option value="all">All Active Statuses</option>
+              <option value="submitted">Submitted</option>
+              <option value="under_review">Under Review</option>
+              <option value="shortlisted">Shortlisted</option>
+              <option value="selected">Selected</option>
+            </select>
+          )}
         </div>
+      </div>
+
+      {/* Pipeline View Tabs */}
+      <div className="flex items-center gap-2 border-b border-stone-200 pb-2">
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('active');
+            setSelectedStatusFilter('all');
+          }}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
+            activeTab === 'active'
+              ? 'bg-stone-900 text-white shadow-xs'
+              : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+          }`}
+        >
+          <Users className="w-3.5 h-3.5" />
+          <span>Active Applicants ({activeApps.length})</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setActiveTab('completed');
+            setSelectedStatusFilter('all');
+          }}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold cursor-pointer transition-colors ${
+            activeTab === 'completed'
+              ? 'bg-emerald-800 text-white shadow-xs'
+              : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+          }`}
+        >
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          <span>Completed Engagements ({completedApps.length})</span>
+        </button>
       </div>
 
       {/* Applicant Cards */}
       {filteredApps.length === 0 ? (
         <div className="bg-white rounded-xl border border-stone-200 p-10 text-center space-y-2">
-          <p className="text-sm font-semibold text-stone-700">No applicants match this filter</p>
+          <p className="text-sm font-semibold text-stone-700">
+            {activeTab === 'active' ? 'No active applicants match this filter' : 'No completed engagements yet'}
+          </p>
           <p className="text-xs text-stone-500">
-            When candidates discover your opportunities and apply with their Skill Passport, they will appear here.
+            {activeTab === 'active'
+              ? 'When candidates apply with their Skill Passport, they appear here until work is finished.'
+              : 'Candidates move here after work is marked completed. You can verify and record payments here.'}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           {filteredApps.map((app) => {
             const candidateClaims = skillClaims.filter((c) => c.candidateId === app.candidateId);
-            const verifiedClaims = candidateClaims.filter(
-              (c) => c.verificationStatus === 'Task-assessed' || c.verificationStatus === 'Peer-endorsed'
-            );
+            const isCompleted = app.status === 'completed';
 
             return (
               <div
@@ -98,10 +147,12 @@ export const ApplicantListView: React.FC<Props> = ({
                     </h3>
                     <span className="text-xs text-stone-400">·</span>
                     <span className="text-xs text-stone-600 font-medium">For: {app.jobTitle}</span>
+
+                    {/* Status Badge */}
                     <span
                       className={`ml-auto md:ml-2 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                        app.status === 'completed'
-                          ? 'bg-emerald-100 text-emerald-800'
+                        isCompleted
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                           : app.status === 'selected'
                           ? 'bg-emerald-50 text-emerald-700'
                           : app.status === 'shortlisted'
@@ -111,6 +162,19 @@ export const ApplicantListView: React.FC<Props> = ({
                     >
                       {app.status.replace('_', ' ')}
                     </span>
+
+                    {/* Payment Badge for Completed Engagements */}
+                    {isCompleted && (
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          app.payoutConfirmed
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-amber-100 text-amber-900 border border-amber-300'
+                        }`}
+                      >
+                        {app.payoutConfirmed ? '✓ Paid' : 'Payment Pending'}
+                      </span>
+                    )}
                   </div>
 
                   <p className="text-xs text-stone-500">{app.candidateHeadline}</p>
@@ -141,6 +205,30 @@ export const ApplicantListView: React.FC<Props> = ({
                       <span className="text-[11px] text-stone-400">+{candidateClaims.length - 3} more</span>
                     )}
                   </div>
+
+                  {/* Completed Notes & Payout Confirmation Action */}
+                  {isCompleted && (
+                    <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-stone-100 text-xs">
+                      {app.employerNotes && (
+                        <p className="text-stone-600 italic text-[11px]">
+                          &ldquo;{app.employerNotes}&rdquo;
+                        </p>
+                      )}
+                      {!app.payoutConfirmed && onConfirmPayout && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onConfirmPayout(app.id);
+                          }}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs flex items-center gap-1 cursor-pointer ml-auto"
+                        >
+                          <DollarSign className="w-3 h-3" />
+                          <span>Confirm Payment Sent</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Score & Review button */}
@@ -153,7 +241,7 @@ export const ApplicantListView: React.FC<Props> = ({
                   </div>
 
                   <button className="flex items-center gap-1 text-xs font-semibold text-amber-800 group-hover:underline">
-                    <span>Inspect Dossier</span>
+                    <span>{isCompleted ? 'View Record' : 'Inspect Dossier'}</span>
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
