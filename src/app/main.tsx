@@ -2,6 +2,17 @@ import { createRoot } from 'react-dom/client';
 import { envErrors } from '../config/env';
 import './index.css';
 
+// Register the service worker for offline shell caching and PWA install support.
+// Only active in production (Vite dev server handles requests differently).
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      // Non-fatal: app works without the service worker.
+      console.warn('Service worker registration failed:', err);
+    });
+  });
+}
+
 const container = document.getElementById('root');
 if (!container) throw new Error('Root element #root not found');
 const root = createRoot(container);
