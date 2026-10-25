@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Briefcase, Users, CheckCircle2, DollarSign, Clock, ShieldCheck, ChevronRight, Power } from 'lucide-react';
 import { Application, EmployerProfile, Job, SkillClaim } from '../../../domain/types';
+import { TrustAndSafetyBanner } from '../../../shared/components/TrustAndSafetyBanner';
 
 interface Props {
   employer: EmployerProfile;
@@ -270,6 +271,9 @@ export const EmployerDashboard: React.FC<Props> = ({
           })}
         </div>
       </div>
+
+      {/* Trust & Safety — answers: how are employers protected from unreliable candidates? */}
+      <TrustAndSafetyBanner role="employer" />
 
       {/* Recent Applications Feed */}
       <div className="space-y-3">

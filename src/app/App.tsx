@@ -256,6 +256,7 @@ export default function App() {
                 claims={store.currentCandidateClaims}
                 jobs={store.jobs}
                 applications={store.currentCandidateApplications}
+                workRecords={store.workRecords.filter((r) => r.candidateId === currentUser.uid)}
                 onOpenPassport={() => setIsPassportOpen(true)}
                 onOpenAIDrafter={() => setIsAIDrafterOpen(true)}
                 onOpenSkills={() => setActiveTab('skills')}

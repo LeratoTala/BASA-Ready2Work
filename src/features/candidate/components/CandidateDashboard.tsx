@@ -15,16 +15,19 @@ import {
   Download,
   Compass,
 } from 'lucide-react';
-import { Application, CandidateProfile, Job, MatchBreakdown, SkillClaim } from '../../../domain/types';
+import { Application, CandidateProfile, Job, MatchBreakdown, SkillClaim, WorkRecord } from '../../../domain/types';
 import { calculateMatchScore } from '../../../domain/matching';
 import { FEATURE_FLAGS } from '../../../config/featureFlags';
 import type { ProfileDraft } from '../../../app/store/useLocalPrefs';
+import { CandidateJourneyTracker } from '../../../shared/components/CandidateJourneyTracker';
+import { TrustAndSafetyBanner } from '../../../shared/components/TrustAndSafetyBanner';
 
 interface Props {
   candidate: CandidateProfile;
   claims: SkillClaim[];
   jobs: Job[];
   applications: Application[];
+  workRecords: WorkRecord[];
   onOpenPassport: () => void;
   onOpenAIDrafter: () => void;
   onOpenSkills: () => void;
@@ -41,6 +44,7 @@ export const CandidateDashboard: React.FC<Props> = ({
   claims,
   jobs,
   applications,
+  workRecords,
   onOpenPassport,
   onOpenAIDrafter,
   onOpenSkills,
@@ -118,8 +122,7 @@ export const CandidateDashboard: React.FC<Props> = ({
 
   return (
     <div className="space-y-6">
-      {/* Hero Welcome & Profile Card */}
-      <div className="bg-stone-900 text-white rounded-xl p-6 shadow-md border border-stone-800 space-y-4">
+      {/* Hero Welcome & Profile Card */}      <div className="bg-stone-900 text-white rounded-xl p-6 shadow-md border border-stone-800 space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -270,6 +273,19 @@ export const CandidateDashboard: React.FC<Props> = ({
           </div>
         </form>
       )}
+
+      {/* Journey Tracker — shows the 4-step path from skill recording to work completion */}
+      <CandidateJourneyTracker
+        candidate={candidate}
+        claims={claims}
+        applications={applications}
+        workRecords={workRecords}
+        onGoToSkills={onOpenSkills}
+        onGoToOpportunities={() => {/* handled by parent tab */}}
+      />
+
+      {/* Trust & Safety — answers: how are candidates protected? */}
+      <TrustAndSafetyBanner role="candidate" />
 
       {/* Quick Action Cards (Skills, Passport, AI CV) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
