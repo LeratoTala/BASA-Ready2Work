@@ -1,0 +1,364 @@
+rules_version = '2';
+
+// BASA: Ready2Work - Firestore Security Rules
+// Principles: default deny, trusted roles, no hard-coded identities.
+//  - Admin/assessor status comes ONLY from the `admin` custom claim (see scripts/set-admin-claim.mjs).
+//  - Users may self-register as candidate or employer, but never as admin.
+//  - Candidates cannot touch verification labels or assessment results.
+//  - Employers only see applications for their own jobs.
+//  - Application status changes follow the same transitions as src/domain/applicationStatus.ts.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function signedIn() { return request.auth != null; }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function isAdmin() { return signedIn() && ('admin' in request.auth.token) && request.auth.token.admin == true; }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    function hasRole(role) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && userDoc().role == role
+        && userDoc().accountStatus == 'active';
+    }
+
+    function incoming() { return request.resource.data; }
+    function changedKeys() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    function validTransition(from, to) {
+      return (from == 'submitted'    && to in ['under_review', 'withdrawn'])
+          || (from == 'under_review' && to in ['shortlisted', 'not_selected', 'withdrawn'])
+          || (from == 'shortlisted'  && to in ['selected', 'not_selected', 'withdrawn'])
+          || (from == 'selected'     && to in ['completed', 'withdrawn']);
+    }
+
+    function isSubmittedApplicationFor(appId, candidateId, employerId) {
+      let appPath = /databases/$(database)/documents/applications/$(appId);
+      return existsAfter(appPath)
+        && getAfter(appPath).data.jobId + '_' + candidateId == appId
+        && getAfter(appPath).data.candidateId == candidateId
+        && getAfter(appPath).data.employerId == employerId
+        && getAfter(appPath).data.status == 'submitted';
+    }
+
+    function hasEmployerCandidateAccess(candidateId) {
+      return hasRole('employer')
+        && exists(/databases/$(database)/documents/employerCandidateAccess/$(request.auth.uid)/candidates/$(candidateId));
+    }
+
+    function hasShortlistContactAccess(candidateId) {
+      let accessPath = /databases/$(database)/documents/employerCandidateContactAccess/$(request.auth.uid)/candidates/$(candidateId);
+      return hasRole('employer')
+        && exists(accessPath)
+        && get(accessPath).data.candidateId == candidateId
+        && exists(/databases/$(database)/documents/applications/$(get(accessPath).data.applicationId))
+        && get(/databases/$(database)/documents/applications/$(get(accessPath).data.applicationId)).data.status in ['shortlisted', 'selected', 'completed'];
+    }
+
+    function validShortlistTransition(appId, candidateId, employerId) {
+      let appPath = /databases/$(database)/documents/applications/$(appId);
+      return exists(appPath)
+        && get(appPath).data.status == 'under_review'
+        && get(appPath).data.candidateId == candidateId
+        && get(appPath).data.employerId == employerId
+        && getAfter(appPath).data.status == 'shortlisted'
+        && getAfter(appPath).data.candidateId == candidateId
+        && getAfter(appPath).data.employerId == employerId;
+    }
+
+    // ---------- default deny ----------
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ---------- users ----------
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if false;
+      // Role and account status are immutable for the user; only admins (server-side) change them.
+      allow update: if (isOwner(uid) && changedKeys().hasOnly(['displayName', 'email'])) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------- candidate profiles ----------
+    match /candidateProfiles/{uid} {
+      allow read: if isOwner(uid) || isAdmin()
+        || (!resource.data.keys().hasAny(['phone', 'contactEmail'])
+          && hasEmployerCandidateAccess(uid)
+          && resource.data.popiaVisibility in ['public_link', 'employers_only']);
+      allow create: if isOwner(uid) && hasRole('candidate')
+        && incoming().uid == uid
+        && !incoming().keys().hasAny(['phone', 'contactEmail'])
+        && incoming().popiaVisibility in ['public_link', 'employers_only', 'private'];
+      allow update: if isOwner(uid) && hasRole('candidate')
+        && incoming().uid == uid
+        && !incoming().keys().hasAny(['phone', 'contactEmail'])
+        && incoming().popiaVisibility in ['public_link', 'employers_only', 'private'];
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // Contact details are stored separately because Firestore rules cannot redact document fields.
+    match /candidatePrivateProfiles/{uid} {
+      allow read: if isOwner(uid) || isAdmin() || hasShortlistContactAccess(uid);
+      allow create, update: if isOwner(uid) && hasRole('candidate')
+        && incoming().uid == uid
+        && incoming().keys().hasOnly(['uid', 'phone', 'contactEmail'])
+        && incoming().keys().hasAll(['uid'])
+        && (!('phone' in incoming()) || incoming().phone is string)
+        && (!('contactEmail' in incoming()) || incoming().contactEmail is string);
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // ---------- employer profiles ----------
+    match /employerProfiles/{uid} {
+      allow read: if signedIn();
+      allow create: if isOwner(uid) && hasRole('employer')
+        && incoming().uid == uid
+        && incoming().verificationStatus == 'pending'
+        && (!('plan' in incoming()) || incoming().plan == 'free')
+        && (!('planStatus' in incoming()) || incoming().planStatus in ['active', 'upgrade_pending'])
+        && !('planSince' in incoming())
+        && !('planExpiresAt' in incoming());
+      // Employers can update business info, but CANNOT self-assign plans (server/admin only)
+      allow update: if (isOwner(uid) && hasRole('employer')
+        && incoming().uid == uid
+        && incoming().verificationStatus == resource.data.verificationStatus
+        && !changedKeys().hasAny(['plan', 'planStatus', 'planSince', 'planExpiresAt'])) || isAdmin();
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // ---------- skill claims ----------
+    match /skillClaims/{claimId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.candidateId == request.auth.uid)
+        || (hasEmployerCandidateAccess(resource.data.candidateId)
+          && get(/databases/$(database)/documents/candidateProfiles/$(resource.data.candidateId)).data.popiaVisibility in ['public_link', 'employers_only']);
+      allow create: if hasRole('candidate')
+        && incoming().candidateId == request.auth.uid
+        && incoming().verificationStatus == 'Self-reported'
+        && !('assessmentId' in incoming());
+      // Candidates may edit their evidence text but never labels or assessment links.
+      allow update: if (hasRole('candidate')
+        && resource.data.candidateId == request.auth.uid
+        && !changedKeys().hasAny(['verificationStatus', 'assessmentId', 'candidateId'])) || isAdmin();
+      allow delete: if (signedIn() && resource.data.candidateId == request.auth.uid) || isAdmin();
+
+      // Section 35.1: Credential sub-records.
+      // checkStatus, checkedBy, checkedAt, and checkNote are strictly server/admin written.
+      match /credentials/{credentialId} {
+        allow read: if isAdmin()
+          || (signedIn() && get(/databases/$(database)/documents/skillClaims/$(claimId)).data.candidateId == request.auth.uid)
+          || hasEmployerCandidateAccess(get(/databases/$(database)/documents/skillClaims/$(claimId)).data.candidateId);
+        allow create: if (hasRole('candidate')
+          && get(/databases/$(database)/documents/skillClaims/$(claimId)).data.candidateId == request.auth.uid
+          && incoming().checkStatus == 'unchecked'
+          && !('checkedBy' in incoming())
+          && !('checkedAt' in incoming())
+          && !('checkNote' in incoming())) || isAdmin();
+        allow update: if isAdmin();
+        allow delete: if (hasRole('candidate')
+          && get(/databases/$(database)/documents/skillClaims/$(claimId)).data.candidateId == request.auth.uid) || isAdmin();
+      }
+    }
+
+    // ---------- assessments (assessors only write) ----------
+    match /assessments/{assessmentId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.candidateId == request.auth.uid);
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ---------- jobs ----------
+    match /jobs/{jobId} {
+      allow read: if signedIn();
+      allow create: if hasRole('employer')
+        && incoming().employerId == request.auth.uid
+        && incoming().status == 'open'
+        && incoming().reportCount == 0
+        && incoming().employerVerified == (get(/databases/$(database)/documents/employerProfiles/$(request.auth.uid)).data.verificationStatus == 'verified')
+        && incoming().compensationCurrency == 'ZAR'
+        && incoming().compensationUnit in ['hourly', 'daily', 'fixed']
+        && incoming().compensationAmount is number
+        && incoming().compensationAmount >= 0;
+      allow update: if (isOwner(resource.data.employerId)
+        && changedKeys().hasOnly(['status'])
+        && incoming().status in ['open', 'closed']
+        && resource.data.status != 'flagged') || isAdmin();
+      allow delete: if isOwner(resource.data.employerId) || isAdmin();
+    }
+
+    // ---------- applications ----------
+    // Document id MUST be "<jobId>_<candidateId>": one application per candidate per job.
+    match /applications/{applicationId} {
+      allow read: if isAdmin()
+        || (signedIn() && (resource.data.candidateId == request.auth.uid || resource.data.employerId == request.auth.uid));
+
+      allow create: if false;
+
+      allow update: if
+        // Candidate: withdraw only.
+        (isOwner(resource.data.candidateId)
+          && changedKeys().hasOnly(['status', 'updatedAt'])
+          && incoming().status == 'withdrawn'
+          && validTransition(resource.data.status, 'withdrawn'))
+        // Employer: move through valid transitions on own jobs.
+        || (isOwner(resource.data.employerId) && hasRole('employer')
+          && changedKeys().hasOnly(['status', 'updatedAt', 'employerNotes'])
+          && incoming().status != 'withdrawn'
+          && validTransition(resource.data.status, incoming().status))
+        || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Access is granted atomically with a valid application and is used to gate employer-only profiles/evidence.
+    match /employerCandidateAccess/{employerId}/candidates/{candidateId} {
+      allow read: if isAdmin() || isOwner(employerId) || isOwner(candidateId);
+      allow create, update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // Shortlist decisions are the only operation that grants an employer contact access.
+    match /employerCandidateContactAccess/{employerId}/candidates/{candidateId} {
+      allow read: if isAdmin() || isOwner(employerId) || isOwner(candidateId);
+      allow create, update: if hasRole('employer') && isOwner(employerId)
+        && incoming().keys().hasOnly(['candidateId', 'employerId', 'applicationId', 'grantedAt'])
+        && incoming().keys().hasAll(['candidateId', 'employerId', 'applicationId', 'grantedAt'])
+        && incoming().candidateId == candidateId
+        && incoming().employerId == employerId
+        && incoming().applicationId is string
+        && validShortlistTransition(incoming().applicationId, candidateId, employerId)
+        && incoming().grantedAt is string;
+      allow delete: if isAdmin();
+    }
+
+    // ---------- work records ----------
+    match /workRecords/{recordId} {
+      allow read: if isAdmin()
+        || (signedIn() && (resource.data.candidateId == request.auth.uid || resource.data.employerId == request.auth.uid));
+      allow create: if hasRole('employer')
+        && incoming().keys().hasOnly([
+          'id', 'applicationId', 'jobId', 'jobTitle', 'candidateId', 'candidateName',
+          'employerId', 'employerName', 'completionStatus', 'employerConfirmed',
+          'payoutConfirmed', 'amountZAR', 'feedback', 'confirmedAt'
+        ])
+        && incoming().keys().hasAll([
+          'id', 'applicationId', 'jobId', 'jobTitle', 'candidateId', 'candidateName',
+          'employerId', 'employerName', 'completionStatus', 'employerConfirmed',
+          'payoutConfirmed', 'amountZAR', 'feedback', 'confirmedAt'
+        ])
+        && incoming().id == recordId
+        && incoming().applicationId is string
+        && exists(/databases/$(database)/documents/applications/$(incoming().applicationId))
+        && get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.status == 'selected'
+        && getAfter(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.status == 'completed'
+        && get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.employerId == request.auth.uid
+        && incoming().employerId == request.auth.uid
+        && incoming().jobId == get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.jobId
+        && incoming().jobTitle == get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.jobTitle
+        && incoming().candidateId == get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.candidateId
+        && incoming().candidateName == get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.candidateName
+        && incoming().employerName == get(/databases/$(database)/documents/applications/$(incoming().applicationId)).data.employerName
+        && incoming().completionStatus == 'completed'
+        && incoming().employerConfirmed == true
+        && incoming().payoutConfirmed is bool
+        && incoming().amountZAR is number
+        && incoming().amountZAR == get(/databases/$(database)/documents/jobs/$(incoming().jobId)).data.compensationAmount
+        && incoming().feedback is string
+        && incoming().confirmedAt is string;
+      allow update: if false;
+      allow delete: if isAdmin();
+    }
+
+    // ---------- moderation reports ----------
+    match /reports/{reportId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.reporterId == request.auth.uid);
+      allow create: if signedIn() && incoming().reporterId == request.auth.uid && incoming().status == 'pending';
+      allow update, delete: if isAdmin();
+    }
+
+    // Deletion requests are review tickets; completion requires the operator's documented retention process.
+    match /privacyDeletionRequests/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if hasRole('candidate') && isOwner(uid)
+        && incoming().keys().hasOnly(['uid', 'status', 'requestedAt', 'updatedAt'])
+        && incoming().keys().hasAll(['uid', 'status', 'requestedAt', 'updatedAt'])
+        && incoming().uid == uid
+        && incoming().status == 'pending'
+        && incoming().requestedAt is string
+        && incoming().updatedAt is string;
+      allow update: if isAdmin()
+        && changedKeys().hasOnly(['status', 'updatedAt', 'reviewedBy'])
+        && incoming().reviewedBy == request.auth.uid
+        && incoming().updatedAt is string
+        && ((resource.data.status == 'pending' && incoming().status in ['in_review', 'declined'])
+          || (resource.data.status == 'in_review' && incoming().status == 'declined'));
+      allow delete: if false;
+    }
+
+    // ---------- feature flags (Section 20) ----------
+    match /config/featureFlags {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- areas & centroids (R2 / FR-16) ----------
+    match /areas/{areaId} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- notifications (R1 / FR-15) ----------
+    match /notifications/{notificationId} {
+      allow read: if (signedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow create: if false; // server-side / Admin SDK only to ensure idempotency & prevent forgery
+      allow update: if signedIn() && resource.data.userId == request.auth.uid
+        && changedKeys().hasOnly(['readAt'])
+        && (incoming().readAt is string || incoming().readAt == null);
+      allow delete: if (signedIn() && resource.data.userId == request.auth.uid) || isAdmin();
+    }
+
+    match /notificationPreferences/{userId} {
+      allow read, write: if isOwner(userId) || isAdmin();
+    }
+
+    // ---------- verification flows: peer endorsements & mentor reviews (R3 / FR-19) ----------
+    match /endorsements/{endorsementId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && incoming().candidateId == request.auth.uid
+        && incoming().status == 'pending'
+        && incoming().id == endorsementId;
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /mentorReviews/{reviewId} {
+      allow read: if (signedIn() && resource.data.candidateId == request.auth.uid) || isAdmin();
+      allow create, update: if isAdmin()
+        && incoming().id == reviewId
+        && incoming().decision in ['approved', 'needs_more_evidence', 'rejected'];
+      allow delete: if isAdmin();
+    }
+
+    // ---------- employer upgrade requests (Section 39) ----------
+    match /upgradeRequests/{requestId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.employerUid == request.auth.uid);
+      allow create: if hasRole('employer')
+        && incoming().employerUid == request.auth.uid
+        && incoming().status == 'pending'
+        && !('reviewedBy' in incoming())
+        && !('reviewedAt' in incoming());
+      allow update, delete: if isAdmin();
+    }
+
+    // ---------- employer downgrade requests ----------
+    match /downgradeRequests/{requestId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.employerUid == request.auth.uid);
+      allow create: if hasRole('employer')
+        && incoming().employerUid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+  }
+}

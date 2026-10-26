@@ -1,0 +1,275 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User account identity and role representation",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["candidate", "employer", "admin"] },
+        "createdAt": { "type": "string" },
+        "accountStatus": { "type": "string", "enum": ["active", "suspended"] }
+      },
+      "required": ["uid", "displayName", "email", "role"]
+    },
+    "CandidateProfile": {
+      "title": "CandidateProfile",
+      "description": "Candidate public and verified profile data",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "fullName": { "type": "string" },
+        "headline": { "type": "string" },
+        "experienceSummary": { "type": "string" },
+        "locationArea": { "type": "string" },
+        "availability": { "type": "string", "enum": ["immediate", "part_time", "full_time", "weekends"] },
+        "popiaVisibility": { "type": "string", "enum": ["public_link", "employers_only", "private"] },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "fullName", "headline", "locationArea", "availability"]
+    },
+    "CandidatePrivateProfile": {
+      "title": "CandidatePrivateProfile",
+      "description": "Candidate contact details, private until owner or shortlisted employer access",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "phone": { "type": "string" },
+        "contactEmail": { "type": "string", "format": "email" }
+      },
+      "required": ["uid"]
+    },
+    "EmployerCandidateAccess": {
+      "title": "EmployerCandidateAccess",
+      "description": "Candidate-authorized employer access created with an application",
+      "type": "object",
+      "properties": {
+        "candidateId": { "type": "string" },
+        "employerId": { "type": "string" },
+        "applicationIds": { "type": "array", "items": { "type": "string" } },
+        "latestApplicationId": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["candidateId", "employerId", "applicationIds", "latestApplicationId"]
+    },
+    "EmployerCandidateContactAccess": {
+      "title": "EmployerCandidateContactAccess",
+      "description": "Employer contact access granted by a valid shortlist transition",
+      "type": "object",
+      "properties": {
+        "candidateId": { "type": "string" },
+        "employerId": { "type": "string" },
+        "applicationId": { "type": "string" },
+        "grantedAt": { "type": "string" }
+      },
+      "required": ["candidateId", "employerId", "applicationId", "grantedAt"]
+    },
+    "EmployerProfile": {
+      "title": "EmployerProfile",
+      "description": "Registered business profile and details",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "businessName": { "type": "string" },
+        "industry": { "type": "string" },
+        "description": { "type": "string" },
+        "locationArea": { "type": "string" },
+        "verificationStatus": { "type": "string", "enum": ["verified", "pending", "unverified"] },
+        "contactEmail": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["uid", "businessName", "locationArea"]
+    },
+    "SkillClaim": {
+      "title": "SkillClaim",
+      "description": "Practical skill claims with evidence and honest verification status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "candidateId": { "type": "string" },
+        "skillId": { "type": "string" },
+        "skillName": { "type": "string" },
+        "selfReportedLevel": { "type": "string", "enum": ["Beginner", "Intermediate", "Proficient"] },
+        "evidenceType": { "type": "string" },
+        "evidenceTitle": { "type": "string" },
+        "evidenceDescription": { "type": "string" },
+        "evidenceUrlOrText": { "type": "string", "description": "Evidence summary text or private Firebase Storage object path" },
+        "verificationStatus": { "type": "string", "enum": ["Self-reported", "Peer-endorsed", "Task-assessed", "Mentor-reviewed"] },
+        "peerEndorserName": { "type": "string" },
+        "peerEndorserContact": { "type": "string" },
+        "assessmentId": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "candidateId", "skillName", "verificationStatus"]
+    },
+    "Job": {
+      "title": "Job",
+      "description": "Posted opportunities with transparent ZAR compensation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employerId": { "type": "string" },
+        "employerName": { "type": "string" },
+        "employerVerified": { "type": "boolean" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "locationArea": { "type": "string" },
+        "workMode": { "type": "string", "enum": ["In-person", "Hybrid", "Remote"] },
+        "compensationAmount": { "type": "number" },
+        "compensationCurrency": { "type": "string", "enum": ["ZAR"] },
+        "compensationUnit": { "type": "string", "enum": ["hourly", "daily", "fixed"] },
+        "startDate": { "type": "string" },
+        "applicationDeadline": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "closed", "flagged"] },
+        "reportCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "employerId", "title", "compensationAmount", "status"]
+    },
+    "Application": {
+      "title": "Application",
+      "description": "Candidate application to job with match score and status transitions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "jobId": { "type": "string" },
+        "jobTitle": { "type": "string" },
+        "employerId": { "type": "string" },
+        "employerName": { "type": "string" },
+        "candidateId": { "type": "string" },
+        "candidateName": { "type": "string" },
+        "candidateHeadline": { "type": "string" },
+        "candidateLocation": { "type": "string" },
+        "candidateAvailability": { "type": "string" },
+        "status": { "type": "string", "enum": ["submitted", "under_review", "shortlisted", "selected", "not_selected", "completed", "withdrawn"] },
+        "matchScore": { "type": "number" },
+        "submittedAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "employerNotes": { "type": "string" }
+      },
+      "required": ["id", "jobId", "employerId", "candidateId", "status"]
+    },
+    "WorkRecord": {
+      "title": "WorkRecord",
+      "description": "Employer-reported work completion and separate payout status",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "applicationId": { "type": "string" },
+        "jobId": { "type": "string" },
+        "candidateId": { "type": "string" },
+        "employerId": { "type": "string" },
+        "completionStatus": { "type": "string", "enum": ["completed", "disputed"] },
+        "employerConfirmed": { "type": "boolean" },
+        "payoutConfirmed": { "type": "boolean" },
+        "amountZAR": { "type": "number" },
+        "feedback": { "type": "string" },
+        "confirmedAt": { "type": "string" }
+      },
+      "required": ["id", "jobId", "candidateId", "employerId", "completionStatus"]
+    },
+    "AssessmentRecord": {
+      "title": "AssessmentRecord",
+      "description": "Rubric assessment records created by authorized BASA assessors",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "candidateId": { "type": "string" },
+        "skillId": { "type": "string" },
+        "skillName": { "type": "string" },
+        "score": { "type": "number" },
+        "assessorId": { "type": "string" },
+        "assessorName": { "type": "string" },
+        "decision": { "type": "string", "enum": ["approved", "revision_requested", "rejected"] },
+        "feedback": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "candidateId", "skillName", "score", "assessorId", "decision"]
+    },
+    "ModerationReport": {
+      "title": "ModerationReport",
+      "description": "Safety, scam, and POPIA privacy reports",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "targetType": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetTitle": { "type": "string" },
+        "reason": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "resolved", "dismissed"] },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "reporterId", "targetId", "reason", "status"]
+    },
+    "PrivacyDeletionRequest": {
+      "title": "PrivacyDeletionRequest",
+      "description": "Minimal request for an operator to review eligible account-data deletion",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "in_review", "declined"] },
+        "requestedAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "reviewedBy": { "type": "string" }
+      },
+      "required": ["uid", "status", "requestedAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User account documents"
+    },
+    "/candidateProfiles/{candidateId}": {
+      "schema": { "$ref": "#/entities/CandidateProfile" },
+      "description": "Employer-shareable candidate profile fields; contact details are stored separately"
+    },
+    "/candidatePrivateProfiles/{candidateId}": {
+      "schema": { "$ref": "#/entities/CandidatePrivateProfile" },
+      "description": "Owner-private contact details; available to employers only after a valid shortlist"
+    },
+    "/employerCandidateAccess/{employerId}/candidates/{candidateId}": {
+      "schema": { "$ref": "#/entities/EmployerCandidateAccess" },
+      "description": "Candidate-authorized profile and evidence access following an application"
+    },
+    "/employerCandidateContactAccess/{employerId}/candidates/{candidateId}": {
+      "schema": { "$ref": "#/entities/EmployerCandidateContactAccess" },
+      "description": "Shortlist-scoped employer access to candidate contact details"
+    },
+    "/employerProfiles/{employerId}": {
+      "schema": { "$ref": "#/entities/EmployerProfile" },
+      "description": "Employer business profiles"
+    },
+    "/skillClaims/{claimId}": {
+      "schema": { "$ref": "#/entities/SkillClaim" },
+      "description": "Practical skill claims and evidence"
+    },
+    "/jobs/{jobId}": {
+      "schema": { "$ref": "#/entities/Job" },
+      "description": "Available work opportunities"
+    },
+    "/applications/{applicationId}": {
+      "schema": { "$ref": "#/entities/Application" },
+      "description": "Candidate applications"
+    },
+    "/workRecords/{workRecordId}": {
+      "schema": { "$ref": "#/entities/WorkRecord" },
+      "description": "Completed work confirmations"
+    },
+    "/assessments/{assessmentId}": {
+      "schema": { "$ref": "#/entities/AssessmentRecord" },
+      "description": "Assessor rubric scorecards"
+    },
+    "/reports/{reportId}": {
+      "schema": { "$ref": "#/entities/ModerationReport" },
+      "description": "Fraud and safety moderation reports"
+    },
+    "/privacyDeletionRequests/{uid}": {
+      "schema": { "$ref": "#/entities/PrivacyDeletionRequest" },
+      "description": "Candidate-owned deletion request and admin review state; does not represent completed deletion"
+    }
+  }
+}
