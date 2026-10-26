@@ -833,6 +833,17 @@ export function useFirestoreStore(): BasaStore {
     if (job.status === 'flagged' && user.role !== 'admin') {
       throw new Error('This listing was suspended by a moderator.');
     }
+    // Invariant: Employers must update each applicant's status before closing a job
+    if (job.status === 'open' && user.role === 'employer') {
+      const pendingApplicants = applications.filter(
+        (a) => a.jobId === jobId && a.status === 'submitted'
+      );
+      if (pendingApplicants.length > 0) {
+        throw new Error(
+          `Cannot close job: Please update the status of each applicant before closing. There are ${pendingApplicants.length} applicant(s) still in 'Submitted' awaiting your review.`
+        );
+      }
+    }
     fire(updateDoc(doc(db, COLLECTIONS.jobs, jobId), { status: job.status === 'open' ? 'closed' : 'open' }));
   };
 

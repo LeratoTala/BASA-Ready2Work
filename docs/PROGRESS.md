@@ -2,7 +2,7 @@
 
 **Updated:** 2026-10-26  
 **Auditor / Agent:** BASA Ready2Work Engineering Agent  
-**Build & Test State:** Clean build · 0 TypeScript errors · 111 / 111 unit & domain tests passing across 38 suites.
+**Build & Test State:** Clean build · 0 TypeScript errors · 121 / 121 unit & domain tests passing across 40 suites.
 
 ---
 
@@ -43,26 +43,31 @@ The BASA: Ready2Work platform has completed all core functional requirements and
 | **FR-20** | **Decoupled Payout Confirmation** | **Done** | Work completion decoupled from payout; employer must explicitly confirm payment before status shows `paid`. |
 | **FR-21** | **Badges & Multi-Skill Credentials** | **Done** | Single certificate or badge links across multiple practical skills; batch verification on passport upon assessor approval. |
 | **FR-22** | **National Minimum Wage Compliance** | **Done** | Automated statutory checks ($\ge \text{R}27.58/\text{hr}$) on Admin Job Inspector. |
+| **FR-23** | **Candidate Categorized Job Views** | **Done** | 4 distinct candidate views: Available (unapplied only; hides applied jobs to prevent duplicates), Applied (shows live review status), Completed (tracks paid vs payment pending), and All Jobs (shows application status across all posts). |
+| **FR-24** | **Job Closure Guard, Reopening & Job ID Visibility** | **Done** | Employers must update every applicant's status before closing a job; reopening support; persistent Job ID (#job-id) on every card; completed view tracks whether the job is currently open or closed; applied & all jobs display closed jobs with status badges. |
+| **FR-25** | **Grade 6 Plain-Language Accessibility** | **Done** | Simplified candidate and employer interfaces using everyday English instead of technical jargon; clear matching formula breakdown; plain privacy disclosures; intuitive tab guidance banners. |
 
 ---
 
-## 3. Automated Test Suite (111 Tests / 38 Suites)
+## 3. Automated Test Suite (121 Tests / 40 Suites)
 
-All 111 unit, domain, and integration tests pass with 0 failures:
+All 121 unit, domain, and integration tests pass with 0 failures:
 
 1. `aiEvidenceAnalysis.test.ts`: AI certificate parsing, safety indicator extraction, assessor score suggestions.
 2. `applicationStatus.test.ts`: Status transition matrix, terminal state enforcement, deterministic duplicate prevention.
-3. `authIdentity.test.ts`: Trusted account registration, minimum-age attestation, role privilege denial.
-4. `coreJourney.test.ts`: Section 28 end-to-end integration test (steps 1 to 7).
-5. `credentialEvidence.test.ts`: Form validation, SSRF prevention, salted duplicate hashes, label mapping.
-6. `customSkills.test.ts`: Expanded 36-skill catalogue, custom employer skills matching, dynamic rubric templates.
-7. `fraudProtection.test.ts`: Unverified employer gating, auto-hiding reported jobs, contact masking, endorsement ring detection.
-8. `locationCentroids.test.ts`: Distance filtering, metro clustering, zero-GPS POPIA privacy guarantee.
-9. `matching.test.ts`: Deterministic matching weights ($0.50, 0.25, 0.15, 0.10$), tie stability, explainable breakdowns.
-10. `multiSkillCredential.test.ts`: 1 badge catering to multiple skills, batch passport upgrades, SA NMW calculations, feedback recording.
-11. `notifications.test.ts`: Idempotent notifications, notification preference filtering, contact data safety.
-12. `pilotMetrics.test.ts`: Funnel stage counting, verified skills breakdown, repeat engagement tracking.
-13. `verificationFlows.test.ts`: 100-pt rubric grading, peer endorsement workflow, mentor review workflow.
-14. `workCompletionPayout.test.ts`: Work completion vs payout decoupling, candidate pipeline separation.
-15. `evidenceStorage.test.ts`: File upload MIME type and 5 MB size limit validation.
-16. `maskContact.test.ts`: POPIA phone and email masking.
+3. `candidateJobViews.test.ts`: 4-tab candidate job filtering (Available, Applied, Completed, All), unapplied isolation, and payout tracking.
+4. `jobStatusManagement.test.ts`: Job closure guard enforcing applicant status updates before closing, reopening support, and listing status badges.
+5. `authIdentity.test.ts`: Trusted account registration, minimum-age attestation, role privilege denial.
+6. `coreJourney.test.ts`: Section 28 end-to-end integration test (steps 1 to 7).
+7. `credentialEvidence.test.ts`: Form validation, SSRF prevention, salted duplicate hashes, label mapping.
+8. `customSkills.test.ts`: Expanded 36-skill catalogue, custom employer skills matching, dynamic rubric templates.
+9. `fraudProtection.test.ts`: Unverified employer gating, auto-hiding reported jobs, contact masking, endorsement ring detection.
+10. `locationCentroids.test.ts`: Distance filtering, metro clustering, zero-GPS POPIA privacy guarantee.
+11. `matching.test.ts`: Deterministic matching weights ($0.50, 0.25, 0.15, 0.10$), tie stability, explainable breakdowns.
+12. `multiSkillCredential.test.ts`: 1 badge catering to multiple skills, batch passport upgrades, SA NMW calculations, feedback recording.
+13. `notifications.test.ts`: Idempotent notifications, notification preference filtering, contact data safety.
+14. `pilotMetrics.test.ts`: Funnel stage counting, verified skills breakdown, repeat engagement tracking.
+15. `verificationFlows.test.ts`: 100-pt rubric grading, peer endorsement workflow, mentor review workflow.
+16. `workCompletionPayout.test.ts`: Work completion vs payout decoupling, candidate pipeline separation.
+17. `evidenceStorage.test.ts`: File upload MIME type and 5 MB size limit validation.
+18. `maskContact.test.ts`: POPIA phone and email masking.

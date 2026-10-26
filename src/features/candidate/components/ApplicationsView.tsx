@@ -17,6 +17,30 @@ const STATUS_PROGRESSION: ApplicationStatus[] = [
 
 export const ApplicationsView: React.FC<Props> = ({ applications, onWithdraw }) => {
   const [notification, setNotification] = useState<string | null>(null);
+  const [filter, setFilter] = useState<'all' | 'in_progress' | 'completed_paid' | 'completed_pending'>('all');
+
+  const inProgressCount = applications.filter(
+    (a) => a.status !== 'completed' && a.status !== 'not_selected' && a.status !== 'withdrawn'
+  ).length;
+  const completedPaidCount = applications.filter(
+    (a) => a.status === 'completed' && a.payoutConfirmed
+  ).length;
+  const completedPendingCount = applications.filter(
+    (a) => a.status === 'completed' && !a.payoutConfirmed
+  ).length;
+
+  const filteredApplications = applications.filter((app) => {
+    if (filter === 'in_progress') {
+      return app.status !== 'completed' && app.status !== 'not_selected' && app.status !== 'withdrawn';
+    }
+    if (filter === 'completed_paid') {
+      return app.status === 'completed' && app.payoutConfirmed;
+    }
+    if (filter === 'completed_pending') {
+      return app.status === 'completed' && !app.payoutConfirmed;
+    }
+    return true;
+  });
 
   const handleWithdrawClick = (appId: string) => {
     if (confirm('Are you sure you want to withdraw this application?')) {
@@ -32,11 +56,61 @@ export const ApplicationsView: React.FC<Props> = ({ applications, onWithdraw }) 
 
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-xl border border-stone-200 p-6">
-        <h2 className="text-xl font-bold text-stone-900">Your Submitted Applications</h2>
-        <p className="text-xs text-stone-500 mt-1">
-          Track application status in real-time. Statuses advance through verified employer reviews.
-        </p>
+      <div className="bg-white rounded-xl border border-stone-200 p-6 space-y-4">
+        <div>
+          <h2 className="text-xl font-bold text-stone-900">Your Submitted Applications</h2>
+          <p className="text-xs text-stone-500 mt-1">
+            Track application status in real-time. Statuses advance through verified employer reviews.
+          </p>
+        </div>
+
+        {/* Filter Tabs */}
+        <div className="flex flex-wrap items-center gap-1.5 p-1 bg-stone-100 rounded-xl border border-stone-200 text-xs">
+          <button
+            type="button"
+            onClick={() => setFilter('all')}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+              filter === 'all'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-stone-700 hover:text-stone-900 hover:bg-stone-200/70'
+            }`}
+          >
+            All Applications ({applications.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('in_progress')}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+              filter === 'in_progress'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-stone-700 hover:text-stone-900 hover:bg-stone-200/70'
+            }`}
+          >
+            In Review ({inProgressCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('completed_paid')}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+              filter === 'completed_paid'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-stone-700 hover:text-stone-900 hover:bg-stone-200/70'
+            }`}
+          >
+            Completed &amp; Paid ({completedPaidCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('completed_pending')}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+              filter === 'completed_pending'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'text-stone-700 hover:text-stone-900 hover:bg-stone-200/70'
+            }`}
+          >
+            Waiting for Payment ({completedPendingCount})
+          </button>
+        </div>
       </div>
 
       {notification && (
@@ -45,16 +119,16 @@ export const ApplicationsView: React.FC<Props> = ({ applications, onWithdraw }) 
         </div>
       )}
 
-      {applications.length === 0 ? (
+      {filteredApplications.length === 0 ? (
         <div className="bg-white rounded-xl border border-stone-200 p-10 text-center space-y-2">
-          <p className="text-sm font-semibold text-stone-700">No applications submitted yet</p>
+          <p className="text-sm font-semibold text-stone-700">No applications in this category</p>
           <p className="text-xs text-stone-500">
             Head to Opportunities to discover jobs matching your Skill Passport!
           </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {applications.map((app) => {
+          {filteredApplications.map((app) => {
             const isTerminal = app.status === 'not_selected' || app.status === 'withdrawn';
             const isCompleted = app.status === 'completed';
 
@@ -65,7 +139,12 @@ export const ApplicationsView: React.FC<Props> = ({ applications, onWithdraw }) 
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h3 className="font-bold text-base text-stone-900">{app.jobTitle}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-base text-stone-900">{app.jobTitle}</h3>
+                      <span className="font-mono text-[10px] font-bold text-stone-500 bg-stone-100 border border-stone-200 px-1.5 py-0.5 rounded">
+                        Job ID: #{app.jobId}
+                      </span>
+                    </div>
                     <div className="flex items-center gap-2 text-xs text-stone-500 pt-0.5">
                       <span className="flex items-center gap-1 font-medium text-stone-700">
                         <Building2 className="w-3.5 h-3.5" />

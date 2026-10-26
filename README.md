@@ -65,6 +65,24 @@ Use this quick-reference directory to find the exact documentation file for your
 ### 6. Multiple Admin Accounts
 * Pre-seeded with multiple administrative accounts (e.g., **Nomsa Dlamini** for practical rubric assessments, and **Sipho Mthethwa** for platform moderation & wage compliance).
 
+### 7. Categorized Candidate Job Views (Available, Applied, Completed, All)
+* **Available Jobs:** Lists open opportunities the candidate has not applied to yet. Once a candidate applies, the post is automatically removed from this view to prevent duplicate applications.
+* **Applied Jobs:** Shows live status for active applications in the employer review pipeline (`Under Review`, `Shortlisted`, `Selected`, etc.).
+* **Completed Jobs:** Tracks finished work engagements and displays transparent payout status: **Paid** (employer confirmed) vs **Payment Pending** (waiting for employer confirmation).
+* **All Jobs:** Complete overview of all opportunities on the platform, showing live application status badges on every applied post.
+
+### 8. Job Closure Guard, Reopening & ID Transparency
+* **Applicant Status Update Invariant:** Employers must update each applicant's status before closing a job listing; the system strictly guards against leaving applicants in unreviewed 'Submitted' limbo.
+* **Job Reopening Support:** Closed listings can be reopened by employers, making them immediately available to new candidates.
+* **Job ID Transparency:** Every job card across candidate and employer portals displays its persistent identifier (`Job ID: #job-id`).
+* **Completed & Applied Listing Status:** Completed engagements show whether the underlying job is currently open or closed; Applied and All Jobs views clearly display closed listings with status chips.
+
+### 9. Grade 6 Plain Language Accessibility
+* **Everyday Terms Over Technical Jargon:** Candidate and employer interfaces use plain Grade 6 English so youth jobseekers and micro-employers can navigate effortlessly.
+* **Transparent Matching Formula:** Jargon like "deterministic fit ranking" is replaced with clear terms: *"Skills you have (50%) + Proof & evidence (25%) + Available hours (15%) + How close it is (10%)"*.
+* **Privacy Clarity:** POPIA centroid calculations are clearly explained as *"Privacy Protected: Town or area only (Zero live GPS tracking)"*.
+* **Intuitive Action Guidance:** Every tab (Available, Applied, Completed, All) provides plain-language instructions on what to expect and why jobs move between views.
+
 ---
 
 ## Supported Operating Systems & Cross-Platform Access
@@ -167,7 +185,7 @@ Always run these commands before submitting changes:
 # TypeScript compiler check (must return 0 errors)
 npm run typecheck
 
-# Full test suite (111 tests across 38 suites)
+# Full test suite (121 tests across 40 suites)
 npm test
 
 # Production bundle build
@@ -181,7 +199,7 @@ npm run build
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Start development server with hot module reloading (HMR) |
-| `npm test` | Run full automated test suite (111 tests across 38 suites) |
+| `npm test` | Run full automated test suite (121 tests across 40 suites) |
 | `npm run typecheck` | Verify TypeScript compilation with zero emitted errors |
 | `npm run build` | Build optimized client bundle for production to `dist/` |
 | `npm start` | Run server in production mode |

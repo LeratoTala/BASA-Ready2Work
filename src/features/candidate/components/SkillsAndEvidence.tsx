@@ -285,11 +285,11 @@ export const SkillsAndEvidence: React.FC<Props> = ({
                   onChange={(e) => setEvidenceType(e.target.value as any)}
                   className="w-full border border-stone-300 rounded p-2 text-xs bg-white text-stone-800"
                 >
-                  <option value="reference_note">Reference note details</option>
-                  <option value="client_review">Customer or community feedback summary</option>
-                  <option value="practical_demo">Practical demonstration details</option>
-                  <option value="work_sample">Work sample description</option>
-                  <option value="photo_video">Photo or video evidence description</option>
+                  <option value="reference_note">Written letter or reference note</option>
+                  <option value="client_review">Customer review or community feedback</option>
+                  <option value="practical_demo">In-person demonstration or trial</option>
+                  <option value="work_sample">Work sample or document (e.g. certificate, receipt, invoice)</option>
+                  <option value="photo_video">Photo or video of your work</option>
                 </select>
               </div>
             </div>
@@ -310,7 +310,7 @@ export const SkillsAndEvidence: React.FC<Props> = ({
               <label className="block font-semibold text-stone-700 mb-1">
                 Detailed Description of Duties & Tools Used
               </label>
-              <p className="text-[11px] text-stone-500 mb-1">Do not include private contact details. This form stores a text description, not a file.</p>
+              <p className="text-[11px] text-stone-500 mb-1">Do not include private phone numbers or IDs. Explain what you did and the tools you used.</p>
               <textarea
                 rows={3}
                 required

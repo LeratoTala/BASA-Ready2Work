@@ -17,6 +17,11 @@ import {
 } from 'lucide-react';
 import { Application, CandidateProfile, Job, MatchBreakdown, SkillClaim, WorkRecord } from '../../../domain/types';
 import { calculateMatchScore } from '../../../domain/matching';
+import {
+  classifyCandidateJobs,
+  filterCandidateJobs,
+  CandidateJobFilter,
+} from '../../../domain/candidateJobViews';
 import { FEATURE_FLAGS } from '../../../config/featureFlags';
 import type { ProfileDraft } from '../../../app/store/useLocalPrefs';
 import { CandidateJourneyTracker } from '../../../shared/components/CandidateJourneyTracker';
@@ -62,6 +67,9 @@ export const CandidateDashboard: React.FC<Props> = ({
   const [draftSavedAlert, setDraftSavedAlert] = useState(false);
 
   // R2 / FR-16: Location-aware filters
+  // 4-Tab Job Category: available, applied, completed, all
+  const [jobFilter, setJobFilter] = useState<CandidateJobFilter>('available');
+
   const [selectedMaxDistance, setSelectedMaxDistance] = useState<number | null>(null);
   const [selectedWorkMode, setSelectedWorkMode] = useState<'all' | 'in_person' | 'remote'>('all');
 
@@ -73,18 +81,20 @@ export const CandidateDashboard: React.FC<Props> = ({
     completionScore += 20;
   }
 
-  // Calculate matching scores for open jobs
-  const openJobs = jobs.filter((j) => j.status === 'open');
-  const scoredJobs = openJobs.map((job) => {
-    const breakdown = calculateMatchScore(job, candidate, claims);
-    return { job, breakdown };
-  });
+  // Classify all jobs linking each to active or completed applications and payout status
+  const classifiedJobs = classifyCandidateJobs(jobs, candidate, claims, applications);
 
-  // Sort descending by total match score M
-  scoredJobs.sort((a, b) => b.breakdown.totalScore - a.breakdown.totalScore);
+  // Counters for the 4 candidate views
+  const availableCount = filterCandidateJobs(classifiedJobs, 'available').length;
+  const appliedCount = filterCandidateJobs(classifiedJobs, 'applied').length;
+  const completedCount = filterCandidateJobs(classifiedJobs, 'completed').length;
+  const allCount = filterCandidateJobs(classifiedJobs, 'all').length;
+
+  // Filter according to selected tab (available, applied, completed, all)
+  const tabJobs = filterCandidateJobs(classifiedJobs, jobFilter);
 
   // Filter opportunities by location, reachable distance & work mode (FR-16)
-  const filteredScoredJobs = scoredJobs.filter(({ job, breakdown }) => {
+  const filteredScoredJobs = tabJobs.filter(({ job, breakdown }) => {
     if (!FEATURE_FLAGS.locationFilters) return true;
 
     const isRemote = job.workMode === 'Remote';
@@ -185,7 +195,7 @@ export const CandidateDashboard: React.FC<Props> = ({
         {/* Profile Completion Indicator (C-01) */}
         <div className="pt-2 border-t border-stone-800/80">
           <div className="flex items-center justify-between text-xs mb-1.5">
-            <span className="text-stone-400">Passport Readiness:</span>
+            <span className="text-stone-400">Profile Completion:</span>
             <span className="font-bold text-amber-400">{completionScore}% Ready</span>
           </div>
           <div className="w-full bg-stone-800 rounded-full h-2 overflow-hidden">
@@ -338,18 +348,127 @@ export const CandidateDashboard: React.FC<Props> = ({
         </button>
       </div>
 
-      {/* Recommended Opportunities Ranked by M = 0.50S + 0.25E + 0.15A + 0.10L */}
+      {/* Opportunities & Applications Section with 4 Category Tabs */}
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <h2 className="text-lg font-bold text-stone-900">Recommended Opportunities</h2>
+            <h2 className="text-lg font-bold text-stone-900">Opportunities &amp; Applications</h2>
             <p className="text-xs text-stone-500">
-              Ranked by an explainable fit guide—not hiring odds. Skills (50%) + Evidence (25%) + Availability (15%) + Location (10%).
+              How we match you: Skills you have (50%) + Proof & evidence (25%) + Available hours (15%) + How close it is (10%).
             </p>
           </div>
           <span className="text-xs text-stone-500 font-medium">
-            {filteredScoredJobs.length} of {scoredJobs.length} open jobs shown
+            {filteredScoredJobs.length} of {tabJobs.length} shown in this view
           </span>
+        </div>
+
+        {/* 4-Tab Segmented Control: Available, Applied, Completed, All */}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-1.5 p-1 bg-stone-100 rounded-xl border border-stone-200">
+            <button
+              type="button"
+              onClick={() => setJobFilter('available')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                jobFilter === 'available'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-stone-700 hover:text-stone-900 hover:bg-stone-200/70'
+              }`}
+            >
+              <span>Available Jobs</span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                  jobFilter === 'available'
+                    ? 'bg-amber-800 text-white'
+                    : 'bg-stone-200 text-stone-700'
+                }`}
+              >
+                {availableCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setJobFilter('applied')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                jobFilter === 'applied'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-stone-700 hover:text-stone-900 hover:bg-stone-200/70'
+              }`}
+            >
+              <span>Applied</span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                  jobFilter === 'applied'
+                    ? 'bg-amber-800 text-white'
+                    : 'bg-stone-200 text-stone-700'
+                }`}
+              >
+                {appliedCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setJobFilter('completed')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                jobFilter === 'completed'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-stone-700 hover:text-stone-900 hover:bg-stone-200/70'
+              }`}
+            >
+              <span>Completed</span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                  jobFilter === 'completed'
+                    ? 'bg-amber-800 text-white'
+                    : 'bg-stone-200 text-stone-700'
+                }`}
+              >
+                {completedCount}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setJobFilter('all')}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                jobFilter === 'all'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-stone-700 hover:text-stone-900 hover:bg-stone-200/70'
+              }`}
+            >
+              <span>All Jobs</span>
+              <span
+                className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                  jobFilter === 'all'
+                    ? 'bg-amber-800 text-white'
+                    : 'bg-stone-200 text-stone-700'
+                }`}
+              >
+                {allCount}
+              </span>
+            </button>
+          </div>
+
+          {/* Plain-Language Grade 6 Guidance Banner */}
+          <div className="bg-amber-50/70 border border-amber-200/80 rounded-lg p-2.5 text-xs text-amber-950 flex items-start gap-2">
+            <span className="font-bold text-amber-800 shrink-0">
+              {jobFilter === 'available' && 'Available Jobs:'}
+              {jobFilter === 'applied' && 'Your Applications:'}
+              {jobFilter === 'completed' && 'Completed Jobs:'}
+              {jobFilter === 'all' && 'All Jobs:'}
+            </span>
+            <span className="text-amber-900">
+              {jobFilter === 'available' &&
+                'These are open jobs you can apply for right now. Once you apply, the job moves to "Applied" so you don\'t apply twice.'}
+              {jobFilter === 'applied' &&
+                'Here are the jobs you applied for. You can see if the employer is looking at your application, has shortlisted you, or picked you for the job.'}
+              {jobFilter === 'completed' &&
+                'Here are the jobs you finished. You can see whether the employer has confirmed payment (Paid) or if payment is still pending.'}
+              {jobFilter === 'all' &&
+                'Browse every job on the app. Every card clearly shows if you applied, the job status, or if it is open to apply.'}
+            </span>
+          </div>
         </div>
 
         {/* Location & Reachable Distance Filter Bar (R2 / FR-16) */}
@@ -366,7 +485,7 @@ export const CandidateDashboard: React.FC<Props> = ({
                 </span>
               </div>
               <span className="text-[11px] text-stone-500 bg-white border border-stone-200 px-2 py-0.5 rounded">
-                POPIA: Suburb Centroid Estimates (Zero GPS Tracking)
+                Privacy Protected: Town or area only (Zero live GPS tracking)
               </span>
             </div>
 
@@ -456,105 +575,220 @@ export const CandidateDashboard: React.FC<Props> = ({
         {filteredScoredJobs.length === 0 ? (
           <div className="bg-white rounded-xl border border-stone-200 p-8 text-center space-y-3">
             <Compass className="w-8 h-8 text-stone-400 mx-auto" />
-            <h3 className="text-sm font-bold text-stone-900">No opportunities match this distance</h3>
+            <h3 className="text-sm font-bold text-stone-900">
+              {jobFilter === 'available' && 'No unapplied opportunities in this view'}
+              {jobFilter === 'applied' && 'No active applications in progress'}
+              {jobFilter === 'completed' && 'No completed jobs recorded yet'}
+              {jobFilter === 'all' && 'No opportunities match this distance or filter'}
+            </h3>
             <p className="text-xs text-stone-500 max-w-md mx-auto">
-              There are open opportunities outside this radius, or you can switch to "Remote Only" or widen your reachable distance.
+              {jobFilter === 'available' &&
+                'You have applied to all matching open opportunities, or there are no open listings within your selected distance.'}
+              {jobFilter === 'applied' &&
+                'Head to Available Jobs to discover opportunities and submit your Skill Passport!'}
+              {jobFilter === 'completed' &&
+                'Once an employer marks your work as completed and confirms payout, it will appear here.'}
+              {jobFilter === 'all' &&
+                'Try clearing distance limits or switching work mode to remote.'}
             </p>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedMaxDistance(null);
-                setSelectedWorkMode('all');
-              }}
-              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold cursor-pointer"
-            >
-              Clear Distance Limit
-            </button>
+            {(selectedMaxDistance !== null || selectedWorkMode !== 'all') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedMaxDistance(null);
+                  setSelectedWorkMode('all');
+                }}
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-semibold cursor-pointer"
+              >
+                Clear Distance Limit
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredScoredJobs.map(({ job, breakdown }) => {
-              const hasApplied = applications.some((a) => a.jobId === job.id);
+            {filteredScoredJobs.map(
+              ({ job, breakdown, application, hasApplied, isCompleted, payoutStatus }) => {
+                return (
+                  <div
+                    key={job.id}
+                    onClick={() => onSelectJob(job, breakdown)}
+                    className="bg-white rounded-xl border border-stone-200 hover:border-stone-400 hover:shadow-sm transition-all p-5 flex flex-col justify-between cursor-pointer group space-y-4"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-semibold text-stone-500">
+                              {job.employerName}
+                            </span>
+                            <span className="font-mono text-[10px] font-bold text-stone-600 bg-stone-100 border border-stone-200 px-1.5 py-0.5 rounded">
+                              ID: #{job.id}
+                            </span>
+                          </div>
+                          <h3 className="font-bold text-base text-stone-900 group-hover:text-amber-800 mt-0.5">
+                            {job.title}
+                          </h3>
+                        </div>
 
-              return (
-                <div
-                  key={job.id}
-                  onClick={() => onSelectJob(job, breakdown)}
-                  className="bg-white rounded-xl border border-stone-200 hover:border-stone-400 hover:shadow-sm transition-all p-5 flex flex-col justify-between cursor-pointer group space-y-4"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <span className="text-[11px] font-semibold text-stone-500 block">
-                          {job.employerName}
-                        </span>
-                        <h3 className="font-bold text-base text-stone-900 group-hover:text-amber-800">
-                          {job.title}
-                        </h3>
-                      </div>
-                      {/* Compatibility Score */}
-                      <div className="text-center px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 shrink-0">
-                        <span className="text-xs font-extrabold text-amber-900 block">
-                          {breakdown.totalScore}%
-                        </span>
-                        <span className="text-[10px] text-amber-700 font-medium">Match</span>
-                      </div>
-                    </div>
+                        {/* Badges / Compatibility Header */}
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                          <div className="text-center px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 shrink-0">
+                            <span className="text-xs font-extrabold text-amber-900 block">
+                              {breakdown.totalScore}%
+                            </span>
+                            <span className="text-[10px] text-amber-700 font-medium">Match</span>
+                          </div>
 
-                    <p className="text-xs text-stone-600 line-clamp-2">{job.description}</p>
-
-                    {/* Location & Distance Badge */}
-                    <div className="flex flex-wrap items-center gap-1.5 text-xs text-stone-500 pt-1">
-                      <span className="flex items-center gap-1">
-                        <MapPin className="w-3.5 h-3.5 text-stone-400" />
-                        {job.locationArea} ({job.workMode})
-                      </span>
-                      {breakdown.distanceLabel && (
-                        <>
-                          <span>·</span>
-                          <span className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200/80 px-1.5 py-0.5 rounded">
-                            {breakdown.distanceLabel}
+                          {/* Job Open / Closed Listing Status Badge */}
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                              job.status === 'open'
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                                : 'bg-stone-100 text-stone-600 border border-stone-300'
+                            }`}
+                          >
+                            {job.status === 'open' ? 'Job: Open' : 'Job: Closed'}
                           </span>
-                        </>
-                      )}
-                    </div>
 
-                    {/* Required skills */}
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      {job.requiredSkillNames.map((s, idx) => (
-                        <span
-                          key={idx}
-                          className="text-[11px] bg-stone-100 text-stone-700 px-2 py-0.5 rounded"
+                          {/* Tab-specific Application / Completion Badge */}
+                          {hasApplied && (
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                isCompleted
+                                  ? payoutStatus === 'paid'
+                                    ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                    : 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  : application?.status === 'shortlisted'
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  : application?.status === 'selected'
+                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                                  : application?.status === 'under_review'
+                                  ? 'bg-blue-50 text-blue-800 border border-blue-300'
+                                  : 'bg-stone-100 text-stone-700 border border-stone-300'
+                              }`}
+                            >
+                              {isCompleted
+                                ? payoutStatus === 'paid'
+                                  ? 'Completed · Paid'
+                                  : 'Completed · Payment Pending'
+                                : `Applied · ${application?.status?.replace('_', ' ')}`}
+                            </span>
+                          )}
+
+                          {!hasApplied && jobFilter === 'all' && (
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                job.status === 'open'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-stone-100 text-stone-500 border border-stone-200'
+                              }`}
+                            >
+                              {job.status === 'open' ? 'Open to Apply' : 'Closed'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-stone-600 line-clamp-2">{job.description}</p>
+
+                      {/* Location & Distance Badge */}
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs text-stone-500 pt-1">
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 text-stone-400" />
+                          {job.locationArea} ({job.workMode})
+                        </span>
+                        {breakdown.distanceLabel && (
+                          <>
+                            <span>·</span>
+                            <span className="text-[11px] font-medium text-amber-800 bg-amber-50 border border-amber-200/80 px-1.5 py-0.5 rounded">
+                              {breakdown.distanceLabel}
+                            </span>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Required skills */}
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {job.requiredSkillNames.map((s, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[11px] bg-stone-100 text-stone-700 px-2 py-0.5 rounded"
+                          >
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Completed Engagement Payout Alert Box */}
+                      {isCompleted && (
+                        <div
+                          className={`mt-2 p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 ${
+                            payoutStatus === 'paid'
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                              : 'bg-amber-50 border-amber-300 text-amber-950'
+                          }`}
                         >
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                          <div className="flex items-center gap-1.5 font-medium">
+                            {payoutStatus === 'paid' ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            ) : (
+                              <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                            )}
+                            <span>
+                              {payoutStatus === 'paid'
+                                ? 'Payment confirmed by employer'
+                                : 'Work completed · Waiting for employer payment'}
+                            </span>
+                          </div>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 ${
+                              payoutStatus === 'paid'
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-amber-200 text-amber-900 border border-amber-300'
+                            }`}
+                          >
+                            {payoutStatus === 'paid' ? 'Paid' : 'Pending'}
+                          </span>
+                        </div>
+                      )}
 
-                  <div className="pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
-                    <div>
-                      <span className="font-bold text-stone-900 text-sm">
-                        R{job.compensationAmount}
-                      </span>
-                      <span className="text-stone-500"> / {job.compensationUnit}</span>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {hasApplied ? (
-                        <span className="text-emerald-700 font-semibold flex items-center gap-1 text-xs">
-                          <Check className="w-3.5 h-3.5" /> Applied
-                        </span>
-                      ) : (
-                        <span className="text-amber-800 font-semibold group-hover:underline flex items-center gap-1">
-                          View & Apply <ChevronRight className="w-3.5 h-3.5" />
-                        </span>
+                      {/* Applied Review Notes Preview */}
+                      {!isCompleted && application?.employerNotes && (
+                        <div className="mt-2 p-2 bg-stone-50 border border-stone-200 rounded text-[11px] text-stone-600 italic">
+                          &ldquo;{application.employerNotes}&rdquo;
+                        </div>
                       )}
                     </div>
+
+                    <div className="pt-3 border-t border-stone-100 flex items-center justify-between text-xs">
+                      <div>
+                        <span className="font-bold text-stone-900 text-sm">
+                          R{job.compensationAmount}
+                        </span>
+                        <span className="text-stone-500"> / {job.compensationUnit}</span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isCompleted ? (
+                          <span className="text-emerald-800 font-semibold group-hover:underline flex items-center gap-1">
+                            View Completed Job <ChevronRight className="w-3.5 h-3.5" />
+                          </span>
+                        ) : hasApplied ? (
+                          <span className="text-stone-700 font-semibold group-hover:underline flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            Check Status <ChevronRight className="w-3.5 h-3.5" />
+                          </span>
+                        ) : (
+                          <span className="text-amber-800 font-semibold group-hover:underline flex items-center gap-1">
+                            View Job Details <ChevronRight className="w-3.5 h-3.5" />
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              }
+            )}
           </div>
         )}
       </div>

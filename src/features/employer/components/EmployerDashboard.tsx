@@ -50,6 +50,17 @@ export const EmployerDashboard: React.FC<Props> = ({
     setIsEditing(false);
   };
 
+  const handleCloseJobClick = (jobId: string, jobTitle: string) => {
+    const unreviewed = applications.filter((a) => a.jobId === jobId && a.status === 'submitted');
+    if (unreviewed.length > 0) {
+      alert(
+        `Cannot close listing "${jobTitle}" (ID: ${jobId}):\n\nPlease update the status of each applicant before closing. There are ${unreviewed.length} applicant(s) still in 'Submitted' awaiting your review.\n\nPlease review them (e.g. Under Review, Shortlisted, Selected, or Not Selected) before closing this job.`
+      );
+      return;
+    }
+    onToggleJobStatus(jobId);
+  };
+
   return (
     <div className="space-y-6">
       {/* Employer Profile & Welcome Card */}
@@ -262,6 +273,7 @@ export const EmployerDashboard: React.FC<Props> = ({
                 const jobApps = applications.filter((a) => a.jobId === job.id);
                 const activeJobApps = jobApps.filter((a) => a.status !== 'completed' && a.status !== 'withdrawn');
                 const completedJobApps = jobApps.filter((a) => a.status === 'completed');
+                const unreviewedJobApps = jobApps.filter((a) => a.status === 'submitted');
 
                 return (
                   <div
@@ -275,6 +287,9 @@ export const EmployerDashboard: React.FC<Props> = ({
                             <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                               Active / Open
                             </span>
+                            <span className="font-mono text-[10px] font-bold text-stone-600 bg-stone-100 border border-stone-200 px-1.5 py-0.5 rounded">
+                              ID: #{job.id}
+                            </span>
                             <span className="text-xs text-stone-400">·</span>
                             <span className="text-xs text-stone-500">{job.locationArea}</span>
                           </div>
@@ -282,9 +297,9 @@ export const EmployerDashboard: React.FC<Props> = ({
                         </div>
 
                         <button
-                          onClick={() => onToggleJobStatus(job.id)}
+                          onClick={() => handleCloseJobClick(job.id, job.title)}
                           className="text-xs px-2.5 py-1 rounded font-medium border border-stone-300 text-stone-700 hover:bg-stone-50 cursor-pointer"
-                          title="Close job (stop new applications)"
+                          title="Close job (ensure all applicants have an updated status)"
                         >
                           Close Job
                         </button>
@@ -348,21 +363,44 @@ export const EmployerDashboard: React.FC<Props> = ({
                           onClick={() => onSelectApplication(app)}
                           className="bg-white rounded-xl border border-stone-200 hover:border-emerald-500 p-4 shadow-2xs space-y-2 cursor-pointer transition-all"
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <h4 className="font-bold text-sm text-stone-900">{app.candidateName}</h4>
-                              <p className="text-xs text-stone-500 font-medium">{app.jobTitle}</p>
-                            </div>
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                                app.payoutConfirmed
-                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                  : 'bg-amber-100 text-amber-900 border border-amber-300'
-                              }`}
-                            >
-                              {app.payoutConfirmed ? '✓ Paid' : 'Payment Pending'}
-                            </span>
-                          </div>
+                          {(() => {
+                            const parentJob = jobs.find((j) => j.id === app.jobId);
+                            const isParentJobOpen = parentJob?.status === 'open';
+
+                            return (
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <h4 className="font-bold text-sm text-stone-900">{app.candidateName}</h4>
+                                    <span className="font-mono text-[10px] text-stone-500 bg-stone-100 border border-stone-200 px-1 py-0.2 rounded">
+                                      ID: #{app.jobId}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-stone-500 font-medium">{app.jobTitle}</p>
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                      isParentJobOpen
+                                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                                        : 'bg-stone-100 text-stone-600 border border-stone-300'
+                                    }`}
+                                  >
+                                    Job: {isParentJobOpen ? 'Open' : 'Closed'}
+                                  </span>
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                      app.payoutConfirmed
+                                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                        : 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    }`}
+                                  >
+                                    {app.payoutConfirmed ? '✓ Paid' : 'Payment Pending'}
+                                  </span>
+                                </div>
+                              </div>
+                            );
+                          })()}
 
                           {app.employerNotes && (
                             <p className="text-[11px] text-stone-600 italic bg-stone-50 p-2 rounded border border-stone-100">
@@ -396,10 +434,18 @@ export const EmployerDashboard: React.FC<Props> = ({
                           className="bg-stone-50 rounded-xl border border-stone-200 p-4 space-y-2"
                         >
                           <div className="flex items-center justify-between">
-                            <h4 className="font-bold text-sm text-stone-700">{job.title}</h4>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="font-bold text-sm text-stone-700">{job.title}</h4>
+                                <span className="font-mono text-[10px] font-bold text-stone-500 bg-stone-200 border border-stone-300 px-1.5 py-0.5 rounded">
+                                  ID: #{job.id}
+                                </span>
+                              </div>
+                            </div>
                             <button
                               onClick={() => onToggleJobStatus(job.id)}
                               className="text-xs px-2.5 py-1 rounded font-medium border border-emerald-300 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 cursor-pointer"
+                              title="Reopen this job listing for candidate applications"
                             >
                               Reopen Role
                             </button>

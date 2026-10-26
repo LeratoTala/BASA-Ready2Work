@@ -522,6 +522,13 @@ export default function App() {
               a.jobId === selectedJobForModal.job.id &&
               a.candidateId === currentUser.uid
           )}
+          application={
+            store.applications.find(
+              (a) =>
+                a.jobId === selectedJobForModal.job.id &&
+                a.candidateId === currentUser.uid
+            ) || null
+          }
           onApply={handleApplyToJob}
           onReport={handleReportJob}
         />

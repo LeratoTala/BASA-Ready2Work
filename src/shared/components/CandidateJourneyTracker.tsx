@@ -118,7 +118,7 @@ export const CandidateJourneyTracker: React.FC<Props> = ({
         ? `You have ${completedWork.length} completed work record${completedWork.length === 1 ? '' : 's'}. Each record is immutable and shows future employers that you have a verified track record.`
         : 'When an employer marks your engagement as completed, an immutable work record is created. This becomes your most trusted evidence of real-world experience.',
       honestNote:
-        'Work records confirm employer-reported completion. They are not independently audited and do not confirm that payment was received. Keep proof of payment separately.',
+        'Work records show that the employer confirmed your work was completed. Once the employer confirms they sent your payment, it shows as Paid in your dashboard.',
       status: hasCompletedWork ? 'done' : hasApplied ? 'in_progress' : 'not_started',
     },
   ];

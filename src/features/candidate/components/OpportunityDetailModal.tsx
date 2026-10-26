@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, MapPin, Calendar, Clock, DollarSign, Award, CheckCircle2, AlertTriangle, ShieldCheck, Flag, Check, ChevronRight } from 'lucide-react';
-import { CandidateProfile, Job, MatchBreakdown, SkillClaim } from '../../../domain/types';
+import { Application, CandidateProfile, Job, MatchBreakdown, SkillClaim } from '../../../domain/types';
 
 interface Props {
   isOpen: boolean;
@@ -10,6 +10,7 @@ interface Props {
   claims: SkillClaim[];
   matchBreakdown: MatchBreakdown;
   hasApplied: boolean;
+  application?: Application | null;
   onApply: (jobId: string) => void | Promise<unknown>;
   onReport: (jobId: string, title: string, reason: string) => void;
 }
@@ -22,6 +23,7 @@ export const OpportunityDetailModal: React.FC<Props> = ({
   claims,
   matchBreakdown,
   hasApplied,
+  application,
   onApply,
   onReport,
 }) => {
@@ -76,6 +78,9 @@ export const OpportunityDetailModal: React.FC<Props> = ({
           <div className="flex items-start justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
+                <span className="font-mono text-[11px] font-bold text-amber-300 bg-stone-800 border border-stone-700 px-2 py-0.5 rounded">
+                  Job ID: #{job.id}
+                </span>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400 bg-amber-950/60 border border-amber-800 px-2 py-0.5 rounded">
                   {job.workMode}
                 </span>
@@ -131,6 +136,65 @@ export const OpportunityDetailModal: React.FC<Props> = ({
           Never pay to get a job. Report any listing that asks for an upfront fee.
         </div>
 
+        {/* Live Application & Payout Status Banner (if applied) */}
+        {hasApplied && (
+          <div
+            className={`px-6 py-3 border-b flex flex-wrap items-center justify-between gap-3 text-xs ${
+              application?.status === 'completed'
+                ? application.payoutConfirmed
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                  : 'bg-amber-50 border-amber-300 text-amber-950'
+                : 'bg-blue-50 border-blue-200 text-blue-950'
+            }`}
+          >
+            <div className="flex items-center gap-2.5">
+              {application?.status === 'completed' ? (
+                application.payoutConfirmed ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                ) : (
+                  <Clock className="w-5 h-5 text-amber-600 shrink-0" />
+                )
+              ) : (
+                <CheckCircle2 className="w-5 h-5 text-blue-600 shrink-0" />
+              )}
+              <div>
+                <div className="font-bold text-sm">
+                  {application?.status === 'completed'
+                    ? application.payoutConfirmed
+                      ? 'Work Completed · Payment Confirmed'
+                      : 'Work Completed · Payment Pending'
+                    : `Application on File · ${application?.status ? application.status.replace('_', ' ') : 'Submitted'}`}
+                </div>
+                <p className="text-[11px] text-stone-600">
+                  {application?.status === 'completed'
+                    ? application.payoutConfirmed
+                      ? `Employer confirmed payment for this work (${application.paidAt ? new Date(application.paidAt).toLocaleDateString() : 'Paid'}).`
+                      : 'Work was marked completed by employer. Payout confirmation from employer is pending.'
+                    : `Submitted on ${application?.submittedAt ? new Date(application.submittedAt).toLocaleDateString() : 'recent'}. You cannot submit duplicate applications for this post.`}
+                </p>
+              </div>
+            </div>
+
+            <span
+              className={`px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider shrink-0 ${
+                application?.status === 'completed'
+                  ? application.payoutConfirmed
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-amber-200 text-amber-900 border border-amber-300'
+                  : 'bg-blue-100 text-blue-800 border border-blue-300'
+              }`}
+            >
+              {application?.status === 'completed'
+                ? application.payoutConfirmed
+                  ? 'Paid'
+                  : 'Pending Payment'
+                : application?.status
+                ? application.status.replace('_', ' ')
+                : 'Applied'}
+            </span>
+          </div>
+        )}
+
         {/* Explainable Match Score Banner */}
         <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -138,9 +202,9 @@ export const OpportunityDetailModal: React.FC<Props> = ({
               {matchBreakdown.totalScore}%
             </div>
             <div>
-              <h4 className="text-xs font-bold text-stone-900">Match Compatibility Score</h4>
+              <h4 className="text-xs font-bold text-stone-900">Your Job Match</h4>
               <p className="text-[11px] text-stone-600">
-                A guide to fit—not hiring odds or a guarantee. Formula: S (50%) + E (25%) + A (15%) + L (10%).
+                A helpful guide showing how well your skills fit this job. Employers decide who to hire; this score does not promise a job.
               </p>
             </div>
           </div>
@@ -148,7 +212,7 @@ export const OpportunityDetailModal: React.FC<Props> = ({
             onClick={() => setShowBreakdown(!showBreakdown)}
             className="text-xs font-semibold text-amber-900 underline hover:text-amber-950 cursor-pointer"
           >
-            {showBreakdown ? 'Hide Breakdown' : 'Why this score? (Explain)'}
+            {showBreakdown ? 'Hide Details' : 'How this score is calculated'}
           </button>
         </div>
 
@@ -156,30 +220,29 @@ export const OpportunityDetailModal: React.FC<Props> = ({
         {showBreakdown && (
           <div className="bg-stone-50 border-b border-stone-200 p-5 text-xs space-y-3">
             <h5 className="font-bold text-stone-900 uppercase tracking-wider text-[11px]">
-              How the recommendation is calculated
+              How your score is calculated
             </h5>
             <p className="text-stone-600">
-              This score is a recommendation aid, not a prediction of hiring success. Employers make hiring decisions;
-              a lower score does not automatically disqualify you.
+              This score helps you see how well you match the job requirements. Employers make the final hiring decision; a lower score does not stop you from applying.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
               <div className="bg-white p-2.5 rounded border border-stone-200">
-                <span className="text-stone-500 block">Skill Alignment (S)</span>
+                <span className="text-stone-500 block">Skills Match (50%)</span>
                 <span className="text-base font-bold text-stone-900">{matchBreakdown.skillAlignment}%</span>
                 <span className="text-[10px] text-stone-400 block">50% weight</span>
               </div>
               <div className="bg-white p-2.5 rounded border border-stone-200">
-                <span className="text-stone-500 block">Evidence Credibility (E)</span>
+                <span className="text-stone-500 block">Evidence & Proof (25%)</span>
                 <span className="text-base font-bold text-emerald-700">{matchBreakdown.evidenceStrength}%</span>
                 <span className="text-[10px] text-stone-400 block">25% weight</span>
               </div>
               <div className="bg-white p-2.5 rounded border border-stone-200">
-                <span className="text-stone-500 block">Availability Fit (A)</span>
+                <span className="text-stone-500 block">Available Hours (15%)</span>
                 <span className="text-base font-bold text-stone-900">{matchBreakdown.availabilityFit}%</span>
                 <span className="text-[10px] text-stone-400 block">15% weight</span>
               </div>
               <div className="bg-white p-2.5 rounded border border-stone-200">
-                <span className="text-stone-500 block">Location Fit (L)</span>
+                <span className="text-stone-500 block">Travel & Distance (10%)</span>
                 <span className="text-base font-bold text-stone-900">{matchBreakdown.locationFit}%</span>
                 <span className="text-[10px] text-stone-400 block">10% weight</span>
                 {matchBreakdown.distanceLabel && (
@@ -191,7 +254,7 @@ export const OpportunityDetailModal: React.FC<Props> = ({
             </div>
 
             <div className="space-y-1.5 pt-1">
-              <span className="font-semibold text-stone-800 block">Match Drivers:</span>
+              <span className="font-semibold text-stone-800 block">Why you matched:</span>
               {matchBreakdown.reasons.map((r, i) => (
                 <p key={i} className="text-stone-600 flex items-start gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-600 mt-1 shrink-0" />
@@ -399,9 +462,13 @@ export const OpportunityDetailModal: React.FC<Props> = ({
             </button>
 
             {hasApplied ? (
-              <div className="flex items-center gap-1.5 px-4 py-2 bg-stone-200 text-stone-700 font-semibold text-xs rounded-lg cursor-not-allowed">
+              <div className="flex items-center gap-1.5 px-4 py-2 bg-stone-200 text-stone-800 font-semibold text-xs rounded-lg">
                 <Check className="w-4 h-4 text-emerald-600" />
-                <span>Already Applied (Application on File)</span>
+                <span>
+                  {application?.status === 'completed'
+                    ? `Completed · ${application.payoutConfirmed ? 'Paid' : 'Payment Pending'}`
+                    : `Already Applied (${application?.status ? application.status.replace('_', ' ') : 'Under Review'})`}
+                </span>
               </div>
             ) : isClosed ? (
               <button
@@ -415,7 +482,7 @@ export const OpportunityDetailModal: React.FC<Props> = ({
                 onClick={handleApplyClick}
                 className="flex items-center gap-1.5 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded-lg shadow-xs transition-colors cursor-pointer"
               >
-                <span>Apply with Skill Passport</span>
+                <span>Apply for Job</span>
                 <ChevronRight className="w-4 h-4" />
               </button>
             )}

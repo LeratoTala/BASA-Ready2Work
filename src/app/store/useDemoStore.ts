@@ -764,6 +764,17 @@ export function useDemoStore() {
     if (currentUser.role !== 'admin' && (currentUser.role !== 'employer' || targetJob.employerId !== currentUser.uid)) {
       throw new Error('Permission denied: You can only manage your own jobs.');
     }
+    // Invariant: Employers must update each applicant's status before closing a job
+    if (targetJob.status === 'open' && currentUser.role === 'employer') {
+      const pendingApplicants = applications.filter(
+        (a) => a.jobId === jobId && a.status === 'submitted'
+      );
+      if (pendingApplicants.length > 0) {
+        throw new Error(
+          `Cannot close job: Please update the status of each applicant before closing. There are ${pendingApplicants.length} applicant(s) still in 'Submitted' awaiting your review.`
+        );
+      }
+    }
     setJobs((prev) =>
       prev.map((j) => {
         if (j.id === jobId) {
