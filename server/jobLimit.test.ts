@@ -69,4 +69,22 @@ describe('Server-Side Job Creation Limits Enforcement (Section 39 / Requirement 
     assert.equal(atLimit.allowed, false);
     assert.equal(atLimit.statusCode, 403);
   });
+
+  it('treats an expired plan (planExpiresAt in the past) as free tier (limit of 1)', () => {
+    const pastDate = new Date(Date.now() - 86400000).toISOString(); // 1 day ago
+
+    // Even though employerPlan is 'business', planExpiresAt is in the past -> effectively 'free' (limit 1)
+    const expiredWithOneJob = verifyJobCreationLimits({
+      employerUid: 'emp_expired_biz',
+      employerVerificationStatus: 'verified',
+      employerPlan: 'business',
+      planExpiresAt: pastDate,
+      currentActiveJobCount: 1,
+    });
+
+    assert.equal(expiredWithOneJob.allowed, false);
+    assert.equal(expiredWithOneJob.limit, 1);
+    assert.equal(expiredWithOneJob.statusCode, 403);
+    assert.match(expiredWithOneJob.error || '', /limit of 1 active job/i);
+  });
 });

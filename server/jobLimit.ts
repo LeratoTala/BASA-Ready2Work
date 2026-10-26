@@ -4,6 +4,7 @@ export interface VerifyJobCreationLimitsParams {
   employerUid: string;
   employerVerificationStatus: 'verified' | 'pending' | 'unverified';
   employerPlan?: EmployerPlanId;
+  planExpiresAt?: string;
   currentActiveJobCount: number;
 }
 
@@ -33,7 +34,11 @@ export function verifyJobCreationLimits(
 
   const planId = params.employerPlan || 'free';
   const planConfig = getPlanConfig(planId);
-  const gating = canEmployerPostActiveJob(params.currentActiveJobCount, planId);
+  const gating = canEmployerPostActiveJob(
+    params.currentActiveJobCount,
+    planId,
+    params.planExpiresAt
+  );
 
   if (!gating.allowed) {
     return {

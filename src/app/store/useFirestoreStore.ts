@@ -1360,13 +1360,106 @@ export function useFirestoreStore(): BasaStore {
     // Section 39: Employer Upgrade Requests & Pricing Pulse Surveys
     upgradeRequests: [] as any[],
     pulseSurveys: [] as any[],
-    requestEmployerUpgrade: (reqData: any) => {
-      const rec = { ...reqData, id: `upgrade-${Date.now()}`, requestedAt: nowIso(), status: 'pending' };
-      return rec;
+    requestEmployerUpgrade: async (reqData: any) => {
+      try {
+        const token = firebaseUser ? await firebaseUser.getIdToken() : '';
+        const res = await fetch(`${env.apiBaseUrl}/api/employer/upgrade-request`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            employerId: reqData.employerUid,
+            targetPlan: reqData.targetPlan,
+            notes: reqData.notes || '',
+            businessName: reqData.businessName,
+            contactName: reqData.contactName,
+            billingEmail: reqData.billingEmail,
+            poNumber: reqData.poNumber,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to submit upgrade request.');
+        }
+        return data.request;
+      } catch (err: any) {
+        console.error('[useFirestoreStore] requestEmployerUpgrade error:', err);
+        throw new Error(err.message || 'Could not submit upgrade request. Please try again.');
+      }
     },
-    approveUpgradeRequest: (_requestId: string, _adminUid: string, _adminName: string) => {},
-    declineUpgradeRequest: (_requestId: string, _adminUid: string, _adminName: string, _note?: string) => {},
-    downgradeEmployerPlan: (_employerUid: string, _newPlan: 'free' | 'starter' | 'business') => {},
+    approveUpgradeRequest: async (requestId: string, _adminUid: string, _adminName: string) => {
+      try {
+        const token = firebaseUser ? await firebaseUser.getIdToken() : '';
+        const res = await fetch(`${env.apiBaseUrl}/api/admin/approve-upgrade`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            requestId,
+            decision: 'approved',
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to approve upgrade request.');
+        }
+      } catch (err: any) {
+        console.error('[useFirestoreStore] approveUpgradeRequest error:', err);
+        throw new Error(err.message || 'Could not approve upgrade. Please check permissions.');
+      }
+    },
+    declineUpgradeRequest: async (requestId: string, _adminUid: string, _adminName: string, note?: string) => {
+      try {
+        const token = firebaseUser ? await firebaseUser.getIdToken() : '';
+        const res = await fetch(`${env.apiBaseUrl}/api/admin/approve-upgrade`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            requestId,
+            decision: 'declined',
+            adminNote: note,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to decline upgrade request.');
+        }
+      } catch (err: any) {
+        console.error('[useFirestoreStore] declineUpgradeRequest error:', err);
+        throw new Error(err.message || 'Could not decline upgrade.');
+      }
+    },
+    downgradeEmployerPlan: async (employerUid: string, newPlan: 'free' | 'starter' | 'business') => {
+      try {
+        const token = firebaseUser ? await firebaseUser.getIdToken() : '';
+        const res = await fetch(`${env.apiBaseUrl}/api/employer/change-plan`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            employerId: employerUid,
+            targetPlan: newPlan,
+            reason: 'Downgrade or cancellation requested by employer',
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to change plan.');
+        }
+      } catch (err: any) {
+        console.error('[useFirestoreStore] downgradeEmployerPlan error:', err);
+        throw new Error(err.message || 'Could not update plan. Please try again.');
+      }
+    },
     submitPricingPulseSurvey: (respData: any) => {
       const rec = { ...respData, id: `pulse-${Date.now()}`, submittedAt: nowIso() };
       return rec;

@@ -9,6 +9,7 @@ import { applyRouter } from './routes/apply';
 import { deleteAccountRouter } from './routes/deleteAccount';
 import { adminVerifyEmployerRouter } from './routes/adminVerifyEmployer';
 import { jobsRouter } from './routes/jobs';
+import { employerPlansRouter } from './routes/employerPlans';
 import { verifyAppCheck } from './middleware/verifyIdToken';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -52,6 +53,7 @@ async function main() {
     deleteAccountRouter,
     adminVerifyEmployerRouter,
     jobsRouter,
+    employerPlansRouter,
     cvDraftRouter
   );
 

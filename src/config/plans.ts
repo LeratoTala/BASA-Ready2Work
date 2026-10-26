@@ -98,24 +98,51 @@ export function getPlanConfig(planId?: string): EmployerPlanConfig {
 }
 
 /**
+ * Evaluates whether an employer's plan has expired.
+ * A plan whose planExpiresAt is in the past is treated as 'free' for job limit and access purposes.
+ */
+export function getEffectiveEmployerPlan(
+  planId: EmployerPlanId = 'free',
+  planExpiresAt?: string,
+  nowIso: string = new Date().toISOString()
+): { effectivePlan: EmployerPlanId; isExpired: boolean } {
+  if (!planExpiresAt) {
+    return { effectivePlan: planId, isExpired: false };
+  }
+
+  const expiryTime = new Date(planExpiresAt).getTime();
+  const currentTime = new Date(nowIso).getTime();
+
+  if (!Number.isNaN(expiryTime) && expiryTime <= currentTime) {
+    return { effectivePlan: 'free', isExpired: true };
+  }
+
+  return { effectivePlan: planId, isExpired: false };
+}
+
+/**
  * Section 39.2 & 39.3: Evaluates whether an employer may publish another active job.
  */
 export function canEmployerPostActiveJob(
   currentActiveJobCount: number,
-  planId: EmployerPlanId = 'free'
-): { allowed: boolean; reason?: string; limit: number } {
-  const plan = getPlanConfig(planId);
+  planId: EmployerPlanId = 'free',
+  planExpiresAt?: string
+): { allowed: boolean; reason?: string; limit: number; isExpired?: boolean } {
+  const { effectivePlan, isExpired } = getEffectiveEmployerPlan(planId, planExpiresAt);
+  const plan = getPlanConfig(effectivePlan);
   const limit = plan.activeJobLimit;
 
   if (currentActiveJobCount >= limit) {
+    const expiredNote = isExpired ? ' (Your subscription has expired and reverted to the Free plan.)' : '';
     return {
       allowed: false,
       limit,
-      reason: `You have reached your plan's limit of ${limit} active job${limit === 1 ? '' : 's'}. Close an existing job or request an upgrade.`,
+      isExpired,
+      reason: `You have reached your plan's limit of ${limit} active job${limit === 1 ? '' : 's'}.${expiredNote} Close an existing job or request an upgrade.`,
     };
   }
 
-  return { allowed: true, limit };
+  return { allowed: true, limit, isExpired };
 }
 
 /**
