@@ -35,6 +35,15 @@ cvDraftRouter.post('/cv-draft', verifyIdToken, async (req, res) => {
 
   const candidateName = text(body.candidateName, 100);
   const experienceNotes = text(body.experienceNotes, maxFieldChars);
+  const evidenceDescriptions = Array.isArray(body.evidenceDescriptions)
+    ? body.evidenceDescriptions.map((d) => text(d, maxFieldChars)).filter(Boolean)
+    : [];
+  const taskNotes = Array.isArray(body.taskNotes)
+    ? body.taskNotes.map((t) => text(t, maxFieldChars)).filter(Boolean)
+    : [];
+  const mentorComments = Array.isArray(body.mentorComments)
+    ? body.mentorComments.map((m) => text(m, maxFieldChars)).filter(Boolean)
+    : [];
   
   // Format raw skills with optional verification labels
   const rawSkillsInput = Array.isArray(body.skills) ? body.skills.slice(0, maxSkills) : [];
@@ -60,8 +69,14 @@ cvDraftRouter.post('/cv-draft', verifyIdToken, async (req, res) => {
     });
   }
 
-  // 37.2 Sanitized allow-list input
-  const sanitized = sanitizeCandidateCvInput(candidateName, rawSkills, experienceNotes);
+  // 37.2 Sanitized allow-list input across all free-text fields
+  const sanitized = sanitizeCandidateCvInput(
+    candidateName,
+    rawSkills,
+    experienceNotes,
+    undefined,
+    { evidenceDescriptions, taskNotes, mentorComments }
+  );
   const fallback = buildFallbackTemplateDraft(sanitized);
 
   // Privacy 37.8: Log only that a request occurred, no content

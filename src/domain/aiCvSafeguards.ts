@@ -28,7 +28,7 @@ export const TEMPLATE_DISCLAIMER_TAG = 'Candidate facts template' as const;
 
 export interface CvInputFact {
   id: string; // e.g. "skill_0", "evidence_0"
-  type: 'skill' | 'evidence' | 'preference' | 'date';
+  type: 'skill' | 'evidence' | 'preference' | 'date' | 'task_note' | 'mentor_comment';
   label?: string; // 'Self-reported' | 'Peer-endorsed' | 'Task-assessed' | 'Mentor-verified'
   text: string;
 }
@@ -54,8 +54,8 @@ export interface AiCvDraftResult {
 /** Regex to detect South African 13-digit ID numbers */
 const SA_ID_REGEX = /\b\d{13}\b/g;
 
-/** Regex to detect phone numbers (e.g. 0821234567 or +27821234567) */
-const PHONE_REGEX = /(\+27|0)[6-8][0-9]{8}\b/g;
+/** Regex to detect South African phone numbers (mobile 06-08, landlines 01-05, and +27 prefix) */
+const PHONE_REGEX = /(\+27|0)[1-8][0-9]{8}\b/g;
 
 /** Regex to detect email addresses */
 const EMAIL_REGEX = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
@@ -64,23 +64,38 @@ const EMAIL_REGEX = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
 const CREDENTIAL_ID_REGEX = /\b[A-Z0-9]{3,}-[A-Z0-9-]{4,}\b/g;
 
 /**
+ * Sanitizes any free-text field destined for LLM prompts or audit stores.
+ * Strictly redacts South African 13-digit ID numbers, phone numbers, email addresses, and credential IDs.
+ */
+export function sanitizeText(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(SA_ID_REGEX, '[ID REDACTED]')
+    .replace(PHONE_REGEX, '[PHONE REDACTED]')
+    .replace(EMAIL_REGEX, '[EMAIL REDACTED]')
+    .replace(CREDENTIAL_ID_REGEX, '[CREDENTIAL_ID REDACTED]')
+    .trim();
+}
+
+export interface AdditionalFreeTextFields {
+  evidenceDescriptions?: string[];
+  taskNotes?: string[];
+  mentorComments?: string[];
+}
+
+/**
  * 37.2 Sanitizes candidate facts to build a privacy-safe allow-list payload.
- * Strictly strips ID numbers, phone numbers, email addresses, and credential IDs.
+ * Strictly strips ID numbers, phone numbers, email addresses, and credential IDs
+ * from EVERY free-text field: skills, experience notes, evidence descriptions,
+ * task notes, mentor comments, and preferences.
  */
 export function sanitizeCandidateCvInput(
   candidateName: string,
   rawSkills: Array<{ name: string; label?: string }>,
   rawExperienceNotes: string,
-  preferences?: string[]
+  preferences?: string[],
+  additionalFields?: AdditionalFreeTextFields
 ): SanitizedCvPayload {
-  const sanitizeText = (str: string): string =>
-    str
-      .replace(SA_ID_REGEX, '[ID REDACTED]')
-      .replace(PHONE_REGEX, '[PHONE REDACTED]')
-      .replace(EMAIL_REGEX, '[EMAIL REDACTED]')
-      .replace(CREDENTIAL_ID_REGEX, '[CREDENTIAL_ID REDACTED]')
-      .trim();
-
   const facts: CvInputFact[] = [];
 
   rawSkills.forEach((s, idx) => {
@@ -95,7 +110,7 @@ export function sanitizeCandidateCvInput(
     }
   });
 
-  if (rawExperienceNotes.trim()) {
+  if (rawExperienceNotes && rawExperienceNotes.trim()) {
     const cleanNotes = sanitizeText(rawExperienceNotes);
     facts.push({
       id: 'evidence_0',
@@ -103,6 +118,42 @@ export function sanitizeCandidateCvInput(
       text: cleanNotes,
     });
   }
+
+  // Evidence descriptions (FR-04 / Section 37)
+  additionalFields?.evidenceDescriptions?.forEach((desc, idx) => {
+    const cleanDesc = sanitizeText(desc);
+    if (cleanDesc) {
+      facts.push({
+        id: `evidence_desc_${idx}`,
+        type: 'evidence',
+        text: cleanDesc,
+      });
+    }
+  });
+
+  // Task notes (micro-task practical rubrics)
+  additionalFields?.taskNotes?.forEach((note, idx) => {
+    const cleanNote = sanitizeText(note);
+    if (cleanNote) {
+      facts.push({
+        id: `task_note_${idx}`,
+        type: 'task_note',
+        text: cleanNote,
+      });
+    }
+  });
+
+  // Mentor comments (mentor reviews)
+  additionalFields?.mentorComments?.forEach((comment, idx) => {
+    const cleanComment = sanitizeText(comment);
+    if (cleanComment) {
+      facts.push({
+        id: `mentor_comment_${idx}`,
+        type: 'mentor_comment',
+        text: cleanComment,
+      });
+    }
+  });
 
   if (preferences && preferences.length > 0) {
     preferences.forEach((pref, idx) => {

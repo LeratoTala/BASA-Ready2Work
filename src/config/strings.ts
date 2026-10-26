@@ -98,6 +98,7 @@ export const UI_STRINGS = {
   submitBusinessDocuments: 'Submit business documents',
 
   // Status & notifications
+  freeTextPrivacyWarning: "Don't type ID numbers, phone numbers, email addresses or home addresses here. They are not needed.",
   proofNotUploaded: 'No proof uploaded yet',
   proofAttached: 'Attached Proof & Work Samples',
   verifiedProof: 'Verified Proof & Work Samples',

@@ -9,12 +9,14 @@ import {
   Loader2,
   FileText,
   ShieldCheck,
+  ShieldAlert,
   Lock,
   ArrowRight,
   Trash2,
 } from 'lucide-react';
 import { CandidateProfile, SkillClaim } from '../../../domain/types';
 import { getFirebase } from '../../../services/firebase';
+import { UI_STRINGS } from '../../../config/strings';
 import {
   AI_CV_DISCLAIMER_TAG,
   TEMPLATE_DISCLAIMER_TAG,
@@ -290,6 +292,10 @@ export const AICVDrafterModal: React.FC<Props> = ({
                   <label className="block text-[11px] font-semibold text-stone-600 mb-1">
                     Informal Experience & Tasks Done
                   </label>
+                  <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 flex items-start gap-1.5">
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+                    <span>{UI_STRINGS.freeTextPrivacyWarning}</span>
+                  </div>
                   <textarea
                     rows={4}
                     value={experienceNotes}

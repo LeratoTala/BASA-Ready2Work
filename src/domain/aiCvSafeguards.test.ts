@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   sanitizeCandidateCvInput,
+  sanitizeText,
   validateAiCvOutput,
   buildFallbackTemplateDraft,
   canSaveAiCvDraft,
@@ -189,5 +190,73 @@ describe('Section 37: P1 AI CV Safeguards', () => {
     assert.equal(result.source, 'ai');
     assert.equal(result.lines[0].line, 'Nomvula assisted local contractor for 2 years with cabling.');
     assert.doesNotMatch(result.lines[0].line, /\{\{NAME\}\}/);
+  });
+
+  describe('Verification that sanitizeText is applied to EVERY free-text field', () => {
+    it('redacts ID, phone, email, and credential IDs from raw sanitizeText calls', () => {
+      const dirty = 'Contact 0831112233 or me@domain.co.za with ID 9901015009087 and cert COMP-12345';
+      const clean = sanitizeText(dirty);
+
+      assert.doesNotMatch(clean, /0831112233/);
+      assert.doesNotMatch(clean, /me@domain\.co\.za/);
+      assert.doesNotMatch(clean, /9901015009087/);
+      assert.doesNotMatch(clean, /COMP-12345/);
+      assert.match(clean, /\[PHONE REDACTED\]/);
+      assert.match(clean, /\[EMAIL REDACTED\]/);
+      assert.match(clean, /\[ID REDACTED\]/);
+      assert.match(clean, /\[CREDENTIAL_ID REDACTED\]/);
+    });
+
+    it('sanitizes evidence descriptions', () => {
+      const payload = sanitizeCandidateCvInput('Nomvula', baseSkills, '', undefined, {
+        evidenceDescriptions: [
+          'Installed solar panels. Supervisor cell: 0725556677, ID: 9505055009088, email: sup@solar.co.za',
+        ],
+      });
+
+      const descFact = payload.facts.find((f) => f.id === 'evidence_desc_0');
+      assert.ok(descFact, 'evidence_desc_0 fact must exist');
+      assert.equal(descFact?.type, 'evidence');
+      assert.doesNotMatch(descFact!.text, /0725556677/);
+      assert.doesNotMatch(descFact!.text, /9505055009088/);
+      assert.doesNotMatch(descFact!.text, /sup@solar\.co\.za/);
+      assert.match(descFact!.text, /\[PHONE REDACTED\]/);
+      assert.match(descFact!.text, /\[ID REDACTED\]/);
+      assert.match(descFact!.text, /\[EMAIL REDACTED\]/);
+    });
+
+    it('sanitizes practical task notes', () => {
+      const payload = sanitizeCandidateCvInput('Nomvula', baseSkills, '', undefined, {
+        taskNotes: [
+          'Bench test evaluated at center. Candidate ID 0201015009082 checked by 0849998877. Code: CERT-9988',
+        ],
+      });
+
+      const taskFact = payload.facts.find((f) => f.id === 'task_note_0');
+      assert.ok(taskFact, 'task_note_0 fact must exist');
+      assert.equal(taskFact?.type, 'task_note');
+      assert.doesNotMatch(taskFact!.text, /0201015009082/);
+      assert.doesNotMatch(taskFact!.text, /0849998877/);
+      assert.doesNotMatch(taskFact!.text, /CERT-9988/);
+      assert.match(taskFact!.text, /\[ID REDACTED\]/);
+      assert.match(taskFact!.text, /\[PHONE REDACTED\]/);
+      assert.match(taskFact!.text, /\[CREDENTIAL_ID REDACTED\]/);
+    });
+
+    it('sanitizes mentor review comments', () => {
+      const payload = sanitizeCandidateCvInput('Nomvula', baseSkills, '', undefined, {
+        mentorComments: [
+          'Solid wiring skills. Mentor email mentor@tvet.ac.za, direct phone 0112345678.',
+        ],
+      });
+
+      const mentorFact = payload.facts.find((f) => f.id === 'mentor_comment_0');
+      assert.ok(mentorFact, 'mentor_comment_0 fact must exist');
+      assert.equal(mentorFact?.type, 'mentor_comment');
+      assert.doesNotMatch(mentorFact!.text, /mentor@tvet\.ac\.za/);
+      assert.doesNotMatch(mentorFact!.text, /0112345678/);
+      assert.match(mentorFact!.text, /\[EMAIL REDACTED\]/);
+      assert.match(mentorFact!.text, /\[PHONE REDACTED\]/);
+    });
   });
 });

@@ -10,7 +10,9 @@ import {
   Trash2,
   FileCheck,
   Briefcase,
+  ShieldAlert,
 } from 'lucide-react';
+import { UI_STRINGS } from '../../../config/strings';
 import { EvidenceItem, SkillClaim } from '../../../domain/types';
 import { getSkillClaimProofStatus } from '../../../domain/claimProofUpdate';
 import { useOSModalNavigation } from '../../../shared/hooks/useOSNavigation';
@@ -221,6 +223,10 @@ export const UpdateSkillProofModal: React.FC<Props> = ({
             <label className="font-bold text-stone-800 block">
               Context & Description of Proof <span className="text-rose-600">*</span>
             </label>
+            <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 flex items-start gap-1.5">
+              <ShieldAlert className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+              <span>{UI_STRINGS.freeTextPrivacyWarning}</span>
+            </div>
             <textarea
               rows={3}
               required

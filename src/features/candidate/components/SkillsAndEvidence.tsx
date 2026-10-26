@@ -18,7 +18,9 @@ import {
   ExternalLink,
   Clock,
   AlertTriangle,
+  ShieldAlert,
 } from 'lucide-react';
+import { UI_STRINGS } from '../../../config/strings';
 import { CandidateProfile, CredentialEvidence, EvidenceItem, SkillClaim, VerificationStatus } from '../../../domain/types';
 import { SKILL_DEFINITIONS } from '../../../domain/skillCatalogue';
 import { VerificationBadge } from '../../../shared/components/VerificationBadge';
@@ -378,7 +380,10 @@ export const SkillsAndEvidence: React.FC<Props> = ({
               <label className="block font-semibold text-stone-700 mb-1">
                 Detailed Description of Duties & Tools Used
               </label>
-              <p className="text-[11px] text-stone-500 mb-1">Do not include private phone numbers or IDs. Explain what you did and the tools you used.</p>
+              <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 flex items-start gap-1.5">
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+                <span>{UI_STRINGS.freeTextPrivacyWarning}</span>
+              </div>
               <textarea
                 rows={3}
                 required
@@ -933,6 +938,10 @@ export const SkillsAndEvidence: React.FC<Props> = ({
                 <label className="block font-semibold text-stone-700 mb-1">
                   Work Performed Together
                 </label>
+                <div className="mb-2 p-2 bg-amber-50 border border-amber-200 rounded text-[11px] text-amber-900 flex items-start gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+                  <span>{UI_STRINGS.freeTextPrivacyWarning}</span>
+                </div>
                 <textarea
                   rows={2}
                   placeholder="e.g. Assisted on 8 residential solar roof installations in Soweto..."
