@@ -77,7 +77,7 @@ export const CandidateJourneyTracker: React.FC<Props> = ({
       id: 'register',
       number: 1,
       title: 'Record your skills',
-      description: `Add at least one practical skill with evidence — a description of what you did, where, and with what tools or equipment. ${hasClaims ? `You have ${claims.length} skill claim${claims.length === 1 ? '' : 's'} recorded.` : 'You have not recorded any skills yet.'}`,
+      description: `Add at least one practical skill with proof — a description of what you did, where, and with what tools or equipment. ${hasClaims ? `You have ${claims.length} skill claim${claims.length === 1 ? '' : 's'} recorded.` : 'You have not recorded any skills yet.'}`,
       honestNote:
         'Claims start as Self-reported. This means only you have confirmed them. Employers can see this label clearly.',
       status: hasClaims ? 'done' : hasProfile ? 'in_progress' : 'not_started',
@@ -92,7 +92,7 @@ export const CandidateJourneyTracker: React.FC<Props> = ({
         ? `${verifiedClaims.length} of your ${claims.length} skill${claims.length === 1 ? '' : 's'} ${verifiedClaims.length === 1 ? 'has' : 'have'} been independently verified. Verified skills significantly boost your match score.`
         : 'Ask a supervisor, trade peer, or community contractor to endorse your work — or complete a practical rubric assessment with a registered assessor.',
       honestNote:
-        'Peer endorsements confirm that someone saw you do the work. They are not a formal qualification or guarantee of performance. Task assessments (≥70/100 on a rubric) are the strongest evidence BASA can provide.',
+        'Peer endorsements confirm that someone saw you do the work. They are not a formal qualification or guarantee of performance. Task assessments (≥70/100 on a rubric) are the strongest proof BASA can provide.',
       status: hasVerifiedSkill ? 'done' : hasClaims ? 'in_progress' : 'not_started',
       ctaLabel: !hasVerifiedSkill && hasClaims ? 'Request verification' : undefined,
       onCta: !hasVerifiedSkill && hasClaims ? onGoToSkills : undefined,
@@ -102,7 +102,7 @@ export const CandidateJourneyTracker: React.FC<Props> = ({
       number: 3,
       title: 'Match with a real opportunity',
       description: hasApplied
-        ? `You have ${activeApplications.length} active application${activeApplications.length === 1 ? '' : 's'}. Employers can see your verified skills and evidence.`
+        ? `You have ${activeApplications.length} active application${activeApplications.length === 1 ? '' : 's'}. Employers can see your verified skills and proof.`
         : 'Browse opportunities matched to your skills and location. Each listing shows transparent ZAR pay rates and explains why it matched you.',
       honestNote:
         'Your match score is a fit guide, not a hiring probability. Employers make the final decision. Scores never automatically disqualify you.',
@@ -116,7 +116,7 @@ export const CandidateJourneyTracker: React.FC<Props> = ({
       title: 'Complete work & build a record',
       description: hasCompletedWork
         ? `You have ${completedWork.length} completed work record${completedWork.length === 1 ? '' : 's'}. Each record is immutable and shows future employers that you have a verified track record.`
-        : 'When an employer marks your engagement as completed, an immutable work record is created. This becomes your most trusted evidence of real-world experience.',
+        : 'When an employer marks your engagement as completed, an immutable work record is created. This becomes your most trusted proof of real-world experience.',
       honestNote:
         'Work records show that the employer confirmed your work was completed. Once the employer confirms they sent your payment, it shows as Paid in your dashboard.',
       status: hasCompletedWork ? 'done' : hasApplied ? 'in_progress' : 'not_started',

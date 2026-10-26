@@ -152,7 +152,7 @@ export const TrustAndSafetyBanner: React.FC<Props> = ({ role }) => {
               <p className="text-[11px] text-amber-900 leading-relaxed">
                 <strong>What BASA cannot guarantee:</strong> Peer endorsements are community references, not formal
                 qualifications. Work records confirm employer-reported completion, not independent payment audits.
-                BASA is a matching and evidence platform — not a labour law enforcement agency. Always use a written
+                BASA is a matching and proof platform — not a labour law enforcement agency. Always use a written
                 work agreement and keep your own proof of payment.
               </p>
             </div>

@@ -43,7 +43,7 @@ We process personal information on these grounds:
 - **Administrators** can access all data for moderation, assessment, and POPIA compliance purposes.
 - We do **not** sell your data. We do **not** share it with third parties for advertising.
 - AI CV drafting (when enabled) sends anonymised skill descriptions to Google Gemini. Your name,
-  contact details, and location are **never** sent to AI providers.
+  contact details, SA ID number, and location are **never** sent to AI providers. A temporary `{{NAME}}` placeholder is used during generation and replaced with your real name locally after generation.
 
 ---
 
@@ -53,18 +53,33 @@ You have the right to:
 - **Access** your personal information at any time via your profile page.
 - **Correct** inaccurate information by editing your profile.
 - **Object** to processing — contact us at the privacy address above.
-- **Request deletion** — use the "Request Account Deletion" button on your profile page.
-  An admin will review your request and complete deletion within **30 days**.
-  Deletion removes your Firebase Auth account, Firestore documents, and Storage files.
+- **Self-service deletion** — delete your account directly at any time in **Settings > Privacy > Delete my account**.
+  Deletion permanently purges your Firebase Auth account, Firestore documents, evidence files, and salted duplicate hashes within **30 days** without needing administrative review.
+- **Export your data** — download a full portable JSON copy of your profile, skills, and applications.
 
 ---
 
-## Evidence retention
+## Data and Evidence Retention
 
-Skill evidence photos and work samples are stored privately in Firebase Storage.
-They are deleted when you delete a skill claim or when your account is fully deleted.
-We retain application and work records for **12 months** after a job is completed for dispute
-resolution, after which they are deleted. *(Confirm this period with legal counsel before launch.)*
+Retention is split strictly by purpose to protect youth privacy while preserving valid proof:
+
+1. **Candidate Completed-Work Entries (Skill Passport History):**
+   Retained while your account remains active, as this represents your earned professional record and proof of work.
+   Permanently deleted within 30 days when you delete your account, or under the 18-month inactivity lifecycle rule.
+
+2. **Employer Billing & Invoicing Records (Subscriptions):**
+   Retained for the statutory tax and audit period (assumed 5 years, to be confirmed by South African tax regulations).
+   These records contain corporate business registration details and invoice amounts only, with zero candidate personal data.
+
+3. **Closed Placements & Aggregate Impact Counts:**
+   After a placement closes, only an anonymised record is retained for aggregate platform impact numbers.
+   This aggregate data contains zero candidate names, contact details, ID numbers, or evidence files.
+
+4. **Unselected Job Applications:**
+   Retained for **6 months** for candidate review and employer feedback, after which they are purged or anonymised.
+
+
+
 
 ---
 

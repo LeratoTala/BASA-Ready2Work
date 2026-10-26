@@ -28,6 +28,8 @@ import { getRubricForSkill } from '../../../domain/rubrics';
 import { maskCredentialId, isCredentialExpired } from '../../../domain/credentialValidation';
 import { CREDENTIAL_EXPLANATIONS } from '../../../config/credentialRules';
 import { AddCredentialModal } from './AddCredentialModal';
+import { UpdateSkillProofModal } from './UpdateSkillProofModal';
+import { getSkillClaimProofStatus } from '../../../domain/claimProofUpdate';
 
 interface Props {
   candidate: CandidateProfile;
@@ -39,6 +41,17 @@ interface Props {
   ) => Promise<SkillClaim>;
   onOpenPassport: () => void;
   onOpenAIDrafter: () => void;
+  onUpdateClaimEvidence?: (
+    claimId: string,
+    updates: {
+      evidenceTitle: string;
+      evidenceDescription: string;
+      evidenceType: 'photo_video' | 'client_review' | 'reference_note' | 'work_sample' | 'practical_demo';
+      evidenceUrlOrText?: string;
+      newFiles?: File[];
+      existingItemIdsToKeep?: string[];
+    }
+  ) => Promise<any>;
   onAddCredential?: (
     claimId: string,
     credential: CredentialEvidence,
@@ -71,11 +84,13 @@ export const SkillsAndEvidence: React.FC<Props> = ({
   onAddClaim,
   onOpenPassport,
   onOpenAIDrafter,
+  onUpdateClaimEvidence,
   onAddCredential,
   onRequestPeerEndorsement,
   onRequestMentorReview,
 }) => {
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingProofClaim, setEditingProofClaim] = useState<SkillClaim | null>(null);
   const [selectedSkillId, setSelectedSkillId] = useState(SKILL_DEFINITIONS[0].id);
   const [customSkillName, setCustomSkillName] = useState('');
   const [selfReportedLevel, setSelfReportedLevel] = useState<'Beginner' | 'Intermediate' | 'Proficient'>('Intermediate');
@@ -210,6 +225,59 @@ export const SkillsAndEvidence: React.FC<Props> = ({
             <Plus className="w-4 h-4" />
             <span>Add Skill Claim</span>
           </button>
+        </div>
+      </div>
+
+      {/* Question Explainer Card: What is a Skill Passport? */}
+      <div className="bg-gradient-to-r from-amber-50 via-stone-50 to-amber-50/60 rounded-xl border border-amber-200/90 p-5 shadow-2xs">
+        <div className="flex items-start gap-3.5">
+          <div className="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-900 flex items-center justify-center shrink-0 border border-amber-300">
+            <HelpCircle className="w-5 h-5 text-amber-700" />
+          </div>
+          <div className="space-y-2.5 flex-1">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-bold text-sm text-stone-900 flex items-center gap-2">
+                <span>What is a Skill Passport?</span>
+                <span className="text-[10px] font-semibold uppercase bg-amber-200/80 text-amber-950 px-2 py-0.5 rounded-full">
+                  Simple Guide
+                </span>
+              </h3>
+              <button
+                type="button"
+                onClick={onOpenPassport}
+                className="text-xs font-semibold text-amber-800 hover:text-amber-950 underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>Preview My Passport</span>
+                <ExternalLink className="w-3 h-3" />
+              </button>
+            </div>
+            <p className="text-xs text-stone-700 leading-relaxed">
+              Your <strong>Skill Passport</strong> is your living digital record of what you can actually do. Instead of just a paper CV where anyone can write anything, your Skill Passport backs up your skills with real photos, certificates, practical tasks, and employer reviews.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-xs">
+              <div className="bg-white/90 rounded-lg p-2.5 border border-amber-200/70 flex items-start gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-stone-800 block text-[11px]">Real Proof</span>
+                  <span className="text-stone-600 text-[11px]">Add photos, certificates, or work examples to prove your skills.</span>
+                </div>
+              </div>
+              <div className="bg-white/90 rounded-lg p-2.5 border border-amber-200/70 flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-stone-800 block text-[11px]">Honest Badges</span>
+                  <span className="text-stone-600 text-[11px]">Badges clearly show if a skill is self-reported, peer-endorsed, or task-tested.</span>
+                </div>
+              </div>
+              <div className="bg-white/90 rounded-lg p-2.5 border border-amber-200/70 flex items-start gap-2">
+                <Award className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold text-stone-800 block text-[11px]">Better Job Matches</span>
+                  <span className="text-stone-600 text-[11px]">Employers see how your verified skills match their open positions.</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -395,6 +463,14 @@ export const SkillsAndEvidence: React.FC<Props> = ({
                   </div>
                 </div>
               )}
+
+              {/* POPIA Driver License & Document Protection Tip */}
+              <div className="p-2.5 rounded bg-amber-50/80 border border-amber-200 text-[11px] text-amber-900 flex items-start gap-2">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                <p>
+                  <strong>POPIA Document Safety:</strong> For driving jobs, adding your license codes (e.g. Code 8/B or Code 10/C1 with PrDP) as plain text in the description above is 100% sufficient for matching. Uploading document scans is optional; you can bring your original driving card to the on-site briefing.
+                </p>
+              </div>
             </div>
 
             {saveError && <p className="text-red-700 text-xs" role="alert">{saveError}</p>}
@@ -469,22 +545,59 @@ export const SkillsAndEvidence: React.FC<Props> = ({
             </p>
           </div>
         ) : (
-          claims.map((claim) => (
-            <div
-              key={claim.id}
-              className="bg-white rounded-xl border border-stone-200 p-5 shadow-xs space-y-3"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <h4 className="font-bold text-base text-stone-900">{claim.skillName}</h4>
-                  <div className="flex items-center gap-2 text-xs text-stone-500 pt-0.5">
-                    <span>Self-assessed: <strong className="text-stone-700">{claim.selfReportedLevel}</strong></span>
-                    <span>·</span>
-                    <span>Evidence type: <span className="capitalize">{claim.evidenceType.replace('_', ' ')}</span></span>
+          claims.map((claim) => {
+            const proofStatus = getSkillClaimProofStatus(claim);
+
+            return (
+              <div
+                key={claim.id}
+                className="bg-white rounded-xl border border-stone-200 p-5 shadow-xs space-y-3"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h4 className="font-bold text-base text-stone-900">{claim.skillName}</h4>
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-stone-500 pt-0.5">
+                      <span>Self-assessed: <strong className="text-stone-700">{claim.selfReportedLevel}</strong></span>
+                      <span>·</span>
+                      <span>Evidence type: <span className="capitalize">{claim.evidenceType.replace('_', ' ')}</span></span>
+                      <span>·</span>
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
+                          proofStatus.hasProof
+                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-900 border border-amber-300'
+                        }`}
+                      >
+                        {proofStatus.hasProof ? (
+                          <Check className="w-3 h-3 text-emerald-600" />
+                        ) : (
+                          <AlertTriangle className="w-3 h-3 text-amber-600" />
+                        )}
+                        <span>{proofStatus.statusLabel}</span>
+                      </span>
+                    </div>
                   </div>
+                  <VerificationBadge status={claim.verificationStatus} showMeaning />
                 </div>
-                <VerificationBadge status={claim.verificationStatus} showMeaning />
-              </div>
+
+                {!proofStatus.hasProof && (
+                  <div className="bg-amber-50/70 border border-dashed border-amber-300 rounded-lg p-2.5 text-[11px] text-amber-900 flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                      <span>
+                        <strong>No proof uploaded yet:</strong> You registered this skill as self-reported. Tap "Update / Add Proof" to upload documents, photos or certificates.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditingProofClaim(claim)}
+                      className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-bold text-[10px] shrink-0 cursor-pointer flex items-center gap-1"
+                    >
+                      <Upload className="w-3 h-3" />
+                      <span>Add Proof Now</span>
+                    </button>
+                  </div>
+                )}
 
               <div className="bg-stone-50 rounded-lg p-3 text-xs text-stone-700 border border-stone-100 space-y-1">
                 <p className="font-semibold text-stone-900">{claim.evidenceTitle}</p>
@@ -507,11 +620,11 @@ export const SkillsAndEvidence: React.FC<Props> = ({
                   </div>
                 )}
 
-                {/* Attached Evidence Dossier */}
+                {/* Attached Proof & Work Samples */}
                 {claim.evidenceItems && claim.evidenceItems.length > 0 && (
                   <div className="pt-2 border-t border-stone-200/80 space-y-1.5">
                     <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">
-                      Attached Documents & Evidence ({claim.evidenceItems.length}):
+                      Attached Proof & Work Samples ({claim.evidenceItems.length}):
                     </span>
                     <div className="flex flex-wrap gap-2">
                       {claim.evidenceItems.map((item) => {
@@ -699,10 +812,21 @@ export const SkillsAndEvidence: React.FC<Props> = ({
                     )}
                   </>
                 )}
+
+                {/* Candidate can update proof even after submitting */}
+                <button
+                  type="button"
+                  onClick={() => setEditingProofClaim(claim)}
+                  className="px-2.5 py-1 text-xs font-semibold rounded bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Update / Add Proof</span>
+                </button>
               </div>
             </div>
-          ))
-        )}
+          );
+        })
+      )}
       </div>
 
       {/* Peer Endorsement Request Modal (R3 / FR-19) */}
@@ -1250,6 +1374,22 @@ export const SkillsAndEvidence: React.FC<Props> = ({
               `Badge / certificate "${cred.credentialName}" saved and linked across ${attachedCount} skill(s) on your Skill Passport.`
             );
             setTimeout(() => setNotification(null), 5000);
+          }}
+        />
+      )}
+
+      {/* Candidate Update Proof Modal */}
+      {editingProofClaim && (
+        <UpdateSkillProofModal
+          isOpen={Boolean(editingProofClaim)}
+          onClose={() => setEditingProofClaim(null)}
+          claim={editingProofClaim}
+          onSaveProof={async (claimId, updates) => {
+            if (onUpdateClaimEvidence) {
+              await onUpdateClaimEvidence(claimId, updates);
+            }
+            setNotification(`Proof updated for ${editingProofClaim.skillName}!`);
+            setTimeout(() => setNotification(null), 3500);
           }}
         />
       )}

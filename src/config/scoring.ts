@@ -35,7 +35,7 @@ export const EVIDENCE_BASELINE = {
 
 export const EVIDENCE_THRESHOLDS = { high: 80, medium: 50 } as const;
 
-export type PayUnit = 'hourly' | 'daily' | 'fixed';
+export type PayUnit = 'hourly' | 'daily' | 'weekly' | 'fortnightly' | 'monthly' | 'fixed';
 
 /** Availability fit (0-100) by candidate availability, with optional overrides. */
 export const AVAILABILITY_SCORES: Record<

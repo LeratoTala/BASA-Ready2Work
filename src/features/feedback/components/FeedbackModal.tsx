@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Star, MessageSquare, CheckCircle2, ShieldCheck, HeartHandshake } from 'lucide-react';
 import { FeedbackRecord, User } from '../../../domain/types';
+import { useOSModalNavigation } from '../../../shared/hooks/useOSNavigation';
 
 interface Props {
   isOpen: boolean;
@@ -23,6 +24,12 @@ export const FeedbackModal: React.FC<Props> = ({
   currentUser,
   onSubmitFeedback,
 }) => {
+  useOSModalNavigation({
+    isOpen,
+    onClose,
+    modalId: 'user-feedback',
+  });
+
   const [rating, setRating] = useState<number>(5);
   const [hoverRating, setHoverRating] = useState<number | null>(null);
   const [workedWell, setWorkedWell] = useState('');

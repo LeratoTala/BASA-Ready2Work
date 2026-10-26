@@ -19,7 +19,16 @@ import {
   MentorReview,
   CredentialEvidence,
   FeedbackRecord,
+  PayoutConfirmationDetails,
+  BusinessVerificationDetails,
+  EmployerUpgradeRequest,
+  PricingPulseSurveyResponse,
+  EvidenceItem,
 } from '../../domain/types';
+import { applyCompletedJobToSkillPassport } from '../../domain/jobCompletionSkills';
+import { updateClaimProof } from '../../domain/claimProofUpdate';
+import { canEmployerPostActiveJob } from '../../config/plans';
+import { FEATURE_FLAGS } from '../../config/featureFlags';
 import { resolveSkillLabelFromCredential } from '../../config/credentialRules';
 import {
   INITIAL_APPLICATIONS,
@@ -99,6 +108,13 @@ export function useDemoStore() {
   );
   const [feedbackList, setFeedbackList] = useState<FeedbackRecord[]>(() =>
     loadStored('basa_feedback', [])
+  );
+  // Section 39: Employer Upgrade Requests & Pricing Pulse Surveys
+  const [upgradeRequests, setUpgradeRequests] = useState<EmployerUpgradeRequest[]>(() =>
+    loadStored('basa_upgrade_requests', [])
+  );
+  const [pulseSurveys, setPulseSurveys] = useState<PricingPulseSurveyResponse[]>(() =>
+    loadStored('basa_pulse_surveys', [])
   );
   const { lowDataMode, setLowDataMode, profileDraft, saveDraft } = useLocalPrefs();
   const syncStatus = 'synced' as SyncState;
@@ -200,7 +216,42 @@ export function useDemoStore() {
   const clearError = () => {};
 
   const signInWithGoogle = async (): Promise<unknown> => {
-    throw new Error('Google sign-in is disabled in demo mode. Pick a demo persona instead.');
+    // In demo mode, sign in as the Google demo persona (Nomvula Khumalo / gmail user) or candidate
+    const googleUser =
+      users.find((u) => u.email.toLowerCase().endsWith('@gmail.com')) ||
+      users.find((u) => u.role === 'candidate') ||
+      users[0];
+    if (googleUser) {
+      setCurrentUser(googleUser);
+      saveStored(STORAGE_KEYS.currentUser, googleUser);
+      return googleUser;
+    }
+    const newUid = `user-google-${Date.now()}`;
+    const newUser: User = {
+      uid: newUid,
+      displayName: 'Google Demo User',
+      email: 'user@gmail.com',
+      role: 'candidate',
+      createdAt: new Date().toISOString(),
+      accountStatus: 'active',
+      minimumAgeConfirmed: true,
+    };
+    const newProfile: CandidateProfile = {
+      uid: newUid,
+      fullName: newUser.displayName,
+      headline: 'Jobseeker',
+      experienceSummary: '',
+      skillIds: [],
+      locationArea: NEW_ACCOUNT_DEFAULTS.candidate.locationArea,
+      availability: NEW_ACCOUNT_DEFAULTS.candidate.availability,
+      popiaVisibility: NEW_ACCOUNT_DEFAULTS.candidate.popiaVisibility,
+      updatedAt: new Date().toISOString(),
+    };
+    setUsers((prev) => [...prev, newUser]);
+    setCandidateProfiles((prev) => ({ ...prev, [newUid]: newProfile }));
+    setCurrentUser(newUser);
+    saveStored(STORAGE_KEYS.currentUser, newUser);
+    return newUser;
   };
 
   let demoPendingPhone: string | null = null;
@@ -227,7 +278,19 @@ export function useDemoStore() {
       accountStatus: 'active',
       minimumAgeConfirmed: true,
     };
+    const newProfile: CandidateProfile = {
+      uid: newUid,
+      fullName: newUser.displayName,
+      headline: 'Jobseeker',
+      experienceSummary: '',
+      skillIds: [],
+      locationArea: NEW_ACCOUNT_DEFAULTS.candidate.locationArea,
+      availability: NEW_ACCOUNT_DEFAULTS.candidate.availability,
+      popiaVisibility: NEW_ACCOUNT_DEFAULTS.candidate.popiaVisibility,
+      updatedAt: new Date().toISOString(),
+    };
     setUsers((prev) => [...prev, newUser]);
+    setCandidateProfiles((prev) => ({ ...prev, [newUid]: newProfile }));
     setCurrentUser(newUser);
     saveStored(STORAGE_KEYS.currentUser, newUser);
     return newUser;
@@ -264,7 +327,19 @@ export function useDemoStore() {
       accountStatus: 'active',
       minimumAgeConfirmed: true,
     };
+    const newProfile: CandidateProfile = {
+      uid: newUid,
+      fullName: newUser.displayName,
+      headline: 'Jobseeker',
+      experienceSummary: '',
+      skillIds: [],
+      locationArea: NEW_ACCOUNT_DEFAULTS.candidate.locationArea,
+      availability: NEW_ACCOUNT_DEFAULTS.candidate.availability,
+      popiaVisibility: NEW_ACCOUNT_DEFAULTS.candidate.popiaVisibility,
+      updatedAt: new Date().toISOString(),
+    };
     setUsers((prev) => [...prev, newUser]);
+    setCandidateProfiles((prev) => ({ ...prev, [newUid]: newProfile }));
     setCurrentUser(newUser);
     saveStored(STORAGE_KEYS.currentUser, newUser);
     return newUser;
@@ -282,6 +357,7 @@ export function useDemoStore() {
     const found = users.find((u) => u.uid === uid);
     if (found) {
       setCurrentUser(found);
+      saveStored(STORAGE_KEYS.currentUser, found);
     }
   };
 
@@ -381,14 +457,101 @@ export function useDemoStore() {
     });
   };
 
-  /** Admin-only: set employer verificationStatus in demo mode. */
-  const updateEmployerVerification = async (employerUid: string, status: 'verified' | 'unverified'): Promise<void> => {
+  // Request Employer Business Verification (Anti-Fraud & CIPC compliance)
+  const requestEmployerVerification = async (
+    employerUid: string,
+    details: BusinessVerificationDetails,
+    documentFile?: File
+  ): Promise<void> => {
+    if (!currentUser) throw new Error('Authentication required');
+    if (currentUser.role !== 'employer' && currentUser.role !== 'admin') {
+      throw new Error('Only employers can request business verification.');
+    }
+
+    let fileUrl = details.documentFileUrl;
+    if (documentFile) {
+      fileUrl = URL.createObjectURL(documentFile);
+    }
+
+    const fullDetails: BusinessVerificationDetails = {
+      ...details,
+      documentFileName: documentFile ? documentFile.name : details.documentFileName,
+      documentFileUrl: fileUrl,
+      submittedAt: new Date().toISOString(),
+    };
+
+    setEmployerProfiles((prev) => {
+      const existing = prev[employerUid] || {
+        uid: employerUid,
+        businessName: currentUser.displayName,
+        industry: 'General Services',
+        description: '',
+        locationArea: 'Johannesburg CBD',
+        verificationStatus: 'pending' as const,
+        contactEmail: currentUser.email,
+        createdAt: new Date().toISOString(),
+      };
+      return {
+        ...prev,
+        [employerUid]: {
+          ...existing,
+          verificationStatus: 'pending' as const,
+          verificationDetails: fullDetails,
+        },
+      };
+    });
+
+    // Notify administrators
+    deliverNotification(
+      'admin-nomsa',
+      'application_status',
+      'New Employer Verification Request',
+      `"${details.legalRegisteredName || currentUser.displayName}" submitted CIPC/permit registration (${details.registrationNumber}) for verification.`,
+      employerUid,
+      new Date().toISOString(),
+      'employers'
+    );
+  };
+
+  /** Admin-only: set employer verificationStatus and audit notes in demo mode. */
+  const updateEmployerVerification = async (
+    employerUid: string,
+    status: 'verified' | 'unverified' | 'pending',
+    notes?: string
+  ): Promise<void> => {
     if (!currentUser || currentUser.role !== 'admin') throw new Error('Admin authorization required.');
+    const now = new Date().toISOString();
     setEmployerProfiles((prev) => {
       const existing = prev[employerUid];
       if (!existing) return prev;
-      return { ...prev, [employerUid]: { ...existing, verificationStatus: status } };
+      return {
+        ...prev,
+        [employerUid]: {
+          ...existing,
+          verificationStatus: status,
+          verificationDetails: existing.verificationDetails
+            ? {
+                ...existing.verificationDetails,
+                verifiedAt: status === 'verified' ? now : undefined,
+                adminNotes: notes || existing.verificationDetails.adminNotes,
+              }
+            : undefined,
+        },
+      };
     });
+
+    // Notify the employer
+    deliverNotification(
+      employerUid,
+      'application_status',
+      status === 'verified' ? 'Company Registration Verified!' : 'Company Verification Update',
+      status === 'verified'
+        ? 'Your company registration has been verified against official records. You can now publish job opportunities!'
+        : `Your verification status was set to ${status}. ${notes ? `Note: ${notes}` : ''}`,
+      employerUid,
+      now,
+      'profile'
+    );
   };
 
   // Add Skill Claim
@@ -427,6 +590,59 @@ export function useDemoStore() {
       return prev;
     });
     return newClaim;
+  };
+
+  // Candidate updates proof / evidence for an existing claim even after initial submission
+  const updateClaimEvidence = async (
+    claimId: string,
+    payload: {
+      evidenceTitle: string;
+      evidenceDescription: string;
+      evidenceType: 'photo_video' | 'client_review' | 'reference_note' | 'work_sample' | 'practical_demo';
+      evidenceUrlOrText?: string;
+      newFiles?: File[];
+      existingItemIdsToKeep?: string[];
+    }
+  ): Promise<SkillClaim> => {
+    if (!currentUser) throw new Error('Authentication required');
+    const existingClaim = skillClaims.find((c) => c.id === claimId);
+    if (!existingClaim) throw new Error('Skill claim not found');
+
+    if (currentUser.role === 'candidate' && existingClaim.candidateId !== currentUser.uid) {
+      throw new Error('Access denied: You can only edit proof for your own skills.');
+    }
+
+    const newEvidenceItems: EvidenceItem[] = (payload.newFiles || []).map((file, idx) => ({
+      id: `ev-upd-${Date.now()}-${idx}`,
+      type: file.type.startsWith('image/')
+        ? 'photo'
+        : file.type === 'application/pdf'
+        ? 'document_pdf'
+        : 'work_sample',
+      title: file.name.replace(/\.[^/.]+$/, '').replace(/[_-]/g, ' '),
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type,
+      description: payload.evidenceDescription || 'Updated proof document attached by candidate.',
+      uploadedAt: new Date().toISOString(),
+    }));
+
+    const updatedClaim = updateClaimProof(existingClaim, {
+      evidenceTitle: payload.evidenceTitle,
+      evidenceDescription: payload.evidenceDescription,
+      evidenceType: payload.evidenceType,
+      evidenceUrlOrText: payload.evidenceUrlOrText,
+      newEvidenceItems,
+      existingEvidenceItemIdsToKeep: payload.existingItemIdsToKeep,
+    });
+
+    setSkillClaims((prev) => {
+      const next = prev.map((c) => (c.id === claimId ? updatedClaim : c));
+      saveStored(STORAGE_KEYS.skillClaims, next);
+      return next;
+    });
+
+    return updatedClaim;
   };
 
   // Section 35 & Multi-Skill: Add Credential or Badge to Skill Claim(s)
@@ -560,7 +776,7 @@ export function useDemoStore() {
       `Your demonstration for "${assessment.skillName}" was evaluated (${assessment.decision === 'approved' ? 'Approved' : 'Reviewed'}).`,
       newRecord.id,
       newRecord.createdAt,
-      'passport'
+      'skills'
     );
 
     return newRecord;
@@ -662,7 +878,7 @@ export function useDemoStore() {
       `Your skill "${endorsement.skillName}" was peer-endorsed by ${endorsement.endorserName} (${endorsement.endorserRole}).`,
       endorsement.id,
       confirmedAt,
-      'passport'
+      'skills'
     );
   };
 
@@ -725,7 +941,7 @@ export function useDemoStore() {
       `Your skill "${claim.skillName}" received mentor feedback from ${newReview.mentorName}: ${params.decision === 'approved' ? 'Approved & Upgraded' : 'Additional Evidence Requested'}.`,
       newReview.id,
       now,
-      'passport'
+      'skills'
     );
 
     return newReview;
@@ -741,6 +957,16 @@ export function useDemoStore() {
     if (empProfile && empProfile.verificationStatus !== 'verified') {
       throw new Error('Employer account unverified: You cannot post opportunities until an administrator verifies your business profile (Section 30.1).');
     }
+
+    // Section 39.2 & 39.3: Active job limit gating based on employer plan
+    const currentActiveJobs = jobs.filter(
+      (j) => j.employerId === currentUser.uid && j.status === 'open'
+    ).length;
+    const gating = canEmployerPostActiveJob(currentActiveJobs, empProfile?.plan || 'free');
+    if (!gating.allowed) {
+      throw new Error(gating.reason || 'Active job posting limit reached for current subscription plan.');
+    }
+
     const newJob: Job = {
       ...jobData,
       id: `job-${Date.now()}`,
@@ -835,6 +1061,7 @@ export function useDemoStore() {
       status: 'submitted',
       matchScore: breakdown.totalScore,
       matchBreakdown: breakdown,
+      engagementType: targetJob.engagementType,
       submittedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -867,7 +1094,8 @@ export function useDemoStore() {
     applicationId: string,
     newStatus: ApplicationStatus,
     employerNotes?: string,
-    payoutConfirmed?: boolean
+    payoutConfirmed?: boolean,
+    payoutDetails?: PayoutConfirmationDetails
   ) => {
     if (!currentUser) throw new Error('Authentication required');
     const app = applications.find((a) => a.id === applicationId);
@@ -882,20 +1110,46 @@ export function useDemoStore() {
       if (newStatus !== 'withdrawn') throw new Error('Candidates may only withdraw their own application.');
     }
 
-    if (!isValidTransition(app.status, newStatus)) {
+    if (app.status !== newStatus && !isValidTransition(app.status, newStatus)) {
       throw new Error(`Invalid status transition: Cannot move application from '${app.status}' to '${newStatus}'.`);
     }
+
+    const targetJob = jobs.find((j) => j.id === app.jobId);
+    const isPaid = newStatus === 'completed' ? Boolean(payoutConfirmed) : Boolean(app.payoutConfirmed);
+    const payRateAmount = payoutDetails?.payRateAmount ?? app.payRateAmount ?? targetJob?.compensationAmount ?? 0;
+    const payRateUnit = payoutDetails?.payRateUnit ?? app.payRateUnit ?? (targetJob?.compensationUnit === 'hourly' ? 'hour' : targetJob?.compensationUnit === 'daily' ? 'day' : targetJob?.compensationUnit === 'weekly' ? 'week' : targetJob?.compensationUnit === 'fortnightly' ? 'fortnight' : targetJob?.compensationUnit === 'monthly' ? 'month' : 'fixed');
+    const actualTimeInWorkplace = payoutDetails?.actualTimeInWorkplace ?? app.actualTimeInWorkplace;
+    const actualHoursWorked = payoutDetails?.actualHoursWorked ?? payoutDetails?.hoursWorked ?? app.actualHoursWorked ?? app.hoursWorked;
+    const actualDaysWorked = payoutDetails?.actualDaysWorked ?? app.actualDaysWorked;
+    const daysOffAndLeave = payoutDetails?.daysOffAndLeave ?? app.daysOffAndLeave;
+    const daysOffLeaveLabel = payoutDetails?.daysOffLeaveLabel ?? app.daysOffLeaveLabel;
+    const employmentStartDate = payoutDetails?.employmentStartDate || app.employmentStartDate || (newStatus === 'selected' || newStatus === 'completed' ? (targetJob?.startDate || new Date().toISOString().split('T')[0]) : undefined);
+    const employmentEndDate = newStatus === 'completed' ? (payoutDetails?.employmentEndDate || new Date().toISOString().split('T')[0]) : undefined;
+    const exactAmount = payoutDetails?.exactAmountZAR ?? app.payoutAmountZAR ?? targetJob?.compensationAmount ?? 0;
+    const hoursWorked = actualHoursWorked;
+    const workDurationLabel = payoutDetails?.workDurationLabel ?? actualTimeInWorkplace ?? app.workDurationLabel;
 
     setApplications((prev) =>
       prev.map((a) => {
         if (a.id === applicationId) {
-          const isPaid = newStatus === 'completed' ? Boolean(payoutConfirmed) : a.payoutConfirmed;
           const updated = {
             ...a,
             status: newStatus,
             employerNotes: employerNotes !== undefined ? employerNotes : a.employerNotes,
             payoutConfirmed: isPaid,
             paidAt: isPaid ? (a.paidAt || new Date().toISOString()) : undefined,
+            payRateAmount,
+            payRateUnit,
+            actualTimeInWorkplace,
+            actualHoursWorked,
+            actualDaysWorked,
+            daysOffAndLeave,
+            daysOffLeaveLabel,
+            employmentStartDate,
+            employmentEndDate,
+            hoursWorked: hoursWorked !== undefined ? hoursWorked : a.hoursWorked,
+            workDurationLabel: workDurationLabel !== undefined ? workDurationLabel : a.workDurationLabel,
+            payoutAmountZAR: exactAmount,
             updatedAt: new Date().toISOString(),
           };
           return updated;
@@ -916,8 +1170,6 @@ export function useDemoStore() {
     );
 
     if (newStatus === 'completed') {
-      const targetJob = jobs.find((j) => j.id === app.jobId);
-      const isPaid = Boolean(payoutConfirmed);
       const newWorkRecord: WorkRecord = {
         id: `work-${Date.now()}`,
         applicationId: app.id,
@@ -930,22 +1182,115 @@ export function useDemoStore() {
         completionStatus: 'completed',
         employerConfirmed: true,
         payoutConfirmed: isPaid,
-        amountZAR: targetJob?.compensationAmount ?? 0,
+        amountZAR: exactAmount,
+        payRateAmount,
+        payRateUnit,
+        actualTimeInWorkplace,
+        actualHoursWorked,
+        actualDaysWorked,
+        daysOffAndLeave,
+        daysOffLeaveLabel,
+        employmentStartDate,
+        employmentEndDate,
+        hoursWorked,
+        workDurationLabel,
         feedback: employerNotes || 'Work completed successfully according to terms.',
         confirmedAt: new Date().toISOString(),
       };
       setWorkRecords((prev) => [newWorkRecord, ...prev]);
+
+      // Automatically update candidate's Skill Passport with completed job as proof
+      if (targetJob) {
+        setSkillClaims((prevClaims) => {
+          const candProfile = candidateProfiles[app.candidateId];
+          const currSkillIds = candProfile ? candProfile.skillIds : [];
+          const updateResult = applyCompletedJobToSkillPassport({
+            candidateId: app.candidateId,
+            job: targetJob,
+            application: {
+              ...app,
+              status: 'completed',
+              actualTimeInWorkplace,
+              workDurationLabel,
+              payoutAmountZAR: exactAmount,
+            },
+            currentClaims: prevClaims,
+            currentSkillIds: currSkillIds,
+            workDurationLabel,
+            payoutAmountZAR: exactAmount,
+          });
+
+          if (candProfile) {
+            setCandidateProfiles((prevProfiles) => {
+              const updatedProfile = {
+                ...candProfile,
+                skillIds: updateResult.updatedSkillIds,
+                updatedAt: new Date().toISOString(),
+              };
+              const nextProfiles = { ...prevProfiles, [app.candidateId]: updatedProfile };
+              saveStored(STORAGE_KEYS.candidateProfiles, nextProfiles);
+              return nextProfiles;
+            });
+          }
+
+          saveStored(STORAGE_KEYS.skillClaims, updateResult.updatedClaims);
+          return updateResult.updatedClaims;
+        });
+
+        deliverNotification(
+          app.candidateId,
+          'application_status',
+          `Skill Passport Updated: ${targetJob.title}`,
+          `Your completed job with ${app.employerName} has added/verified skills in your Skill Passport: ${targetJob.requiredSkillNames?.join(', ') || targetJob.title}.`,
+          app.id,
+          'completed',
+          'skills'
+        );
+      }
     }
   };
 
-  const confirmWorkPayout = (applicationId: string) => {
+  const confirmWorkPayout = (
+    applicationId: string,
+    payoutDetails?: PayoutConfirmationDetails
+  ) => {
     if (!currentUser) throw new Error('Authentication required');
     const now = new Date().toISOString();
+    const targetApp = applications.find((a) => a.id === applicationId);
+    const targetJob = targetApp ? jobs.find((j) => j.id === targetApp.jobId) : undefined;
+    const payRateAmount = payoutDetails?.payRateAmount ?? targetApp?.payRateAmount ?? targetJob?.compensationAmount ?? 0;
+    const payRateUnit = payoutDetails?.payRateUnit ?? targetApp?.payRateUnit ?? (targetJob?.compensationUnit === 'hourly' ? 'hour' : targetJob?.compensationUnit === 'daily' ? 'day' : targetJob?.compensationUnit === 'weekly' ? 'week' : targetJob?.compensationUnit === 'fortnightly' ? 'fortnight' : targetJob?.compensationUnit === 'monthly' ? 'month' : 'fixed');
+    const actualTimeInWorkplace = payoutDetails?.actualTimeInWorkplace ?? targetApp?.actualTimeInWorkplace;
+    const actualHoursWorked = payoutDetails?.actualHoursWorked ?? payoutDetails?.hoursWorked ?? targetApp?.actualHoursWorked ?? targetApp?.hoursWorked;
+    const actualDaysWorked = payoutDetails?.actualDaysWorked ?? targetApp?.actualDaysWorked;
+    const daysOffAndLeave = payoutDetails?.daysOffAndLeave ?? targetApp?.daysOffAndLeave;
+    const daysOffLeaveLabel = payoutDetails?.daysOffLeaveLabel ?? targetApp?.daysOffLeaveLabel;
+    const employmentStartDate = targetApp?.employmentStartDate || targetJob?.startDate || new Date().toISOString().split('T')[0];
+    const employmentEndDate = payoutDetails?.employmentEndDate || targetApp?.employmentEndDate || new Date().toISOString().split('T')[0];
+    const exactAmount = payoutDetails?.exactAmountZAR ?? targetApp?.payoutAmountZAR ?? targetJob?.compensationAmount ?? 0;
+    const hoursWorked = actualHoursWorked;
+    const workDurationLabel = payoutDetails?.workDurationLabel ?? actualTimeInWorkplace ?? targetApp?.workDurationLabel;
 
     setWorkRecords((prev) =>
       prev.map((w) =>
         w.applicationId === applicationId
-          ? { ...w, payoutConfirmed: true, confirmedAt: now }
+          ? {
+              ...w,
+              payoutConfirmed: true,
+              confirmedAt: now,
+              amountZAR: exactAmount,
+              payRateAmount,
+              payRateUnit,
+              actualTimeInWorkplace: actualTimeInWorkplace ?? w.actualTimeInWorkplace,
+              actualHoursWorked: actualHoursWorked ?? w.actualHoursWorked,
+              actualDaysWorked: actualDaysWorked ?? w.actualDaysWorked,
+              daysOffAndLeave: daysOffAndLeave ?? w.daysOffAndLeave,
+              daysOffLeaveLabel: daysOffLeaveLabel ?? w.daysOffLeaveLabel,
+              employmentStartDate: employmentStartDate ?? w.employmentStartDate,
+              employmentEndDate: employmentEndDate ?? w.employmentEndDate,
+              hoursWorked: hoursWorked ?? w.hoursWorked,
+              workDurationLabel: workDurationLabel ?? w.workDurationLabel,
+            }
           : w
       )
     );
@@ -953,22 +1298,79 @@ export function useDemoStore() {
     setApplications((prev) =>
       prev.map((a) =>
         a.id === applicationId
-          ? { ...a, payoutConfirmed: true, paidAt: now, updatedAt: now }
+          ? {
+              ...a,
+              payoutConfirmed: true,
+              paidAt: now,
+              updatedAt: now,
+              payRateAmount,
+              payRateUnit,
+              actualTimeInWorkplace: actualTimeInWorkplace ?? a.actualTimeInWorkplace,
+              actualHoursWorked: actualHoursWorked ?? a.actualHoursWorked,
+              actualDaysWorked: actualDaysWorked ?? a.actualDaysWorked,
+              daysOffAndLeave: daysOffAndLeave ?? a.daysOffAndLeave,
+              daysOffLeaveLabel: daysOffLeaveLabel ?? a.daysOffLeaveLabel,
+              employmentStartDate: employmentStartDate ?? a.employmentStartDate,
+              employmentEndDate: employmentEndDate ?? a.employmentEndDate,
+              payoutAmountZAR: exactAmount,
+              hoursWorked: hoursWorked ?? a.hoursWorked,
+              workDurationLabel: workDurationLabel ?? a.workDurationLabel,
+            }
           : a
       )
     );
 
-    const targetApp = applications.find((a) => a.id === applicationId);
     if (targetApp) {
+      const durationText = actualTimeInWorkplace || workDurationLabel || (actualHoursWorked ? `${actualHoursWorked} hours` : 'work');
       deliverNotification(
         targetApp.candidateId,
         'application_status',
         'Payment Confirmed!',
-        `Your employer has confirmed payment for "${targetApp.jobTitle}".`,
+        `Your employer has confirmed payment rate of R${payRateAmount} / ${payRateUnit} for ${durationText} in the workplace on "${targetApp.jobTitle}".`,
         targetApp.id,
         'completed',
         'applications'
       );
+
+      // Ensure Skill Passport holds verified completed job proof with payout confirmation
+      if (targetJob) {
+        setSkillClaims((prevClaims) => {
+          const candProfile = candidateProfiles[targetApp.candidateId];
+          const currSkillIds = candProfile ? candProfile.skillIds : [];
+          const updateResult = applyCompletedJobToSkillPassport({
+            candidateId: targetApp.candidateId,
+            job: targetJob,
+            application: {
+              ...targetApp,
+              status: 'completed',
+              actualTimeInWorkplace,
+              workDurationLabel,
+              payoutConfirmed: true,
+              payoutAmountZAR: exactAmount,
+            },
+            currentClaims: prevClaims,
+            currentSkillIds: currSkillIds,
+            workDurationLabel,
+            payoutAmountZAR: exactAmount,
+          });
+
+          if (candProfile) {
+            setCandidateProfiles((prevProfiles) => {
+              const updatedProfile = {
+                ...candProfile,
+                skillIds: updateResult.updatedSkillIds,
+                updatedAt: new Date().toISOString(),
+              };
+              const nextProfiles = { ...prevProfiles, [targetApp.candidateId]: updatedProfile };
+              saveStored(STORAGE_KEYS.candidateProfiles, nextProfiles);
+              return nextProfiles;
+            });
+          }
+
+          saveStored(STORAGE_KEYS.skillClaims, updateResult.updatedClaims);
+          return updateResult.updatedClaims;
+        });
+      }
     }
   };
 
@@ -1097,6 +1499,161 @@ export function useDemoStore() {
     return newFeedback;
   };
 
+  // Section 39: Employer Upgrade Request (Pilot Demo - Invoiced Manually / Honest Flow)
+  const requestEmployerUpgrade = (reqData: Omit<EmployerUpgradeRequest, 'id' | 'requestedAt'>) => {
+    const isInstantDemo = FEATURE_FLAGS.demoInstantApproval;
+    const now = new Date().toISOString();
+
+    const newReq: EmployerUpgradeRequest = {
+      ...reqData,
+      id: `upgrade-${Date.now()}`,
+      status: isInstantDemo ? 'approved' : 'pending',
+      requestedAt: now,
+      reviewedBy: isInstantDemo ? 'Demo Auto-Approval' : undefined,
+      reviewedAt: isInstantDemo ? now : undefined,
+    };
+
+    setUpgradeRequests((prev) => [newReq, ...prev]);
+    saveStored('basa_upgrade_requests', [newReq, ...upgradeRequests]);
+
+    // Section 39 Honest Flow: Requesting an upgrade does NOT change the plan unless demo shortcut is ON.
+    // In standard pilot mode: plan stays the same, planStatus becomes 'upgrade_pending'.
+    if (reqData.employerUid) {
+      setEmployerProfiles((prev) => {
+        const emp = prev[reqData.employerUid];
+        if (!emp) return prev;
+        return {
+          ...prev,
+          [reqData.employerUid]: {
+            ...emp,
+            plan: isInstantDemo ? reqData.targetPlan : emp.plan,
+            planStatus: isInstantDemo ? 'active' : 'upgrade_pending',
+            planSince: isInstantDemo ? now : emp.planSince,
+          },
+        };
+      });
+    }
+    return newReq;
+  };
+
+  // Section 39.5: Admin Approves and Activates Upgrade Request
+  const approveUpgradeRequest = (
+    requestId: string,
+    adminUid: string,
+    adminName: string
+  ) => {
+    const now = new Date().toISOString();
+    let targetUid = '';
+    let targetPlan: 'starter' | 'business' | 'partner' = 'starter';
+
+    setUpgradeRequests((prev) =>
+      prev.map((r) => {
+        if (r.id === requestId) {
+          targetUid = r.employerUid;
+          targetPlan = r.targetPlan;
+          return {
+            ...r,
+            status: 'approved',
+            reviewedBy: adminName || adminUid,
+            reviewedAt: now,
+          };
+        }
+        return r;
+      })
+    );
+
+    if (targetUid) {
+      setEmployerProfiles((prev) => {
+        const emp = prev[targetUid];
+        if (!emp) return prev;
+        return {
+          ...prev,
+          [targetUid]: {
+            ...emp,
+            plan: targetPlan,
+            planStatus: 'active',
+            planSince: now,
+          },
+        };
+      });
+    }
+  };
+
+  // Section 39.5: Admin Declines Upgrade Request (with Note)
+  const declineUpgradeRequest = (
+    requestId: string,
+    adminUid: string,
+    adminName: string,
+    adminNote?: string
+  ) => {
+    const now = new Date().toISOString();
+    let targetUid = '';
+
+    setUpgradeRequests((prev) =>
+      prev.map((r) => {
+        if (r.id === requestId) {
+          targetUid = r.employerUid;
+          return {
+            ...r,
+            status: 'declined',
+            reviewedBy: adminName || adminUid,
+            reviewedAt: now,
+            adminNote: adminNote || 'Declined during manual verification.',
+          };
+        }
+        return r;
+      })
+    );
+
+    if (targetUid) {
+      setEmployerProfiles((prev) => {
+        const emp = prev[targetUid];
+        if (!emp) return prev;
+        return {
+          ...prev,
+          [targetUid]: {
+            ...emp,
+            planStatus: 'declined',
+          },
+        };
+      });
+    }
+  };
+
+  // Section 39: Employer Plan Downgrade / Cancel (Back to Free)
+  // Invariant: NEVER deletes existing jobs or applicants; only blocks new jobs beyond new limit
+  const downgradeEmployerPlan = (
+    employerUid: string,
+    newPlan: 'free' | 'starter' | 'business'
+  ) => {
+    const now = new Date().toISOString();
+    setEmployerProfiles((prev) => {
+      const emp = prev[employerUid];
+      if (!emp) return prev;
+      return {
+        ...prev,
+        [employerUid]: {
+          ...emp,
+          plan: newPlan,
+          planStatus: 'active',
+          planSince: now,
+        },
+      };
+    });
+  };
+
+  // Section 39.7: Pricing Pulse Survey Submission
+  const submitPricingPulseSurvey = (respData: Omit<PricingPulseSurveyResponse, 'id' | 'submittedAt'>) => {
+    const newResp: PricingPulseSurveyResponse = {
+      ...respData,
+      id: `pulse-${Date.now()}`,
+      submittedAt: new Date().toISOString(),
+    };
+    setPulseSurveys((prev) => [newResp, ...prev]);
+    saveStored('basa_pulse_surveys', [newResp, ...pulseSurveys]);
+    return newResp;
+  };
+
   // Reset to initial demo seed data anytime
   const resetDemoData = () => {
     if (!env.enableDemoData) return;
@@ -1121,17 +1678,44 @@ export function useDemoStore() {
     switchUser,
     registerUser,
     candidateProfiles,
-    currentCandidateProfile: currentUser ? candidateProfiles[currentUser.uid] : null,
+    currentCandidateProfile:
+      currentUser && currentUser.role === 'candidate'
+        ? candidateProfiles[currentUser.uid] || {
+            uid: currentUser.uid,
+            fullName: currentUser.displayName,
+            headline: 'Jobseeker',
+            experienceSummary: '',
+            skillIds: [],
+            locationArea: NEW_ACCOUNT_DEFAULTS.candidate.locationArea,
+            availability: NEW_ACCOUNT_DEFAULTS.candidate.availability,
+            popiaVisibility: NEW_ACCOUNT_DEFAULTS.candidate.popiaVisibility,
+            updatedAt: new Date().toISOString(),
+          }
+        : null,
     updateCandidateProfile,
     employerProfiles,
-    currentEmployerProfile: currentUser ? employerProfiles[currentUser.uid] : null,
+    currentEmployerProfile:
+      currentUser && currentUser.role === 'employer'
+        ? employerProfiles[currentUser.uid] || {
+            uid: currentUser.uid,
+            businessName: currentUser.displayName,
+            industry: NEW_ACCOUNT_DEFAULTS.employer.industry,
+            description: NEW_ACCOUNT_DEFAULTS.employer.description,
+            locationArea: NEW_ACCOUNT_DEFAULTS.employer.locationArea,
+            verificationStatus: 'verified',
+            contactEmail: currentUser.email,
+            createdAt: new Date().toISOString(),
+          }
+        : null,
     updateEmployerProfile,
+    requestEmployerVerification,
     updateEmployerVerification,
     skillClaims,
     currentCandidateClaims: currentUser
       ? skillClaims.filter((c) => c.candidateId === currentUser.uid)
       : [],
     addSkillClaim,
+    updateClaimEvidence,
     addCredentialToClaim,
     reviewCredential,
     assessments,
@@ -1185,6 +1769,14 @@ export function useDemoStore() {
     resetDemoData,
     feedbackList,
     submitFeedback,
+    // Section 39: Employer Subscription Plans & Pricing Pulse
+    upgradeRequests,
+    pulseSurveys,
+    requestEmployerUpgrade,
+    approveUpgradeRequest,
+    declineUpgradeRequest,
+    downgradeEmployerPlan,
+    submitPricingPulseSurvey,
     // Offline sync and persistence
     syncStatus,
     pendingSyncCount,

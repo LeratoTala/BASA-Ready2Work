@@ -117,10 +117,16 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if isOwner(uid) && hasRole('employer')
         && incoming().uid == uid
-        && incoming().verificationStatus == 'pending';
+        && incoming().verificationStatus == 'pending'
+        && (!('plan' in incoming()) || incoming().plan == 'free')
+        && (!('planStatus' in incoming()) || incoming().planStatus in ['active', 'upgrade_pending'])
+        && !('planSince' in incoming())
+        && !('planExpiresAt' in incoming());
+      // Employers can update business info, but CANNOT self-assign plans (server/admin only)
       allow update: if (isOwner(uid) && hasRole('employer')
         && incoming().uid == uid
-        && incoming().verificationStatus == resource.data.verificationStatus) || isAdmin();
+        && incoming().verificationStatus == resource.data.verificationStatus
+        && !changedKeys().hasAny(['plan', 'planStatus', 'planSince', 'planExpiresAt'])) || isAdmin();
       allow delete: if isOwner(uid) || isAdmin();
     }
 
@@ -334,6 +340,17 @@ service cloud.firestore {
         && incoming().id == reviewId
         && incoming().decision in ['approved', 'needs_more_evidence', 'rejected'];
       allow delete: if isAdmin();
+    }
+
+    // ---------- employer upgrade requests (Section 39) ----------
+    match /upgradeRequests/{requestId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.employerUid == request.auth.uid);
+      allow create: if hasRole('employer')
+        && incoming().employerUid == request.auth.uid
+        && incoming().status == 'pending'
+        && !('reviewedBy' in incoming())
+        && !('reviewedAt' in incoming());
+      allow update, delete: if isAdmin();
     }
   }
 }

@@ -18,7 +18,7 @@ type SelfAssignableRole = Exclude<Role, 'admin'>;
 
 const OPTIONS: { role: SelfAssignableRole; title: string; description: string; icon: React.ReactNode }[] = [
   { role: 'candidate', title: 'I am looking for work', description: 'Build a Skill Passport, find matches and apply.', icon: <User className="w-5 h-5" /> },
-  { role: 'employer', title: 'I am offering work', description: 'Post opportunities and review applicants with evidence.', icon: <Building2 className="w-5 h-5" /> },
+  { role: 'employer', title: 'I am offering work', description: 'Post opportunities and review applicants with verified proof.', icon: <Building2 className="w-5 h-5" /> },
 ];
 
 /** Shown once, after first sign-in, so a person can choose how they will use BASA. */

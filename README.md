@@ -18,11 +18,15 @@ Use this quick-reference directory to find the exact documentation file for your
 | **Understand system architecture & data schemas** | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | End-to-end data flow, state management, matching algorithm mathematics, and Firestore collection schemas. |
 | **Deploy to Google Cloud Run & Firebase** | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Production Dockerfile, Google Cloud Run continuous deployment, Firebase App Check, and environment variables. |
 | **Verify POPIA privacy & security safeguards** | [`docs/SECURITY.md`](docs/SECURITY.md) | POPIA data handling, phone/email contact masking, security rules, and right-to-be-forgotten deletion procedures. |
+| **Data retention & POPIA compliance schedule** | [`docs/DATA_RETENTION.md`](docs/DATA_RETENTION.md) | Split retention policy (Skill Passport active history vs 5-yr tax/audit billing records vs aggregate metrics), and self-service account deletion cascade. |
+| **AI CV safeguards & anti-hallucination** | [`docs/AI_SAFEGUARDS.md`](docs/AI_SAFEGUARDS.md) | Server-side drafting, allow-list diffs, superlative blocklists, `{{NAME}}` placeholder (zero candidate name sent to LLM), and human truth confirmation. |
+| **Sustainable business model & economics** | [`docs/BUSINESS_MODEL.md`](docs/BUSINESS_MODEL.md) | Employer subscription architecture (R0, R199, R599), break-even thresholds (40 Starter SMMEs), candidate zero-fee guarantee, and plan-blind matching. |
+| **Employer willingness-to-pay validation** | [`docs/BUSINESS_MODEL_VALIDATION.md`](docs/BUSINESS_MODEL_VALIDATION.md) | Active job gating, in-app 4-question pricing pulse survey, objection responses, and revenue pilot tracking. |
 | **Conduct user validation interviews (Youth & SMMEs)** | [`docs/VALIDATION_PLAN.md`](docs/VALIDATION_PLAN.md) | 5-question interview protocols for 5–10 job seekers and 3–5 small businesses, with P1/P2 prioritization rubrics. |
 | **Record & synthesize validation findings** | [`docs/VALIDATION_FINDINGS.md`](docs/VALIDATION_FINDINGS.md) | Real-world pilot validation interview notes, quotes, usability pain points, and issue tracking. |
 | **Measure pilot outcomes & sustained income** | [`docs/SUCCESS_METRICS.md`](docs/SUCCESS_METRICS.md) | 5 core funnel indicators, 3-month sustained income follow-up methodology, and aggregate counting invariants. |
 | **Pitch to judges & conduct a live walkthrough** | [`docs/PILOT_GUIDE.md`](docs/PILOT_GUIDE.md) | 5-minute judge demo script, persona walkthrough steps, and FNB App of the Year evaluation rubric. |
-| **Check engineering roadmap & test coverage** | [`docs/PROGRESS.md`](docs/PROGRESS.md) | Comprehensive engineering changelog, functional requirements matrix (FR-01 to FR-22), and 111 automated tests. |
+| **Check engineering roadmap & test coverage** | [`docs/PROGRESS.md`](docs/PROGRESS.md) | Comprehensive engineering changelog, functional requirements matrix (FR-01 to FR-22), and 180 automated tests. |
 
 ---
 
@@ -32,7 +36,7 @@ Use this quick-reference directory to find the exact documentation file for your
 |---|---|
 | **Candidate (Youth Jobseeker)** | Build a verifiable Skill Passport with honest status labels, attach work photos/evidence, post single certificates covering multiple modular skills, request peer contractor endorsements, take 100-pt practical rubric tests, see explainable job matches ranked by commute distance, submit 1-click applications (duplicate applications strictly prevented), and track payment confirmation. |
 | **Employer** | Post opportunities with mandatory transparent ZAR pay terms (`hourly`, `daily`, or `fixed`), inspect vetted applicant evidence instead of unverified paper CVs, advance candidates through hiring stages, view active listings vs. finished engagements, and explicitly confirm candidate payments. |
-| **Assessor & Administrator** | Grade bench tests against standardized 100-pt rubrics, approve peer contractor endorsements, review badges/certificates and upgrade all linked passport skills simultaneously, inspect job compensation against statutory South African National Minimum Wage ($\ge \text{R}27.58/\text{hr}$), resolve community reports, and operate multiple administrative roles (Assessor vs Moderator). |
+| **Assessor & Administrator** | Grade bench tests against standardized 100-pt rubrics, approve peer contractor endorsements, review badges/certificates and upgrade all linked passport skills simultaneously, inspect job compensation against the statutory South African National Minimum Wage benchmark (assumed $\ge \text{R}27.58/\text{hr}$, subject to confirmation against current gazette), resolve community reports, and operate multiple administrative roles (Assessor vs Moderator). |
 
 ---
 
@@ -53,9 +57,12 @@ Use this quick-reference directory to find the exact documentation file for your
 * Automatically computes effective hourly earnings and validates compliance against the statutory South African National Minimum Wage benchmark of **$\text{R}27.58/\text{hour}$**.
 * Non-compliant postings trigger an exploitation alert with 1-click listing suspension.
 
-### 4. Work Completion Decoupled from Payment Confirmation
+### 4. Work Completion Decoupled from Payment Confirmation & Workplace Time Accounting
 * When work is completed, payout confirmation defaults to `false`.
 * The engagement shows `Work Completed · Payment Pending Confirmation` until the employer explicitly clicks `[Confirm Payment Sent]`.
+* **Pay Rate Focus (No Total Lump Sum Display):** The platform intentionally avoids lump-sum payout totals on both candidate and employer dashboards. Instead, it prominently displays the transparent agreed pay rate in unit terms: **money/hour**, **money/day**, **money/week**, **money/fortnight**, or **money/month** (e.g., `Rate: R60 / hour`, `Rate: R450 / day`, `Rate: R1,500 / week`, `Rate: R3,200 / fortnight`, or `Rate: R6,500 / month`).
+* **Total Time Served in Institution (No Separate Day-Off Flags):** The pre-payout confirmation modal and completed work cards record the total time served at the institution (e.g., `20 days served (160 hrs)`). Any approved days off or leaves are not flagged or displayed separately as day offs; they contribute directly under the total amount of time served in that institution.
+* **Employment Start Date Guardrail:** When a candidate is actively employed at a workplace (`Selected` / in-progress), the interface **strictly displays only the employment start date** (e.g., `Started: 2026-10-15`), never displaying the end date or completion deadline until the duration is actually completed.
 * Completed engagements move off the active applicant list into a dedicated `Completed Engagements` tab.
 
 ### 5. In-App User Feedback Engine (Section 31.2)
@@ -82,6 +89,28 @@ Use this quick-reference directory to find the exact documentation file for your
 * **Transparent Matching Formula:** Jargon like "deterministic fit ranking" is replaced with clear terms: *"Skills you have (50%) + Proof & evidence (25%) + Available hours (15%) + How close it is (10%)"*.
 * **Privacy Clarity:** POPIA centroid calculations are clearly explained as *"Privacy Protected: Town or area only (Zero live GPS tracking)"*.
 * **Intuitive Action Guidance:** Every tab (Available, Applied, Completed, All) provides plain-language instructions on what to expect and why jobs move between views.
+
+### 10. Absorption Pathway & Opportunity Type Transparency
+* **Employer Specification on Publishing:** When publishing a post, employers must specify the engagement/absorption pathway so applicants apply knowing what to expect:
+  * **Permanent Position:** Long-term permanent employment with ongoing career absorption and statutory benefits.
+  * **Graduate / Practical Internship:** Structured entry-level training (3-12 months) with absorption potential.
+  * **Micro-Internship / Project Gig:** Short-term trial engagement (1-4 weeks) to evaluate mutual fit.
+  * **Casual / Relief Work:** Flexible shift-based, day-to-day, or seasonal coverage.
+  * **Learnership / Apprenticeship:** Structured vocational training combining practical on-site hours with trade theory.
+  * **Fixed-Term Contract:** Pre-agreed employment duration for specific project deliverables.
+* **Applicant Expectation Banner:** Job cards and opportunity detail modals prominently display the absorption badge and detailed expectations.
+
+### 11. Employer Subscription Model & Pilot Pricing (Section 39)
+* **Candidates NEVER Pay:** Jobseekers never pay any fee to register, build a Skill Passport, get verified, or apply for opportunities.
+* **100% Plan-Blind Matching:** Candidate ranking algorithms are completely blind to an employer's subscription plan—paying more never elevates unverified applicants or inflates match scores.
+* **Calibrated Pilot Tiers (Assumptions to Validate):**
+  * **Free (SMME Pilot):** 1 active job listing at a time, full applicant review, basic candidate profiles (permanently free for informal and micro-enterprises).
+  * **Starter (R199/month):** Up to 5 active jobs, verified candidate filters & shortlists, applicant profile view.
+  * **Business Growth (R599/month):** Up to 20 active jobs, verified-first matching filters, priority email support.
+  * **Enterprise / Partner (Custom SLA):** Unlimited listings, bespoke trade rubrics, dedicated account review.
+* **Honest Workflow & Zero Lock-In:** Requesting an upgrade logs a pending invoice request without mutating the employer's plan until an admin approves. Downgrading or cancelling back to Free **never deletes** past jobs or applicants; it only prevents publishing new jobs beyond the new limit.
+* **Pitch Demo Mode:** Evaluators can test instant tier upgrades using the demo shortcut gated behind the `demoInstantApproval` feature flag (default OFF in production).
+* **Revenue Pilot Transparency:** The Admin workspace displays honest zero-state metrics (R0.00 MRR) until manual invoices clear.
 
 ---
 
@@ -185,7 +214,7 @@ Always run these commands before submitting changes:
 # TypeScript compiler check (must return 0 errors)
 npm run typecheck
 
-# Full test suite (121 tests across 40 suites)
+# Full test suite (180 tests across 48 suites)
 npm test
 
 # Production bundle build
@@ -199,7 +228,7 @@ npm run build
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Start development server with hot module reloading (HMR) |
-| `npm test` | Run full automated test suite (121 tests across 40 suites) |
+| `npm test` | Run full automated test suite (180 tests across 48 suites) |
 | `npm run typecheck` | Verify TypeScript compilation with zero emitted errors |
 | `npm run build` | Build optimized client bundle for production to `dist/` |
 | `npm start` | Run server in production mode |

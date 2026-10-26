@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Application, ApplicationStatus } from '../../../domain/types';
-import { Clock, CheckCircle2, XCircle, ArrowRight, Building2, MapPin, DollarSign, AlertCircle, FileCheck } from 'lucide-react';
+import { Application, ApplicationStatus, ENGAGEMENT_TYPE_METADATA } from '../../../domain/types';
+import { Clock, CheckCircle2, XCircle, ArrowRight, Building2, MapPin, DollarSign, AlertCircle, FileCheck, Calendar } from 'lucide-react';
 
 interface Props {
   applications: Application[];
@@ -144,6 +144,16 @@ export const ApplicationsView: React.FC<Props> = ({ applications, onWithdraw }) 
                       <span className="font-mono text-[10px] font-bold text-stone-500 bg-stone-100 border border-stone-200 px-1.5 py-0.5 rounded">
                         Job ID: #{app.jobId}
                       </span>
+                      {app.engagementType && (
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                            ENGAGEMENT_TYPE_METADATA[app.engagementType]?.badgeClass || 'bg-stone-100 text-stone-700 border-stone-200'
+                          }`}
+                          title={ENGAGEMENT_TYPE_METADATA[app.engagementType]?.expectation}
+                        >
+                          {ENGAGEMENT_TYPE_METADATA[app.engagementType]?.shortLabel || app.engagementType}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 text-xs text-stone-500 pt-0.5">
                       <span className="flex items-center gap-1 font-medium text-stone-700">
@@ -155,6 +165,22 @@ export const ApplicationsView: React.FC<Props> = ({ applications, onWithdraw }) 
                       <span>·</span>
                       <span className="font-semibold text-amber-700">Match: {app.matchScore}%</span>
                     </div>
+                    {app.status === 'selected' && (
+                      <div className="flex items-center gap-1.5 text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg w-fit mt-1.5">
+                        <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Currently at workplace · Started: <strong>{app.employmentStartDate || 'Recent'}</strong> (No end date until completed)</span>
+                      </div>
+                    )}
+                    {isCompleted && (
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-stone-700 bg-stone-100 border border-stone-200 px-2.5 py-1 rounded-lg w-fit mt-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                        <span>Time Served: <strong>{app.actualTimeInWorkplace || app.workDurationLabel || (app.hoursWorked ? `${app.hoursWorked} hours` : 'Full duration')}</strong></span>
+                        <span>·</span>
+                        <span>Rate: <strong>R{app.payRateAmount ?? 'agreed'} / {app.payRateUnit ?? 'hour'}</strong></span>
+                        <span>·</span>
+                        <span>Started {app.employmentStartDate || 'Start date'} · Completed {app.employmentEndDate || 'Concluded'}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -255,11 +281,11 @@ export const ApplicationsView: React.FC<Props> = ({ applications, onWithdraw }) 
                       <span>
                         {app.payoutConfirmed ? (
                           <>
-                            <strong>Work Completed &amp; Paid:</strong> The employer has confirmed that your payment was processed.
+                            <strong>Work Completed &amp; Paid:</strong> The employer has confirmed payment rate of R{app.payRateAmount ?? 'agreed rate'} / {app.payRateUnit ?? 'hour'} for {app.actualTimeInWorkplace || app.workDurationLabel || 'time served'}. Duration: Started {app.employmentStartDate || 'start date'} · Completed {app.employmentEndDate || 'completion date'}.
                           </>
                         ) : (
                           <>
-                            <strong>Work Completed · Payment Pending:</strong> The employer confirmed completion of your work. Payment confirmation is pending.
+                            <strong>Work Completed · Payment Pending:</strong> The employer confirmed completion of your time served ({app.actualTimeInWorkplace || app.workDurationLabel || 'time served'}). Rate: R{app.payRateAmount ?? 'agreed rate'} / {app.payRateUnit ?? 'hour'} pending confirmation.
                           </>
                         )}
                       </span>

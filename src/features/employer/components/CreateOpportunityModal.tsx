@@ -1,13 +1,18 @@
 import React, { useState } from 'react';
-import { X, Plus, DollarSign, Calendar, MapPin, Briefcase, Trash2 } from 'lucide-react';
-import { Job, WorkMode, CompensationUnit } from '../../../domain/types';
+import { X, Plus, DollarSign, Calendar, MapPin, Briefcase, Trash2, Award, AlertCircle, Sparkles } from 'lucide-react';
+import { Job, WorkMode, CompensationUnit, EngagementType, ENGAGEMENT_TYPE_METADATA } from '../../../domain/types';
 import { SKILL_DEFINITIONS } from '../../../domain/skillCatalogue';
+import { canEmployerPostActiveJob, EmployerPlanId } from '../../../config/plans';
+import { useOSModalNavigation } from '../../../shared/hooks/useOSNavigation';
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'reportCount' | 'employerId' | 'employerName' | 'employerVerified'>) => void;
   defaultLocation?: string;
+  activeJobCount?: number;
+  employerPlan?: EmployerPlanId;
+  onOpenUpgrade?: () => void;
 }
 
 export const CreateOpportunityModal: React.FC<Props> = ({
@@ -15,7 +20,16 @@ export const CreateOpportunityModal: React.FC<Props> = ({
   onClose,
   onSubmit,
   defaultLocation = 'Johannesburg CBD',
+  activeJobCount = 0,
+  employerPlan = 'free',
+  onOpenUpgrade,
 }) => {
+  useOSModalNavigation({
+    isOpen,
+    onClose,
+    modalId: 'create-opportunity',
+  });
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [responsibilities, setResponsibilities] = useState<string[]>([
@@ -32,6 +46,7 @@ export const CreateOpportunityModal: React.FC<Props> = ({
   const [workMode, setWorkMode] = useState<WorkMode>('In-person');
   const [compensationAmount, setCompensationAmount] = useState<number>(450);
   const [compensationUnit, setCompensationUnit] = useState<CompensationUnit>('daily');
+  const [engagementType, setEngagementType] = useState<EngagementType>('casual');
   const [startDate, setStartDate] = useState('2026-10-30');
   const [endDate, setEndDate] = useState('');
   const [applicationDeadline, setApplicationDeadline] = useState('2026-10-28');
@@ -129,6 +144,7 @@ export const CreateOpportunityModal: React.FC<Props> = ({
       compensationAmount: Number(compensationAmount),
       compensationCurrency: 'ZAR',
       compensationUnit,
+      engagementType,
       startDate,
       endDate: endDate || undefined,
       applicationDeadline,
@@ -153,6 +169,34 @@ export const CreateOpportunityModal: React.FC<Props> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto text-xs">
+          {/* Section 39.2 Plan Gating Check */}
+          {!canEmployerPostActiveJob(activeJobCount, employerPlan).allowed && (
+            <div className="bg-amber-50 border border-amber-300 p-3.5 rounded-xl text-xs text-amber-950 flex items-start justify-between gap-3">
+              <div className="space-y-0.5">
+                <strong className="block font-bold text-amber-900 flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-amber-700" />
+                  Plan Active Job Limit Reached
+                </strong>
+                <p className="text-stone-700">
+                  {canEmployerPostActiveJob(activeJobCount, employerPlan).reason}
+                </p>
+              </div>
+              {onOpenUpgrade && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenUpgrade();
+                  }}
+                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-lg text-xs shrink-0 cursor-pointer flex items-center gap-1 shadow-xs"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Request Upgrade</span>
+                </button>
+              )}
+            </div>
+          )}
+
           <div>
             <label className="block font-semibold text-stone-700 mb-1">Opportunity Title</label>
             <input
@@ -175,6 +219,32 @@ export const CreateOpportunityModal: React.FC<Props> = ({
               onChange={(e) => setDescription(e.target.value)}
               className="w-full border border-stone-300 rounded p-2 text-xs"
             />
+          </div>
+
+          {/* Opportunity & Absorption Pathway (What should applicants expect?) */}
+          <div className="space-y-1.5 bg-stone-50 p-3 rounded-lg border border-stone-200">
+            <label className="block font-bold text-stone-900 text-xs">
+              Absorption Pathway &amp; Opportunity Type *
+            </label>
+            <p className="text-[11px] text-stone-500">
+              Specify the engagement type so applicants apply knowing exactly what to expect (permanent absorption, internship, casual shifts, etc.).
+            </p>
+            <select
+              value={engagementType}
+              onChange={(e) => setEngagementType(e.target.value as EngagementType)}
+              className="w-full border border-stone-300 rounded p-2 text-xs bg-white text-stone-800 font-semibold"
+            >
+              <option value="permanent">Permanent Position (Ongoing career employment with full absorption)</option>
+              <option value="internship">Graduate / Practical Internship (Structured entry-level training with absorption potential)</option>
+              <option value="micro_internship">Micro-Internship / Project Gig (Short-term trial / 1-4 weeks to evaluate mutual fit)</option>
+              <option value="casual">Casual / Relief Work (Flexible shift-based or seasonal coverage)</option>
+              <option value="learnership">Learnership / Apprenticeship (Vocational trade training combining theory & practical on-site work)</option>
+              <option value="contract">Fixed-Term Contract (Agreed months duration for specific project deliverables)</option>
+            </select>
+            <div className="text-[11px] text-stone-600 bg-white p-2 rounded border border-stone-200 mt-1.5">
+              <span className="font-semibold text-stone-800">What applicant will expect: </span>
+              {ENGAGEMENT_TYPE_METADATA[engagementType]?.expectation}
+            </div>
           </div>
 
           {/* Compensation in ZAR (Explicit units per Section 3.4) */}
@@ -204,6 +274,9 @@ export const CreateOpportunityModal: React.FC<Props> = ({
                 >
                   <option value="hourly">Hourly (e.g. R65/hr for shifts)</option>
                   <option value="daily">Daily (e.g. R450/day for day-rate tasks)</option>
+                  <option value="weekly">Weekly (e.g. R1,500/week)</option>
+                  <option value="fortnightly">Fortnightly (e.g. R3,000/fortnight - every 2 weeks)</option>
+                  <option value="monthly">Monthly (e.g. R5,500/month stipend or salary)</option>
                   <option value="fixed">Fixed / Project (e.g. R2,500 total task)</option>
                 </select>
               </div>
@@ -463,13 +536,14 @@ export const CreateOpportunityModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 text-stone-600 hover:text-stone-900"
+              className="px-3 py-1.5 text-stone-600 hover:text-stone-900 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded shadow-xs"
+              disabled={!canEmployerPostActiveJob(activeJobCount, employerPlan).allowed}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold rounded shadow-xs cursor-pointer"
             >
               Publish Opportunity
             </button>

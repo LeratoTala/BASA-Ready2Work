@@ -17,10 +17,14 @@ import {
   Edit3,
   Save,
   Linkedin,
+  Trash2,
+  Info,
 } from 'lucide-react';
 import { CandidateProfile, PrivacyDeletionRequest, SkillClaim, WorkRecord } from '../../../domain/types';
 import { VerificationBadge } from '../../../shared/components/VerificationBadge';
 import { generatePassportPdf } from '../../../services/passportExport';
+import { DataRetentionModal } from './DataRetentionModal';
+import { exportCandidateUserData } from '../../../domain/retentionEngine';
 
 interface Props {
   candidate: CandidateProfile;
@@ -55,6 +59,18 @@ export const CandidateProfilePage: React.FC<Props> = ({
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [deletionRequestBusy, setDeletionRequestBusy] = useState(false);
   const [deletionRequestError, setDeletionRequestError] = useState<string | null>(null);
+  const [isRetentionModalOpen, setIsRetentionModalOpen] = useState(false);
+
+  const handleExportJson = () => {
+    const exportData = exportCandidateUserData(candidate, claims, [], []);
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `basa-data-${(candidate.fullName || 'candidate').toLowerCase().replace(/\s+/g, '-')}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const candidateWorkRecords = workRecords.filter((w) => w.candidateId === candidate.uid);
   const taskAssessedCount = claims.filter((c) => c.verificationStatus === 'Task-assessed').length;
@@ -76,7 +92,18 @@ export const CandidateProfilePage: React.FC<Props> = ({
   };
 
   const handleDeletionRequest = async () => {
-    if (!window.confirm('This sends a deletion request to the BASA operator. Your data will not be deleted until related records are reviewed. Continue?')) return;
+    const confirmationText =
+      'Delete your account permanently?\n\n' +
+      'This will permanently remove within 30 days:\n' +
+      '• Your candidate profile and bio\n' +
+      '• All claimed skills and proof descriptions\n' +
+      '• All uploaded photos and certificate files\n' +
+      '• All credential records and salted duplicate check hashes\n' +
+      '• All job applications and notification records\n\n' +
+      'You will not be able to log in or recover these records once deleted.\n\n' +
+      'Do you wish to proceed with permanent account deletion?';
+
+    if (!window.confirm(confirmationText)) return;
     setDeletionRequestBusy(true);
     setDeletionRequestError(null);
     try {
@@ -297,7 +324,7 @@ export const CandidateProfilePage: React.FC<Props> = ({
               <div>
                 <h3 className="font-bold text-base text-stone-900">Skill Passport Trail</h3>
                 <p className="text-xs text-stone-500">
-                  Each label describes the evidence recorded for a skill claim.
+                  Each label describes the proof recorded for a skill claim.
                 </p>
               </div>
               <button
@@ -368,7 +395,7 @@ export const CandidateProfilePage: React.FC<Props> = ({
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-stone-900 text-sm">{w.jobTitle}</span>
                       <span className="font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded text-[11px]">
-                        {w.payoutConfirmed ? `Employer reports R${w.amountZAR} paid` : 'Payment not confirmed'}
+                        {w.payoutConfirmed ? `Employer reports rate of R${w.payRateAmount ?? w.amountZAR} / ${w.payRateUnit ?? 'hour'} · Time served: ${w.actualTimeInWorkplace || w.workDurationLabel || (w.hoursWorked ? `${w.hoursWorked} hrs` : 'Full duration')} · Started: ${w.employmentStartDate || w.confirmedAt.split('T')[0]} · Completed: ${w.employmentEndDate || w.confirmedAt.split('T')[0]}` : `Rate: R${w.payRateAmount ?? w.amountZAR} / ${w.payRateUnit ?? 'hour'} · Time served: ${w.actualTimeInWorkplace || w.workDurationLabel || (w.hoursWorked ? `${w.hoursWorked} hrs` : 'duration')}`}
                       </span>
                     </div>
                     <p className="text-stone-700">
@@ -412,10 +439,36 @@ export const CandidateProfilePage: React.FC<Props> = ({
               Contact details are visible only to you and an employer who has shortlisted your application.
             </div>
 
+            {/* Section 38: Privacy, Data Retention & Export */}
             <div className="pt-3 border-t border-stone-100 space-y-2">
-              <h4 className="font-semibold text-stone-800">Account deletion</h4>
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-stone-800 text-xs">Your Data & Privacy Policy</h4>
+                <button
+                  type="button"
+                  onClick={() => setIsRetentionModalOpen(true)}
+                  className="text-emerald-700 hover:text-emerald-800 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                  <span>View Policy</span>
+                </button>
+              </div>
+              <p className="text-[11px] text-stone-600 leading-relaxed">
+                Grade 6 plain-language retention rules: what we store, how long we keep it, and your right to download or delete your records.
+              </p>
+              <button
+                type="button"
+                onClick={handleExportJson}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-stone-100 hover:bg-stone-200 border border-stone-300 rounded-lg text-xs font-semibold text-stone-800 cursor-pointer transition-colors"
+              >
+                <Download className="w-3.5 h-3.5 text-stone-600" />
+                <span>Export My Data (JSON)</span>
+              </button>
+            </div>
+
+            <div className="pt-3 border-t border-stone-100 space-y-2">
+              <h4 className="font-semibold text-stone-800 text-xs">Account Deletion</h4>
               <p className="text-[11px] text-stone-600">
-                A request asks the BASA operator to review and delete eligible records. This button does not delete your account immediately.
+                Self-service permanent deletion. All profiles, skills, evidence files, and credentials are removed within 30 days.
               </p>
               {deletionRequest && (
                 <p className="text-[11px] text-stone-700" role="status">
@@ -427,9 +480,10 @@ export const CandidateProfilePage: React.FC<Props> = ({
                   type="button"
                   onClick={handleDeletionRequest}
                   disabled={deletionRequestBusy}
-                  className="px-3 py-2 border border-stone-300 bg-white text-stone-800 font-semibold disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-semibold disabled:opacity-50 cursor-pointer transition-colors"
                 >
-                  {deletionRequestBusy ? 'Sending request…' : deletionRequest ? 'Submit another request' : 'Request account deletion'}
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>{deletionRequestBusy ? 'Processing request…' : deletionRequest ? 'Submit another request' : 'Delete my account permanently'}</span>
                 </button>
               )}
               {deletionRequestError && <p className="text-[11px] text-red-700" role="alert">{deletionRequestError}</p>}
@@ -461,6 +515,14 @@ export const CandidateProfilePage: React.FC<Props> = ({
           </div>
         </div>
       </div>
+
+      {/* Section 38: Plain-Language Data Retention Modal */}
+      <DataRetentionModal
+        isOpen={isRetentionModalOpen}
+        onClose={() => setIsRetentionModalOpen(false)}
+        onExportData={handleExportJson}
+        onRequestDeletion={handleDeletionRequest}
+      />
     </div>
   );
 };

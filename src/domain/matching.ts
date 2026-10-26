@@ -14,6 +14,14 @@ import {
 import { getMetroCluster } from '../config/locations';
 import { getEstimatedDistanceBetweenAreas, formatCentroidDistance } from './location';
 
+/**
+ * SECTION 36.3 & 39.4 HARD INVARIANT:
+ * Matching is 100% independent of candidate payment or employer subscription plans.
+ * Candidates NEVER pay to register, build a Skill Passport, get verified, be matched, or apply.
+ * Employer subscription tier (Free, Starter, Business, Partner) NEVER alters candidate match scoring
+ * or elevates unverified candidates. Matching ranks purely on skill overlap, honest verification tiers,
+ * proximity, and availability.
+ */
 export function calculateMatchScore(
   job: Job,
   candidate: CandidateProfile,

@@ -10,18 +10,18 @@ export function generateLinkedInSummary(candidate: CandidateProfile, claims: Ski
           : c.verificationStatus === 'Peer-endorsed'
           ? ' [Peer-endorsed]'
           : ` [${c.verificationStatus}]`;
-      return `• ${c.skillName}${assessmentTag}\n  Evidence: ${c.evidenceTitle} - ${c.evidenceDescription}`;
+      return `• ${c.skillName}${assessmentTag}\n  Proof: ${c.evidenceTitle} - ${c.evidenceDescription}`;
     })
     .join('\n\n');
 
-  return `BASA: Ready2Work Skills and Evidence Summary
+  return `BASA: Ready2Work Skills and Proof Summary
 👤 ${candidate.fullName} | ${candidate.headline}
 📍 Location: ${candidate.locationArea} (South Africa)
 ⏱️ Availability: ${candidate.availability.replace('_', ' ').toUpperCase()}
 
-I'm sharing my recorded skills and evidence for entry-level work:
+I'm sharing my recorded skills and proof for entry-level work:
 
-Skills and evidence:
+Skills and proof:
 ${skillsBlock || 'No skill claims recorded yet.'}
 
 #SkillsFirst #Ready2Work #SouthAfrica #YouthEmployment #VocationalSkills #POPIA`;
@@ -53,11 +53,11 @@ export function generatePassportPdf(candidate: CandidateProfile, claims: SkillCl
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(245, 158, 11); // Amber
-  doc.text('SKILLS AND EVIDENCE SUMMARY · SOUTH AFRICA', 14, 22);
+  doc.text('SKILLS AND PROOF SUMMARY · SOUTH AFRICA', 14, 22);
 
   doc.setFontSize(8);
   doc.setTextColor(161, 161, 170);
-  doc.text('Skills → Evidence → Work · Section 3.3 Honest Verification Framework', 14, 29);
+  doc.text('Skills → Proof → Work · Section 3.3 Honest Verification Framework', 14, 29);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
@@ -115,7 +115,7 @@ export function generatePassportPdf(candidate: CandidateProfile, claims: SkillCl
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(24, 24, 27);
-  doc.text('Demonstrated Skills & Evidence Trail (Section 3.3)', 14, currentY);
+  doc.text('Demonstrated Skills & Proof Trail (Section 3.3)', 14, currentY);
 
   currentY += 6;
 
@@ -154,7 +154,7 @@ export function generatePassportPdf(candidate: CandidateProfile, claims: SkillCl
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(51, 65, 85);
-    doc.text(`Evidence: ${claim.evidenceTitle}`, 18, currentY + 12);
+    doc.text(`Proof: ${claim.evidenceTitle}`, 18, currentY + 12);
 
     const descLines = doc.splitTextToSize(claim.evidenceDescription, pageWidth - 36);
     doc.text(descLines.slice(0, 2), 18, currentY + 17);

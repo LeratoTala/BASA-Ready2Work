@@ -4,6 +4,7 @@ import { X, Download, ShieldCheck, MapPin, Award, Linkedin } from 'lucide-react'
 import { CandidateProfile, SkillClaim } from '../../../domain/types';
 import { VerificationBadge } from '../../../shared/components/VerificationBadge';
 import { generatePassportPdf } from '../../../services/passportExport';
+import { useOSModalNavigation } from '../../../shared/hooks/useOSNavigation';
 
 interface Props {
   isOpen: boolean;
@@ -14,6 +15,12 @@ interface Props {
 }
 
 export const SkillPassportModal: React.FC<Props> = ({ isOpen, onClose, candidate, claims, onOpenExport }) => {
+  useOSModalNavigation({
+    isOpen,
+    onClose,
+    modalId: 'skill-passport',
+  });
+
   const [maskContact, setMaskContact] = useState(candidate.popiaVisibility !== 'public_link');
 
   if (!isOpen) return null;

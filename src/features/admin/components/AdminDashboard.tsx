@@ -23,7 +23,10 @@ import {
   Eye,
   Calendar,
   AlertCircle,
+  Info,
   X,
+  Sparkles,
+  FileCheck,
 } from 'lucide-react';
 import {
   AssessmentRecord,
@@ -40,10 +43,17 @@ import {
   User,
   WorkRecord,
   CredentialEvidence,
+  EvidenceItem,
+  formatRegistrationType,
+  EmployerUpgradeRequest,
+  PricingPulseSurveyResponse,
 } from '../../../domain/types';
 import { getRubricForSkill } from '../../../domain/rubrics';
 import { calculatePilotMetrics } from '../../../domain/pilotMetrics';
 import { maskCredentialId, isCredentialExpired } from '../../../domain/credentialValidation';
+import { EMPLOYER_PLANS } from '../../../config/plans';
+import { analyzeEvidenceWithAI } from '../../../domain/aiEvidenceAnalysis';
+import { getSkillClaimProofStatus } from '../../../domain/claimProofUpdate';
 
 interface Props {
   assessorId: string;
@@ -59,11 +69,13 @@ interface Props {
   privacyDeletionRequests: PrivacyDeletionRequest[];
   endorsements?: PeerEndorsement[];
   mentorReviews?: MentorReview[];
+  upgradeRequests?: EmployerUpgradeRequest[];
+  pulseSurveys?: PricingPulseSurveyResponse[];
   onSubmitAssessment: (assessment: Omit<AssessmentRecord, 'id' | 'createdAt'>, claimId: string) => void;
   onResolveReport: (reportId: string, action: 'dismiss' | 'suspend_job') => void;
   onReviewPrivacyDeletionRequest: (uid: string, status: 'in_review' | 'declined') => Promise<void>;
   onCompletePrivacyDeletion?: (uid: string) => Promise<void>;
-  onVerifyEmployer?: (uid: string, status: 'verified' | 'unverified') => Promise<void>;
+  onVerifyEmployer?: (uid: string, status: 'verified' | 'unverified' | 'pending', notes?: string) => Promise<void>;
   onApproveEndorsement?: (endorsementId: string) => Promise<void>;
   onSubmitMentorReview?: (
     claimId: string,
@@ -81,6 +93,8 @@ interface Props {
     status: 'checked_ok' | 'checked_mismatch' | 'needs_review',
     note: string
   ) => Promise<any>;
+  onApproveUpgradeRequest?: (requestId: string, adminUid: string, adminName: string) => void;
+  onDeclineUpgradeRequest?: (requestId: string, adminUid: string, adminName: string, adminNote?: string) => void;
   activeSubTab?: string;
   onSelectSubTab?: (tab: string) => void;
 }
@@ -99,6 +113,8 @@ export const AdminDashboard: React.FC<Props> = ({
   privacyDeletionRequests,
   endorsements = [],
   mentorReviews = [],
+  upgradeRequests = [],
+  pulseSurveys = [],
   onSubmitAssessment,
   onResolveReport,
   onReviewPrivacyDeletionRequest,
@@ -108,6 +124,8 @@ export const AdminDashboard: React.FC<Props> = ({
   onSubmitMentorReview,
   onToggleJobStatus,
   onReviewCredential,
+  onApproveUpgradeRequest,
+  onDeclineUpgradeRequest,
   activeSubTab = 'overview',
   onSelectSubTab,
 }) => {
@@ -115,12 +133,16 @@ export const AdminDashboard: React.FC<Props> = ({
   const [jobFilter, setJobFilter] = useState<'all' | 'open' | 'closed' | 'flagged'>('all');
   const [inspectingJob, setInspectingJob] = useState<Job | null>(null);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [showSuggestedScores, setShowSuggestedScores] = useState(false);
 
   const SA_STATUTORY_MINIMUM_WAGE_HOURLY = 27.58;
 
   const calculateEffectiveHourlyRate = (job: Job): number => {
     if (job.compensationUnit === 'hourly') return job.compensationAmount;
     if (job.compensationUnit === 'daily') return job.compensationAmount / 8;
+    if (job.compensationUnit === 'weekly') return job.compensationAmount / 40;
+    if (job.compensationUnit === 'fortnightly') return job.compensationAmount / 80;
+    if (job.compensationUnit === 'monthly') return job.compensationAmount / 173.33;
     return job.compensationAmount;
   };
   const [deletionWorking, setDeletionWorking] = useState<string | null>(null);
@@ -129,6 +151,9 @@ export const AdminDashboard: React.FC<Props> = ({
   const [credentialNotes, setCredentialNotes] = useState<Record<string, string>>({});
   const [credentialWorking, setCredentialWorking] = useState<string | null>(null);
   const [credFilter, setCredFilter] = useState<'all' | 'pending' | 'checked'>('pending');
+  const [employerFilter, setEmployerFilter] = useState<'all' | 'pending' | 'verified' | 'unverified'>('all');
+  const [inspectingEmployer, setInspectingEmployer] = useState<EmployerProfile | null>(null);
+  const [inspectingProofItem, setInspectingProofItem] = useState<{ item: EvidenceItem; skillName: string } | null>(null);
   const [rubricScores, setRubricScores] = useState({
     crit1: 24,
     crit2: 23,
@@ -310,6 +335,14 @@ export const AdminDashboard: React.FC<Props> = ({
             >
               Moderation ({reports.length})
             </button>
+            <button
+              onClick={() => onSelectSubTab?.('revenue')}
+              className={`px-2.5 py-1 rounded cursor-pointer font-medium transition-colors ${
+                activeSubTab === 'revenue' ? 'bg-amber-600 text-white' : 'text-stone-300 hover:text-white'
+              }`}
+            >
+              Revenue (Pilot) {upgradeRequests.length > 0 && <span className="ml-1 bg-amber-500 text-white text-[9px] px-1 rounded-full">{upgradeRequests.length}</span>}
+            </button>
           </div>
         </div>
 
@@ -319,6 +352,7 @@ export const AdminDashboard: React.FC<Props> = ({
           {activeSubTab === 'assessments' && 'Practical Rubrics, Endorsements & Mentor Reviews'}
           {activeSubTab === 'credentials' && 'Candidate Credentials & Badges Review Queue'}
           {activeSubTab === 'reports' && 'Community Moderation & Safety Reports'}
+          {activeSubTab === 'revenue' && 'Employer Subscription Revenue & Sustainability (Pilot)'}
           {(activeSubTab === 'overview' || !activeSubTab) && 'Pilot Overview & Quality Control'}
         </h1>
         <p className="text-stone-300 text-xs">
@@ -327,6 +361,7 @@ export const AdminDashboard: React.FC<Props> = ({
           {activeSubTab === 'assessments' && 'Grade candidate demonstrations against 100-point rubrics and approve peer contractor endorsements.'}
           {activeSubTab === 'credentials' && 'Verify third-party certificates, proctored exams, and course badges without SSRF risks.'}
           {activeSubTab === 'reports' && 'Protect young jobseekers from scam postings, upfront fees, and handle POPIA account deletion tickets.'}
+          {activeSubTab === 'revenue' && 'Track tier subscriptions, calculate Monthly Recurring Revenue (MRR), and review upgrade requests.'}
           {(activeSubTab === 'overview' || !activeSubTab) && 'Monitor pilot metrics against FNB App of the Year targets and review key platform operations.'}
         </p>
       </div>
@@ -709,109 +744,357 @@ export const AdminDashboard: React.FC<Props> = ({
       {/* ==================== TAB 2.5: EMPLOYER VERIFICATION ==================== */}
       {activeSubTab === 'employers' && (
         <div className="bg-white rounded-xl border border-stone-200 p-6 space-y-4 shadow-xs">
-          <div className="flex items-center justify-between border-b border-stone-100 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-4">
             <div>
               <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-amber-600" />
-                Employer Verification ({Object.values(employerProfiles).length})
+                <span>Formal Business Registration & Anti-Fraud Verification</span>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-stone-100 text-stone-700">
+                  {Object.values(employerProfiles).length} Companies
+                </span>
               </h2>
-              <p className="text-xs text-stone-500">
-                Review employer registrations and grant verified status. Verified employers get a
-                shield badge on all their job listings.
+              <p className="text-xs text-stone-500 mt-0.5">
+                Verify companies against official South African CIPC registries, SARS tax compliance, and municipal trading permits before allowing job postings.
               </p>
+            </div>
+
+            {/* Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto text-xs">
+              <button
+                type="button"
+                onClick={() => setEmployerFilter('all')}
+                className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                  employerFilter === 'all'
+                    ? 'bg-stone-900 text-white'
+                    : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                }`}
+              >
+                All ({Object.values(employerProfiles).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setEmployerFilter('pending')}
+                className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
+                  employerFilter === 'pending'
+                    ? 'bg-amber-600 text-white'
+                    : 'bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>Pending ({pendingEmployerCount})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEmployerFilter('verified')}
+                className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer flex items-center gap-1 ${
+                  employerFilter === 'verified'
+                    ? 'bg-emerald-700 text-white'
+                    : 'bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Verified ({Object.values(employerProfiles).filter((e) => e.verificationStatus === 'verified').length})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEmployerFilter('unverified')}
+                className={`px-3 py-1 rounded-lg font-semibold transition-colors cursor-pointer ${
+                  employerFilter === 'unverified'
+                    ? 'bg-stone-700 text-white'
+                    : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                }`}
+              >
+                Unverified ({Object.values(employerProfiles).filter((e) => e.verificationStatus === 'unverified').length})
+              </button>
             </div>
           </div>
 
           {Object.values(employerProfiles).length === 0 ? (
             <p className="text-xs text-stone-500 italic py-4">No employer profiles found.</p>
           ) : (
-            <div className="space-y-3">
-              {Object.values(employerProfiles).map((emp) => (
-                <div
-                  key={emp.uid}
-                  className="p-4 rounded-xl border border-stone-200 bg-stone-50/60 text-xs space-y-3"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-bold text-sm text-stone-900">{emp.businessName}</h3>
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            emp.verificationStatus === 'verified'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : emp.verificationStatus === 'pending'
-                              ? 'bg-amber-100 text-amber-900'
-                              : 'bg-stone-200 text-stone-700'
-                          }`}
-                        >
-                          {emp.verificationStatus}
-                        </span>
+            <div className="space-y-4">
+              {Object.values(employerProfiles)
+                .filter((emp) => {
+                  if (employerFilter === 'pending') return emp.verificationStatus === 'pending';
+                  if (employerFilter === 'verified') return emp.verificationStatus === 'verified';
+                  if (employerFilter === 'unverified') return emp.verificationStatus === 'unverified';
+                  return true;
+                })
+                .map((emp) => {
+                  const reg = emp.verificationDetails;
+
+                  return (
+                    <div
+                      key={emp.uid}
+                      className={`p-5 rounded-xl border text-xs space-y-4 transition-all ${
+                        emp.verificationStatus === 'pending'
+                          ? 'border-amber-300 bg-amber-50/40 shadow-xs'
+                          : emp.verificationStatus === 'verified'
+                          ? 'border-emerald-200 bg-white'
+                          : 'border-stone-200 bg-stone-50/60'
+                      }`}
+                    >
+                      {/* Employer Title & Status Row */}
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-base text-stone-900">{emp.businessName}</h3>
+                            <span
+                              className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase flex items-center gap-1 ${
+                                emp.verificationStatus === 'verified'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : emp.verificationStatus === 'pending'
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300 font-extrabold'
+                                  : 'bg-stone-200 text-stone-700'
+                              }`}
+                            >
+                              {emp.verificationStatus === 'verified' && <ShieldCheck className="w-3 h-3 text-emerald-700" />}
+                              {emp.verificationStatus === 'pending' && <Clock className="w-3 h-3 text-amber-700" />}
+                              <span>{emp.verificationStatus}</span>
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-3 text-stone-500 text-[11px]">
+                            <span>{emp.industry}</span>
+                            <span>·</span>
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3 text-stone-400" /> {emp.locationArea}
+                            </span>
+                            <span>·</span>
+                            <span>{emp.contactEmail}</span>
+                            <span>·</span>
+                            <span>Registered {new Date(emp.createdAt).toLocaleDateString()}</span>
+                          </div>
+                          {emp.description && (
+                            <p className="text-stone-600 bg-white p-2.5 rounded-lg border border-stone-100 mt-1 leading-relaxed">
+                              {emp.description}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Admin Action Buttons */}
+                        {onVerifyEmployer && (
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            {emp.verificationStatus !== 'verified' && (
+                              <button
+                                type="button"
+                                disabled={verifyWorking === emp.uid}
+                                onClick={async () => {
+                                  setVerifyWorking(emp.uid);
+                                  try {
+                                    await onVerifyEmployer(
+                                      emp.uid,
+                                      'verified',
+                                      'Approved: Verified against official CIPC / Municipal Registry.'
+                                    );
+                                    setActionNotice(`"${emp.businessName}" has been verified.`);
+                                    setTimeout(() => setActionNotice(null), 3500);
+                                  } finally {
+                                    setVerifyWorking(null);
+                                  }
+                                }}
+                                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-xs"
+                              >
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                <span>{verifyWorking === emp.uid ? 'Verifying…' : 'Approve & Verify'}</span>
+                              </button>
+                            )}
+
+                            {emp.verificationStatus === 'pending' && (
+                              <button
+                                type="button"
+                                disabled={verifyWorking === emp.uid}
+                                onClick={async () => {
+                                  setVerifyWorking(emp.uid);
+                                  try {
+                                    await onVerifyEmployer(
+                                      emp.uid,
+                                      'unverified',
+                                      'CIPC / Registration number could not be matched with official registry.'
+                                    );
+                                    setActionNotice(`"${emp.businessName}" verification flagged.`);
+                                    setTimeout(() => setActionNotice(null), 3500);
+                                  } finally {
+                                    setVerifyWorking(null);
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-lg font-semibold text-xs flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                              >
+                                <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                                <span>Flag / Request Proof</span>
+                              </button>
+                            )}
+
+                            {emp.verificationStatus === 'verified' && (
+                              <button
+                                type="button"
+                                disabled={verifyWorking === emp.uid}
+                                onClick={async () => {
+                                  setVerifyWorking(emp.uid);
+                                  try {
+                                    await onVerifyEmployer(emp.uid, 'unverified', 'Verification revoked by administrator.');
+                                    setActionNotice(`"${emp.businessName}" verification revoked.`);
+                                    setTimeout(() => setActionNotice(null), 3500);
+                                  } finally {
+                                    setVerifyWorking(null);
+                                  }
+                                }}
+                                className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded-lg font-semibold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                <span>Revoke Verification</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex flex-wrap gap-3 text-stone-500 text-[11px]">
-                        <span>{emp.industry}</span>
-                        <span>·</span>
-                        <span className="flex items-center gap-1">
-                          <MapPin className="w-3 h-3" /> {emp.locationArea}
-                        </span>
-                        <span>·</span>
-                        <span>{emp.contactEmail}</span>
-                        <span>·</span>
-                        <span>Joined {new Date(emp.createdAt).toLocaleDateString()}</span>
-                      </div>
-                      {emp.description && (
-                        <p className="text-stone-600 bg-white p-2 rounded border border-stone-100 mt-1">
-                          {emp.description}
-                        </p>
+
+                      {/* Official Business Documents Card */}
+                      {reg ? (
+                        <div className="bg-white rounded-xl border border-stone-200 p-4 space-y-3">
+                          <div className="flex items-center justify-between border-b border-stone-100 pb-2">
+                            <span className="font-bold text-xs text-stone-900 flex items-center gap-1.5">
+                              <FileText className="w-3.5 h-3.5 text-amber-600" />
+                              <span>Business Documents (Anti-Fraud Check)</span>
+                            </span>
+                            <span className="text-[11px] text-stone-500">
+                              {reg.submittedAt ? `Submitted ${new Date(reg.submittedAt).toLocaleDateString()}` : 'Recorded'}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 text-xs">
+                            <div>
+                              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                                Legal Registered Name
+                              </span>
+                              <span className="font-bold text-stone-900">{reg.legalRegisteredName}</span>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                                Registration Entity Type
+                              </span>
+                              <span className="font-semibold text-stone-800">
+                                {formatRegistrationType(reg.registrationType)}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                                CIPC / Permit Number
+                              </span>
+                              <span className="font-mono font-bold text-amber-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded inline-block mt-0.5">
+                                {reg.registrationNumber}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                                Physical Operating Address
+                              </span>
+                              <span className="text-stone-700">{reg.physicalAddress}</span>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                                Official Phone & Tax Number
+                              </span>
+                              <span className="text-stone-700">
+                                {reg.officialPhone}
+                                {reg.taxNumber && <span className="font-mono ml-2">(Tax: {reg.taxNumber})</span>}
+                              </span>
+                            </div>
+
+                            <div>
+                              <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                                Supporting Document
+                              </span>
+                              {reg.documentFileName ? (
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-emerald-800 font-medium text-[11px]">
+                                    <FileCheck className="w-3 h-3 text-emerald-600" />
+                                    <span>{reg.documentFileName}</span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setInspectingEmployer(emp)}
+                                    className="px-2 py-0.5 rounded bg-stone-100 hover:bg-stone-200 text-stone-700 font-semibold text-[10px] flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <Eye className="w-3 h-3 text-stone-500" />
+                                    <span>Inspect</span>
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold mt-0.5">
+                                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                                  <span>Document not uploaded</span>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Specific Employer's Posted Jobs */}
+                          {(() => {
+                            const employerJobs = jobs.filter((j) => j.employerId === emp.uid);
+                            return (
+                              <div className="pt-2 border-t border-stone-100 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                                <div className="flex items-center gap-1.5 text-stone-600">
+                                  <Briefcase className="w-3.5 h-3.5 text-stone-400" />
+                                  <span>Posted Jobs ({employerJobs.length}):</span>
+                                  {employerJobs.length > 0 ? (
+                                    <div className="flex flex-wrap gap-1 ml-1">
+                                      {employerJobs.map((j) => (
+                                        <span
+                                          key={j.id}
+                                          className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                                            j.status === 'open'
+                                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                              : 'bg-stone-100 text-stone-600 border-stone-200'
+                                          }`}
+                                        >
+                                          {j.title} ({j.status})
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-stone-400 italic">No job postings yet</span>
+                                  )}
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => setInspectingEmployer(emp)}
+                                  className="text-amber-800 hover:text-amber-900 font-bold underline flex items-center gap-1 cursor-pointer"
+                                >
+                                  <Eye className="w-3 h-3" />
+                                  <span>View Complete Business Documents</span>
+                                </button>
+                              </div>
+                            );
+                          })()}
+
+                          {reg.adminNotes && (
+                            <div className="pt-2 border-t border-stone-100 text-[11px] text-stone-600 flex items-start gap-1.5">
+                              <Info className="w-3.5 h-3.5 text-stone-400 shrink-0 mt-0.5" />
+                              <span>Assessor Note: {reg.adminNotes}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-amber-50/70 border border-amber-200 rounded-lg p-3 text-[11px] text-amber-900 flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                            <span>
+                              <strong>Verification Proof Not Uploaded Yet:</strong> This employer has not submitted formal CIPC registration or municipal permit documents.
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded uppercase tracking-wider">
+                            Pending Documents
+                          </span>
+                        </div>
                       )}
                     </div>
-
-                    {onVerifyEmployer && (
-                      <div className="flex items-center gap-2 shrink-0">
-                        {emp.verificationStatus !== 'verified' && (
-                          <button
-                            type="button"
-                            disabled={verifyWorking === emp.uid}
-                            onClick={async () => {
-                              setVerifyWorking(emp.uid);
-                              try {
-                                await onVerifyEmployer(emp.uid, 'verified');
-                                setActionNotice(`"${emp.businessName}" has been verified.`);
-                                setTimeout(() => setActionNotice(null), 3500);
-                              } finally {
-                                setVerifyWorking(null);
-                              }
-                            }}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-semibold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                          >
-                            <ShieldCheck className="w-3.5 h-3.5" />
-                            <span>{verifyWorking === emp.uid ? 'Verifying…' : 'Grant Verified'}</span>
-                          </button>
-                        )}
-                        {emp.verificationStatus === 'verified' && (
-                          <button
-                            type="button"
-                            disabled={verifyWorking === emp.uid}
-                            onClick={async () => {
-                              setVerifyWorking(emp.uid);
-                              try {
-                                await onVerifyEmployer(emp.uid, 'unverified');
-                                setActionNotice(`"${emp.businessName}" verification revoked.`);
-                                setTimeout(() => setActionNotice(null), 3500);
-                              } finally {
-                                setVerifyWorking(null);
-                              }
-                            }}
-                            className="px-3 py-1.5 bg-stone-200 hover:bg-stone-300 text-stone-800 rounded font-semibold text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                          >
-                            <XCircle className="w-3.5 h-3.5" />
-                            <span>Revoke Verified</span>
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
             </div>
           )}
         </div>
@@ -838,6 +1121,7 @@ export const AdminDashboard: React.FC<Props> = ({
               {claims.map((claim) => {
                 const candidate = candidateProfiles[claim.candidateId];
                 const isAssessed = claim.verificationStatus === 'Task-assessed';
+                const proofStatus = getSkillClaimProofStatus(claim);
 
                 return (
                   <div
@@ -854,6 +1138,22 @@ export const AdminDashboard: React.FC<Props> = ({
                           Candidate: {candidate?.fullName || 'Candidate ' + claim.candidateId}
                         </span>
                         <h4 className="font-bold text-stone-900 text-sm">{claim.skillName}</h4>
+                        <div className="flex items-center gap-2 pt-1">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 ${
+                              proofStatus.hasProof
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : 'bg-amber-50 text-amber-900 border border-amber-300'
+                            }`}
+                          >
+                            {proofStatus.hasProof ? (
+                              <FileCheck className="w-3 h-3 text-emerald-600" />
+                            ) : (
+                              <AlertTriangle className="w-3 h-3 text-amber-600" />
+                            )}
+                            <span>{proofStatus.statusLabel}</span>
+                          </span>
+                        </div>
                       </div>
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
@@ -918,6 +1218,225 @@ export const AdminDashboard: React.FC<Props> = ({
                     </span>
                   </div>
                 </div>
+
+                {/* Candidate Proof of Skill & Evidence Package */}
+                {(() => {
+                  const proofStatus = getSkillClaimProofStatus(selectedClaimForGrading);
+                  const candidate = candidateProfiles[selectedClaimForGrading.candidateId];
+
+                  return (
+                    <div className="bg-white rounded-xl border border-stone-200 p-4 space-y-3 shadow-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 pb-2">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-amber-600" />
+                          <h4 className="font-bold text-xs text-stone-900">
+                            Candidate's Submitted Proof of Skill & Work Samples
+                          </h4>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
+                            proofStatus.hasProof
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              : 'bg-amber-100 text-amber-900 border border-amber-300'
+                          }`}
+                        >
+                          {proofStatus.hasProof ? (
+                            <CheckCircle2 className="w-3 h-3 text-emerald-700" />
+                          ) : (
+                            <AlertTriangle className="w-3 h-3 text-amber-600" />
+                          )}
+                          <span>{proofStatus.statusLabel}</span>
+                        </span>
+                      </div>
+
+                      {!proofStatus.hasProof ? (
+                        <div className="bg-amber-50/80 border-2 border-dashed border-amber-300 rounded-xl p-4 text-xs space-y-2">
+                          <div className="flex items-center gap-2 text-amber-950 font-bold text-sm">
+                            <AlertTriangle className="w-4 h-4 text-amber-600" />
+                            <span>No proof uploaded yet</span>
+                          </div>
+                          <p className="text-amber-900 leading-relaxed">
+                            The candidate ({candidate?.fullName || 'Candidate'}) registered this skill (<strong>{selectedClaimForGrading.skillName}</strong>) as self-reported, but has not yet uploaded supporting documents, photos, or certificates as proof.
+                          </p>
+                          <div className="pt-1 text-[11px] text-amber-800 flex items-center gap-1.5 font-medium">
+                            <Info className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                            <span>
+                              Assessor notice: The candidate can update their proof at any time. You may request updated proof or conduct an in-person bench practical before awarding task-assessed certification.
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-3 text-xs">
+                          {/* Written Context */}
+                          <div className="bg-stone-50 p-3 rounded-xl border border-stone-100 space-y-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="font-bold text-stone-900">
+                                {selectedClaimForGrading.evidenceTitle || 'Candidate Demonstration'}
+                              </span>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-stone-600 bg-stone-200/70 px-2 py-0.5 rounded">
+                                {selectedClaimForGrading.evidenceType.replace('_', ' ')}
+                              </span>
+                            </div>
+                            <p className="text-stone-700 leading-relaxed">
+                              {selectedClaimForGrading.evidenceDescription}
+                            </p>
+                            {selectedClaimForGrading.evidenceUrlOrText && (
+                              <p className="text-stone-500 text-[11px] pt-1">
+                                Reference / Link: <span className="font-mono text-stone-700">{selectedClaimForGrading.evidenceUrlOrText}</span>
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Uploaded Files & Work Samples */}
+                          {selectedClaimForGrading.evidenceItems && selectedClaimForGrading.evidenceItems.length > 0 && (
+                            <div className="space-y-1.5">
+                              <span className="font-bold text-[11px] text-stone-700 block">
+                                Attached Proof Files & Completed Jobs ({selectedClaimForGrading.evidenceItems.length}):
+                              </span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                {selectedClaimForGrading.evidenceItems.map((item) => (
+                                  <div
+                                    key={item.id}
+                                    className="p-2.5 rounded-lg border border-stone-200 bg-white hover:bg-stone-50 flex items-center justify-between gap-2 shadow-2xs"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      {item.type === 'work_sample' ? (
+                                        <Briefcase className="w-4 h-4 text-amber-700 shrink-0" />
+                                      ) : item.type === 'photo' ? (
+                                        <Eye className="w-4 h-4 text-emerald-700 shrink-0" />
+                                      ) : (
+                                        <FileText className="w-4 h-4 text-purple-700 shrink-0" />
+                                      )}
+                                      <div className="truncate">
+                                        <span className="font-bold text-stone-900 block truncate text-xs">
+                                          {item.title}
+                                        </span>
+                                        <span className="text-[10px] text-stone-400 block truncate">
+                                          {item.fileName || 'Attached document'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setInspectingProofItem({ item, skillName: selectedClaimForGrading.skillName })}
+                                      className="px-2 py-1 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded text-[11px] font-semibold flex items-center gap-1 shrink-0 cursor-pointer"
+                                    >
+                                      <Eye className="w-3 h-3 text-stone-500" />
+                                      <span>Inspect</span>
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Attached Credentials / Badges */}
+                          {selectedClaimForGrading.credentials && selectedClaimForGrading.credentials.length > 0 && (
+                            <div className="space-y-1.5">
+                              <span className="font-bold text-[11px] text-stone-700 block">
+                                Verified Badges & Certificates ({selectedClaimForGrading.credentials.length}):
+                              </span>
+                              <div className="space-y-1.5">
+                                {selectedClaimForGrading.credentials.map((cred) => (
+                                  <div
+                                    key={cred.id}
+                                    className="p-2.5 rounded-lg border border-purple-200 bg-purple-50/40 flex flex-wrap items-center justify-between gap-2 text-xs"
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <Award className="w-4 h-4 text-purple-700 shrink-0" />
+                                      <div>
+                                        <span className="font-bold text-stone-900">{cred.credentialName}</span>
+                                        <span className="text-stone-500 ml-1">· {cred.issuer}</span>
+                                        {cred.isAccredited && (
+                                          <span className="ml-2 px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-purple-200 text-purple-900">
+                                            SAQA Accredited
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span className="font-mono text-[11px] text-stone-600 bg-white px-2 py-0.5 rounded border border-purple-100">
+                                      {maskCredentialId(cred.credentialId || '')}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Assessor Advisory Copilot (Rule-Based & Local - Section 37) */}
+                {(() => {
+                  const copilotAnalysis = analyzeEvidenceWithAI({
+                    candidateName:
+                      candidateProfiles[selectedClaimForGrading.candidateId]?.fullName || 'Candidate',
+                    skillName: selectedClaimForGrading.skillName,
+                    evidenceTitle: selectedClaimForGrading.evidenceTitle,
+                    evidenceDescription: selectedClaimForGrading.evidenceDescription,
+                    evidenceItems: selectedClaimForGrading.evidenceItems,
+                  });
+
+                  return (
+                    <div className="bg-white p-4 rounded-xl border border-stone-200 space-y-3 shadow-xs">
+                      <div className="flex items-center justify-between border-b border-stone-100 pb-2">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-amber-600" />
+                          <h4 className="font-bold text-xs text-stone-900">
+                            Assessor Advisory Copilot (Rule-Based & Local)
+                          </h4>
+                        </div>
+                        <span className="text-[10px] font-semibold text-stone-500 bg-stone-100 px-2 py-0.5 rounded">
+                          Advisory Only · Human Evaluator Decides
+                        </span>
+                      </div>
+
+                      {/* Extracted Facts */}
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-bold text-stone-700 block">
+                          Extracted Evidence Indicators:
+                        </span>
+                        <ul className="text-xs text-stone-600 space-y-1 pl-4 list-disc">
+                          {copilotAnalysis.extractedFacts.map((fact, idx) => (
+                            <li key={idx}>{fact}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Collapsible Suggested Scores (Hidden by default) */}
+                      <div className="pt-2 border-t border-stone-100">
+                        <button
+                          type="button"
+                          onClick={() => setShowSuggestedScores(!showSuggestedScores)}
+                          className="text-xs font-semibold text-amber-800 hover:text-amber-900 flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>
+                            {showSuggestedScores
+                              ? 'Hide Suggested Benchmark & Guidance'
+                              : 'View Suggested Benchmark & Guidance (Hidden by Default)'}
+                          </span>
+                        </button>
+
+                        {showSuggestedScores && (
+                          <div className="mt-2 p-3 bg-amber-50/70 border border-amber-200 rounded-lg text-xs space-y-2">
+                            <p className="text-amber-950 font-medium">{copilotAnalysis.assessorGuidance}</p>
+                            <div className="flex flex-wrap gap-3 text-[11px] text-stone-600">
+                              <span>Suggested Tech: {copilotAnalysis.suggestedScores.crit1}/25</span>
+                              <span>Safety: {copilotAnalysis.suggestedScores.crit2}/25</span>
+                              <span>Tool Care: {copilotAnalysis.suggestedScores.crit3}/25</span>
+                              <span>Efficiency: {copilotAnalysis.suggestedScores.crit4}/25</span>
+                            </div>
+                            <p className="text-[10px] text-stone-500 italic">
+                              * Advisory notice: Sliders below remain un-prefilled. The human assessor must manually adjust and submit all scores.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="bg-white p-3 rounded-lg border border-stone-200 space-y-1">
@@ -1676,7 +2195,7 @@ export const AdminDashboard: React.FC<Props> = ({
                         <div className="p-2.5 bg-white rounded border border-stone-200">
                           <span className="text-stone-400 block text-[10px] uppercase font-bold">SA National Minimum Wage</span>
                           <span className="text-base font-bold text-stone-900">R{SA_STATUTORY_MINIMUM_WAGE_HOURLY.toFixed(2)}</span>
-                          <span className="text-[10px] text-stone-400 block">statutory threshold</span>
+                          <span className="text-[10px] text-stone-400 block">assumed benchmark (validate with gazette)</span>
                         </div>
                         <div className="p-2.5 bg-white rounded border border-stone-200">
                           <span className="text-stone-400 block text-[10px] uppercase font-bold">Compliance Status</span>
@@ -1815,6 +2334,603 @@ export const AdminDashboard: React.FC<Props> = ({
                   )}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== TAB 6: REVENUE PILOT & SUSTAINABILITY (Section 39) ==================== */}
+      {activeSubTab === 'revenue' && (() => {
+        const empList = Object.values(employerProfiles);
+        const freeCount = empList.filter((e) => !e.plan || e.plan === 'free').length;
+        const starterCount = empList.filter((e) => e.plan === 'starter').length;
+        const businessCount = empList.filter((e) => e.plan === 'business').length;
+        const partnerCount = empList.filter((e) => e.plan === 'partner').length;
+        const totalMrr = starterCount * 199 + businessCount * 599;
+
+        return (
+          <div className="space-y-6">
+            {/* Hard rule candidate invariant banner */}
+            <div className="bg-emerald-50 border border-emerald-200 p-4 rounded-xl text-xs text-emerald-950 flex items-start justify-between gap-3 shadow-xs">
+              <div className="flex items-start gap-2.5">
+                <ShieldCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block font-bold text-emerald-900 text-sm mb-0.5">
+                    Hard Candidate Protection Invariant (Section 36.3 & 39.4)
+                  </strong>
+                  <p className="text-emerald-800 leading-relaxed">
+                    Candidates <strong>NEVER pay</strong> any fees to register, build a Skill Passport, get verified, or apply.
+                    Matching and candidate ranking are <strong>100% blind to employer plans</strong> — a paid employer plan never alters candidate scores or elevates unverified applicants.
+                  </p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 bg-emerald-200 text-emerald-900 font-extrabold rounded text-[11px] uppercase tracking-wider shrink-0">
+                100% Free For Youth
+              </span>
+            </div>
+
+            {/* MRR & Tier Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-xs space-y-1">
+                <span className="text-xs text-stone-500 font-bold uppercase tracking-wider block">
+                  Monthly Recurring Revenue (MRR)
+                </span>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-3xl font-extrabold text-stone-900">
+                    R{totalMrr.toLocaleString()}
+                  </span>
+                  <span className="text-xs text-stone-400 font-semibold">/ month</span>
+                </div>
+                <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded inline-block">
+                  Pilot: Invoiced manually (No card storage)
+                </span>
+              </div>
+
+              <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-xs space-y-1">
+                <span className="text-xs text-stone-500 font-bold uppercase tracking-wider block">
+                  Free SMME Tier (R0)
+                </span>
+                <span className="text-3xl font-extrabold text-stone-900">{freeCount}</span>
+                <span className="text-[11px] text-stone-500 block">1 active job limit · Community access</span>
+              </div>
+
+              <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-xs space-y-1">
+                <span className="text-xs text-stone-500 font-bold uppercase tracking-wider block">
+                  Starter Tier (R199/mo)
+                </span>
+                <span className="text-3xl font-extrabold text-stone-900">{starterCount}</span>
+                <span className="text-[11px] text-stone-500 block">Up to 5 active jobs · Verified filter</span>
+              </div>
+
+              <div className="bg-white p-5 rounded-xl border border-stone-200 shadow-xs space-y-1">
+                <span className="text-xs text-stone-500 font-bold uppercase tracking-wider block">
+                  Business Tier (R599/mo)
+                </span>
+                <span className="text-3xl font-extrabold text-stone-900">{businessCount}</span>
+                <span className="text-[11px] text-stone-500 block">Up to 20 active jobs · Custom rubrics</span>
+              </div>
+            </div>
+
+            {/* Pending Upgrade Requests Queue */}
+            <div className="bg-white rounded-xl border border-stone-200 p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+                <div>
+                  <h3 className="font-bold text-base text-stone-900 flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    Employer Upgrade Requests ({upgradeRequests.length})
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Requests submitted during the pilot to be invoiced manually before activating expanded tiers.
+                  </p>
+                </div>
+              </div>
+
+              {upgradeRequests.length === 0 ? (
+                <div className="p-8 text-center text-xs text-stone-500 bg-stone-50 rounded-lg border border-dashed border-stone-200">
+                  No pending employer upgrade requests. All current employers are operating on the Free SMME pilot tier.
+                </div>
+              ) : (
+                <div className="divide-y divide-stone-100">
+                  {upgradeRequests.map((req) => (
+                    <div key={req.id} className="py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="font-bold text-stone-900 block">{req.businessName}</span>
+                        <span className="text-stone-500 text-[11px] block">
+                          Target: <strong className="capitalize text-stone-800">{req.targetPlan} Tier</strong> · Contact: {req.contactName} ({req.billingEmail})
+                          {req.poNumber && ` · PO: ${req.poNumber}`}
+                        </span>
+                        {req.reviewedBy && (
+                          <span className="text-[10px] text-stone-500 block">
+                            Reviewed by <strong>{req.reviewedBy}</strong> on {req.reviewedAt ? new Date(req.reviewedAt).toLocaleDateString() : 'N/A'}
+                            {req.adminNote && ` · Note: "${req.adminNote}"`}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {req.status === 'pending' ? (
+                          <>
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-900 border border-amber-300">
+                              Pending Review
+                            </span>
+                            {onApproveUpgradeRequest && (
+                              <button
+                                type="button"
+                                onClick={() => onApproveUpgradeRequest(req.id, assessorId, assessorName)}
+                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[11px] cursor-pointer"
+                              >
+                                Approve &amp; Activate
+                              </button>
+                            )}
+                            {onDeclineUpgradeRequest && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const note = window.prompt('Optional decline reason/note for employer:') || 'Declined during manual invoice audit.';
+                                  onDeclineUpgradeRequest(req.id, assessorId, assessorName, note);
+                                }}
+                                className="px-2.5 py-1 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded font-bold text-[11px] cursor-pointer"
+                              >
+                                Decline
+                              </button>
+                            )}
+                          </>
+                        ) : req.status === 'approved' ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1">
+                            <Check className="w-3 h-3 text-emerald-700" />
+                            Approved &amp; Active
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-stone-100 text-stone-600 border border-stone-300">
+                            {req.status}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-stone-400">
+                          {new Date(req.requestedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Pricing Pulse Survey Insights */}
+            <div className="bg-white rounded-xl border border-stone-200 p-6 shadow-xs space-y-4">
+              <div className="border-b border-stone-100 pb-3">
+                <h3 className="font-bold text-base text-stone-900">
+                  Pricing Validation Pulse Insights ({pulseSurveys.length} responses)
+                </h3>
+                <p className="text-xs text-stone-500">
+                  Anonymous 3-question survey results from SMMEs testing subscription tiers.
+                </p>
+              </div>
+
+              {pulseSurveys.length === 0 ? (
+                <p className="text-xs text-stone-500 italic">No survey responses submitted yet.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                  <div className="p-3 bg-stone-50 rounded-lg border border-stone-200">
+                    <span className="font-bold text-stone-800 block mb-1">R199/mo Fairness</span>
+                    <span className="text-xs text-stone-600">
+                      Fair: {pulseSurveys.filter((s) => s.q1FairPrice === 'Fair').length} / {pulseSurveys.length}
+                    </span>
+                  </div>
+                  <div className="p-3 bg-stone-50 rounded-lg border border-stone-200">
+                    <span className="font-bold text-stone-800 block mb-1">Annual 20% Discount Interest</span>
+                    <span className="text-xs text-stone-600">
+                      Yes / Maybe: {pulseSurveys.filter((s) => s.q3AnnualDiscount !== 'No').length} / {pulseSurveys.length}
+                    </span>
+                  </div>
+                  <div className="p-3 bg-stone-50 rounded-lg border border-stone-200">
+                    <span className="font-bold text-stone-800 block mb-1">Top Upgrade Drivers</span>
+                    <span className="text-xs text-stone-600">
+                      Task-assessed rubrics, multi-job capacity, turnaround speed
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* ==================== INSPECT EMPLOYER VERIFICATION PROOFS MODAL ==================== */}
+      {inspectingEmployer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="p-5 border-b border-stone-200 flex items-center justify-between bg-stone-50/80">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-100 text-amber-900 border border-amber-200">
+                  <Building2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                      Business Documents
+                    </span>
+                    <span
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                        inspectingEmployer.verificationStatus === 'verified'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : inspectingEmployer.verificationStatus === 'pending'
+                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                          : 'bg-stone-200 text-stone-700'
+                      }`}
+                    >
+                      {inspectingEmployer.verificationStatus}
+                    </span>
+                  </div>
+                  <h2 className="text-base font-bold text-stone-900 mt-0.5">
+                    {inspectingEmployer.businessName}
+                  </h2>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectingEmployer(null)}
+                className="p-2 text-stone-400 hover:text-stone-700 hover:bg-stone-100 rounded-lg cursor-pointer transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
+              {/* Business Overview */}
+              <div className="bg-stone-50 p-3.5 rounded-xl border border-stone-200 space-y-2">
+                <div className="flex flex-wrap gap-4 text-stone-600 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Industry</span>
+                    <span className="font-semibold text-stone-900">{inspectingEmployer.industry}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Operating Location</span>
+                    <span className="font-semibold text-stone-900">{inspectingEmployer.locationArea}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Contact Email</span>
+                    <span className="font-semibold text-stone-900">{inspectingEmployer.contactEmail}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">Account Created</span>
+                    <span className="font-semibold text-stone-900">{new Date(inspectingEmployer.createdAt).toLocaleDateString()}</span>
+                  </div>
+                </div>
+                {inspectingEmployer.description && (
+                  <p className="text-stone-700 pt-1 leading-relaxed border-t border-stone-200/60">
+                    {inspectingEmployer.description}
+                  </p>
+                )}
+              </div>
+
+              {/* Submitted Formal Business Documents */}
+              {inspectingEmployer.verificationDetails ? (
+                <div className="bg-white rounded-xl border border-stone-200 p-4 space-y-3">
+                  <div className="flex items-center justify-between border-b border-stone-100 pb-2">
+                    <span className="font-bold text-xs text-stone-900 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                      <span>Submitted CIPC / Statutory Anti-Fraud Information</span>
+                    </span>
+                    <span className="text-[10px] text-stone-400">
+                      {inspectingEmployer.verificationDetails.submittedAt
+                        ? `Submitted ${new Date(inspectingEmployer.verificationDetails.submittedAt).toLocaleDateString()}`
+                        : 'Recorded'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                        Legal Entity Name
+                      </span>
+                      <span className="font-bold text-stone-900">
+                        {inspectingEmployer.verificationDetails.legalRegisteredName}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                        Entity Type
+                      </span>
+                      <span className="font-medium text-stone-800">
+                        {formatRegistrationType(inspectingEmployer.verificationDetails.registrationType)}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                        CIPC / Permit Number
+                      </span>
+                      <span className="font-mono font-bold text-amber-900 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded inline-block mt-0.5">
+                        {inspectingEmployer.verificationDetails.registrationNumber}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                        SARS Tax Number
+                      </span>
+                      <span className="font-mono text-stone-800">
+                        {inspectingEmployer.verificationDetails.taxNumber || 'Not provided'}
+                      </span>
+                    </div>
+
+                    <div className="sm:col-span-2">
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                        Physical Operating Premises
+                      </span>
+                      <span className="text-stone-800">
+                        {inspectingEmployer.verificationDetails.physicalAddress}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                        Official Phone
+                      </span>
+                      <span className="text-stone-800 font-medium">
+                        {inspectingEmployer.verificationDetails.officialPhone}
+                      </span>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                        Website
+                      </span>
+                      {inspectingEmployer.verificationDetails.officialWebsite ? (
+                        <a
+                          href={inspectingEmployer.verificationDetails.officialWebsite}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-amber-800 underline font-medium"
+                        >
+                          {inspectingEmployer.verificationDetails.officialWebsite}
+                        </a>
+                      ) : (
+                        <span className="text-stone-400 italic">None</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Uploaded Verification Proof Document Box */}
+                  <div className="pt-3 border-t border-stone-100 space-y-2">
+                    <span className="font-bold text-stone-800 block text-xs">
+                      Uploaded Verification Proof Document:
+                    </span>
+                    {inspectingEmployer.verificationDetails.documentFileName ? (
+                      <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/50 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <FileCheck className="w-5 h-5 text-emerald-700" />
+                            <div>
+                              <span className="font-bold text-emerald-950 block text-xs">
+                                {inspectingEmployer.verificationDetails.documentFileName}
+                              </span>
+                              <span className="text-[10px] text-emerald-800">
+                                Official proof of formal South African business registration (CoR14.3 / Municipal Permit).
+                              </span>
+                            </div>
+                          </div>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-emerald-100 text-emerald-900 border border-emerald-300">
+                            Valid Proof
+                          </span>
+                        </div>
+
+                        {/* Simulated Document Preview */}
+                        <div className="mt-2 p-3 bg-white rounded-lg border border-emerald-200/80 font-mono text-[11px] text-stone-600 space-y-1">
+                          <div className="text-stone-400 text-[10px] uppercase font-sans font-bold">
+                            Document Registry Preview:
+                          </div>
+                          <p>Entity: {inspectingEmployer.verificationDetails.legalRegisteredName}</p>
+                          <p>Registry Number: {inspectingEmployer.verificationDetails.registrationNumber}</p>
+                          <p>Compliance Status: Verified Active in South African CIPC / Municipal Database</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>No physical or digital certificate file attached yet.</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 flex items-center gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+                  <div>
+                    <span className="font-bold block text-sm">No Business Documents Uploaded Yet</span>
+                    <p className="text-xs text-amber-800 mt-0.5">
+                      This employer has registered an account but has not yet uploaded formal business registration proof or municipal permit details.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Employer's Job Listings */}
+              {(() => {
+                const employerJobs = jobs.filter((j) => j.employerId === inspectingEmployer.uid);
+                return (
+                  <div className="bg-stone-50 p-4 rounded-xl border border-stone-200 space-y-2">
+                    <span className="font-bold text-stone-800 block text-xs">
+                      Jobs Published by {inspectingEmployer.businessName} ({employerJobs.length}):
+                    </span>
+                    {employerJobs.length === 0 ? (
+                      <p className="text-stone-400 italic">No job postings recorded.</p>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {employerJobs.map((j) => (
+                          <div
+                            key={j.id}
+                            className="p-2.5 rounded-lg bg-white border border-stone-200 flex items-center justify-between text-xs"
+                          >
+                            <div>
+                              <span className="font-bold text-stone-900 block">{j.title}</span>
+                              <span className="text-[10px] text-stone-500">
+                                {j.locationArea} · R{j.compensationAmount} / {j.compensationUnit}
+                              </span>
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                j.status === 'open'
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-stone-200 text-stone-700'
+                              }`}
+                            >
+                              {j.status}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Footer Admin Actions */}
+            <div className="p-4 border-t border-stone-200 bg-stone-50/80 flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setInspectingEmployer(null)}
+                className="px-4 py-2 border border-stone-300 hover:bg-stone-100 text-stone-700 font-bold rounded-xl cursor-pointer"
+              >
+                Close
+              </button>
+
+              {onVerifyEmployer && inspectingEmployer.verificationStatus !== 'verified' && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await onVerifyEmployer(
+                      inspectingEmployer.uid,
+                      'verified',
+                      'Approved: Verified against official CIPC / Municipal Registry.'
+                    );
+                    setInspectingEmployer(null);
+                  }}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs cursor-pointer flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span>Approve & Verify Business</span>
+                </button>
+              )}
+
+              {onVerifyEmployer && inspectingEmployer.verificationStatus === 'pending' && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await onVerifyEmployer(
+                      inspectingEmployer.uid,
+                      'unverified',
+                      'Registration details could not be matched with official registry.'
+                    );
+                    setInspectingEmployer(null);
+                  }}
+                  className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold rounded-xl cursor-pointer flex items-center gap-1.5"
+                >
+                  <XCircle className="w-4 h-4 text-rose-600" />
+                  <span>Flag / Request More Proof</span>
+                </button>
+              )}
+
+              {onVerifyEmployer && inspectingEmployer.verificationStatus === 'verified' && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await onVerifyEmployer(
+                      inspectingEmployer.uid,
+                      'unverified',
+                      'Verification revoked by administrator.'
+                    );
+                    setInspectingEmployer(null);
+                  }}
+                  className="px-4 py-2 bg-stone-200 hover:bg-stone-300 text-stone-800 font-bold rounded-xl cursor-pointer"
+                >
+                  Revoke Verification
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================== INSPECT CANDIDATE PROOF DOCUMENT MODAL ==================== */}
+      {inspectingProofItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl border border-stone-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-4 border-b border-stone-200 flex items-center justify-between bg-stone-50">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-amber-600" />
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">
+                    Candidate Proof Inspection · {inspectingProofItem.skillName}
+                  </span>
+                  <h3 className="font-bold text-stone-900 text-sm">
+                    {inspectingProofItem.item.title}
+                  </h3>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectingProofItem(null)}
+                className="p-1.5 text-stone-400 hover:text-stone-700 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3 overflow-y-auto flex-1 text-xs">
+              <div className="bg-stone-50 p-3 rounded-xl border border-stone-200 space-y-1.5">
+                <div className="flex justify-between text-stone-500 text-[11px]">
+                  <span>File: <strong className="text-stone-800">{inspectingProofItem.item.fileName || 'Document'}</strong></span>
+                  <span>Type: <strong className="text-stone-800 capitalize">{inspectingProofItem.item.type.replace('_', ' ')}</strong></span>
+                </div>
+                {inspectingProofItem.item.fileSize && (
+                  <p className="text-stone-500 text-[11px]">Size: <span className="text-stone-700">{inspectingProofItem.item.fileSize}</span></p>
+                )}
+                {inspectingProofItem.item.uploadedAt && (
+                  <p className="text-stone-500 text-[11px]">
+                    Uploaded: <span className="text-stone-700">{new Date(inspectingProofItem.item.uploadedAt).toLocaleString()}</span>
+                  </p>
+                )}
+              </div>
+
+              {inspectingProofItem.item.description && (
+                <div>
+                  <span className="font-bold text-stone-800 block mb-1">Proof Context & Work Description:</span>
+                  <p className="text-stone-700 bg-stone-50 p-3 rounded-lg border border-stone-100 leading-relaxed">
+                    {inspectingProofItem.item.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Simulated Visual Preview */}
+              <div className="p-6 rounded-xl border-2 border-dashed border-stone-200 bg-stone-50/50 text-center space-y-2">
+                {inspectingProofItem.item.type === 'work_sample' ? (
+                  <Briefcase className="w-8 h-8 text-amber-600 mx-auto" />
+                ) : inspectingProofItem.item.type === 'photo' ? (
+                  <Eye className="w-8 h-8 text-emerald-600 mx-auto" />
+                ) : (
+                  <FileCheck className="w-8 h-8 text-purple-600 mx-auto" />
+                )}
+                <span className="font-bold text-stone-800 block text-xs">
+                  {inspectingProofItem.item.fileName || inspectingProofItem.item.title}
+                </span>
+                <span className="text-[10px] text-stone-500 block">
+                  Document verified in platform storage for candidate assessment.
+                </span>
+              </div>
+            </div>
+
+            <div className="p-3 border-t border-stone-200 flex justify-end bg-stone-50">
+              <button
+                type="button"
+                onClick={() => setInspectingProofItem(null)}
+                className="px-4 py-1.5 bg-stone-900 hover:bg-stone-800 text-white font-bold rounded-lg text-xs cursor-pointer"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>

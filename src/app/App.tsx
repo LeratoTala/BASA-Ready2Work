@@ -1,5 +1,5 @@
 import { env } from '../config/env';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDemoStore } from './store/useDemoStore';
 import { useFirestoreStore } from './store/useFirestoreStore';
 import type { BasaStore } from './store/types';
@@ -19,15 +19,17 @@ import { EmployerProfilePage } from '../features/employer/components/EmployerPro
 import { CreateOpportunityModal } from '../features/employer/components/CreateOpportunityModal';
 import { ApplicantListView } from '../features/employer/components/ApplicantListView';
 import { CandidateDetailModal } from '../features/employer/components/CandidateDetailModal';
+import { DemoUpgradeModal } from '../features/employer/components/DemoUpgradeModal';
+import { PricingPulseSurveyModal } from '../features/employer/components/PricingPulseSurveyModal';
 import { AdminDashboard } from '../features/admin/components/AdminDashboard';
-import { AssessorProfilePage } from '../features/admin/components/AssessorProfilePage';
 import { ExportPassportModal } from '../features/candidate/components/ExportPassportModal';
 import { NotificationCenterModal } from '../features/notifications/components/NotificationCenterModal';
 import { useColorTheme } from './useColorTheme';
 import { calculateMatchScore } from '../domain/matching';
-import { Application, Job, MatchBreakdown } from '../domain/types';
+import { Application, CandidateProfile, Job, MatchBreakdown } from '../domain/types';
 import { Flame, Shield, Info, CheckCircle2, Award } from 'lucide-react';
 import { ThemeToggle } from '../shared/components/ThemeToggle';
+import { triggerOSHaptic } from '../shared/utils/osOperations';
 
 export default function App() {
   // env.enableDemoData is fixed at build time, so exactly one store hook runs for the app's lifetime.
@@ -41,6 +43,8 @@ export default function App() {
   const [isExportPassportOpen, setIsExportPassportOpen] = useState(false);
   const [isAIDrafterOpen, setIsAIDrafterOpen] = useState(false);
   const [isCreateJobOpen, setIsCreateJobOpen] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+  const [isPulseSurveyOpen, setIsPulseSurveyOpen] = useState(false);
   const [selectedJobForModal, setSelectedJobForModal] = useState<{
     job: Job;
     breakdown: MatchBreakdown;
@@ -54,6 +58,70 @@ export default function App() {
     store.switchUser(uid);
     setActiveTab('dashboard');
   };
+
+  // OS tab navigation with history push and tactile haptics
+  const handleSelectTab = (tab: string) => {
+    if (tab !== activeTab) {
+      triggerOSHaptic('light');
+      if (typeof window !== 'undefined' && window.history) {
+        window.history.pushState({ appTab: tab }, '');
+      }
+      setActiveTab(tab);
+    }
+  };
+
+  // Sync OS hardware/gesture Back button for top-level subtab navigation
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handlePopState = (e: PopStateEvent) => {
+      // If modal was open, modal's own hook handles popstate.
+      // If no modal is active and back is pressed:
+      if (e.state && e.state.appTab) {
+        setActiveTab(e.state.appTab);
+      } else if (activeTab !== 'dashboard') {
+        setActiveTab('dashboard');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeTab]);
+
+  // Global desktop OS operational shortcuts
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing in an input or textarea
+      const target = e.target as HTMLElement;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      // Cmd+K or Ctrl+K -> Open Notifications / Quick Activity
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        triggerOSHaptic('light');
+        setIsNotificationsOpen((prev) => !prev);
+      }
+
+      // Alt+LeftArrow -> Go back to dashboard if on subtab (standard Windows/Linux OS back)
+      if (e.altKey && e.key === 'ArrowLeft' && activeTab !== 'dashboard') {
+        e.preventDefault();
+        triggerOSHaptic('light');
+        setActiveTab('dashboard');
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab]);
 
   if (store.authLoading) {
     return (
@@ -151,7 +219,7 @@ export default function App() {
         users={store.users}
         onSwitchUser={handleSwitchUser}
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={handleSelectTab}
         lowDataMode={store.lowDataMode}
         onToggleLowData={() => store.setLowDataMode(!store.lowDataMode)}
         onResetDemoData={store.resetDemoData}
@@ -235,7 +303,7 @@ export default function App() {
                   store.updateCandidateProfile(currentUser.uid, updates)
                 }
                 onOpenExport={() => setIsExportPassportOpen(true)}
-                onOpenSkills={() => setActiveTab('skills')}
+                onOpenSkills={() => handleSelectTab('skills')}
               />
             )}
 
@@ -260,9 +328,9 @@ export default function App() {
                 workRecords={store.workRecords.filter((r) => r.candidateId === currentUser.uid)}
                 onOpenPassport={() => setIsPassportOpen(true)}
                 onOpenAIDrafter={() => setIsAIDrafterOpen(true)}
-                onOpenSkills={() => setActiveTab('skills')}
+                onOpenSkills={() => handleSelectTab('skills')}
                 onOpenExport={() => setIsExportPassportOpen(true)}
-                onOpenProfile={() => setActiveTab('profile')}
+                onOpenProfile={() => handleSelectTab('profile')}
                 onSelectJob={(job, breakdown) => handleSelectJob(job, breakdown)}
                 onUpdateProfile={(updates) =>
                   store.updateCandidateProfile(currentUser.uid, updates)
@@ -289,53 +357,13 @@ export default function App() {
                 }
                 claims={store.currentCandidateClaims}
                 onAddClaim={store.addSkillClaim}
+                onUpdateClaimEvidence={store.updateClaimEvidence}
                 onOpenPassport={() => setIsPassportOpen(true)}
                 onOpenAIDrafter={() => setIsAIDrafterOpen(true)}
                 onAddCredential={store.addCredentialToClaim}
                 onRequestPeerEndorsement={store.requestPeerEndorsement}
                 onRequestMentorReview={store.submitMentorReview}
               />
-            )}
-
-            {activeTab === 'passport' && (
-              <div className="space-y-4">
-                <div className="bg-white rounded-xl border border-stone-200 p-6 flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-bold text-stone-900">Your Skill Passport</h2>
-                    <p className="text-xs text-stone-500 mt-1">
-                      Your skills, evidence and honest verification labels in one place.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setIsPassportOpen(true)}
-                    className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs rounded-lg shadow-xs cursor-pointer"
-                  >
-                    Open Full Passport Modal
-                  </button>
-                </div>
-                <SkillsAndEvidence
-                  candidate={
-                    store.currentCandidateProfile || {
-                      uid: currentUser.uid,
-                      fullName: currentUser.displayName,
-                      headline: 'Jobseeker',
-                      experienceSummary: '',
-                      skillIds: [],
-                      locationArea: 'Soweto, Johannesburg',
-                      availability: 'immediate',
-                      popiaVisibility: 'public_link',
-                      updatedAt: new Date().toISOString(),
-                    }
-                  }
-                  claims={store.currentCandidateClaims}
-                  onAddClaim={store.addSkillClaim}
-                  onOpenPassport={() => setIsPassportOpen(true)}
-                  onOpenAIDrafter={() => setIsAIDrafterOpen(true)}
-                  onAddCredential={store.addCredentialToClaim}
-                  onRequestPeerEndorsement={store.requestPeerEndorsement}
-                  onRequestMentorReview={store.submitMentorReview}
-                />
-              </div>
             )}
 
             {activeTab === 'applications' && (
@@ -372,6 +400,9 @@ export default function App() {
                 onOpenCreateJob={() => setIsCreateJobOpen(true)}
                 onToggleJobStatus={store.toggleJobStatus}
                 onViewApplicants={() => setActiveTab('applicants')}
+                onRequestVerification={store.requestEmployerVerification}
+                onOpenUpgrade={() => setIsUpgradeModalOpen(true)}
+                onDowngradePlan={(newPlan) => store.downgradeEmployerPlan(currentUser.uid, newPlan)}
               />
             )}
 
@@ -398,7 +429,10 @@ export default function App() {
                 onUpdateEmployerProfile={(updates) =>
                   store.updateEmployerProfile(currentUser.uid, updates)
                 }
+                onRequestVerification={store.requestEmployerVerification}
                 onOpenProfile={() => setActiveTab('profile')}
+                onOpenUpgrade={() => setIsUpgradeModalOpen(true)}
+                onOpenPulseSurvey={() => setIsPulseSurveyOpen(true)}
               />
             )}
 
@@ -417,44 +451,36 @@ export default function App() {
 
         {/* ================= ADMIN / ASSESSOR PERSONA ================= */}
         {currentUser.role === 'admin' && (
-          <>
-            {activeTab === 'profile' && (
-              <AssessorProfilePage
-                assessorName={currentUser.displayName}
-                assessments={store.assessments}
-                claims={store.skillClaims}
-              />
-            )}
-
-            {activeTab !== 'profile' && (
-              <AdminDashboard
-                assessorId={currentUser.uid}
-                assessorName={currentUser.displayName}
-                claims={store.skillClaims}
-                candidateProfiles={store.candidateProfiles}
-                employerProfiles={store.employerProfiles}
-                assessments={store.assessments}
-                applications={store.applications}
-                workRecords={store.workRecords}
-                jobs={store.jobs}
-                reports={store.reports}
-                privacyDeletionRequests={store.privacyDeletionRequests}
-                endorsements={store.endorsements}
-                mentorReviews={store.mentorReviews}
-                onSubmitAssessment={store.submitAssessment}
-                onResolveReport={store.resolveReport}
-                onReviewPrivacyDeletionRequest={store.reviewPrivacyDeletionRequest}
-                onCompletePrivacyDeletion={store.completePrivacyDeletion}
-                onVerifyEmployer={store.updateEmployerVerification}
-                onApproveEndorsement={store.approvePeerEndorsement}
-                onSubmitMentorReview={store.submitMentorReview}
-                onToggleJobStatus={store.toggleJobStatus}
-                onReviewCredential={store.reviewCredential}
-                activeSubTab={activeTab}
-                onSelectSubTab={setActiveTab}
-              />
-            )}
-          </>
+          <AdminDashboard
+            assessorId={currentUser.uid}
+            assessorName={currentUser.displayName}
+            claims={store.skillClaims}
+            candidateProfiles={store.candidateProfiles}
+            employerProfiles={store.employerProfiles}
+            assessments={store.assessments}
+            applications={store.applications}
+            workRecords={store.workRecords}
+            jobs={store.jobs}
+            reports={store.reports}
+            privacyDeletionRequests={store.privacyDeletionRequests}
+            endorsements={store.endorsements}
+            mentorReviews={store.mentorReviews}
+            upgradeRequests={store.upgradeRequests}
+            pulseSurveys={store.pulseSurveys}
+            onSubmitAssessment={store.submitAssessment}
+            onResolveReport={store.resolveReport}
+            onReviewPrivacyDeletionRequest={store.reviewPrivacyDeletionRequest}
+            onCompletePrivacyDeletion={store.completePrivacyDeletion}
+            onVerifyEmployer={store.updateEmployerVerification}
+            onApproveEndorsement={store.approvePeerEndorsement}
+            onSubmitMentorReview={store.submitMentorReview}
+            onToggleJobStatus={store.toggleJobStatus}
+            onReviewCredential={store.reviewCredential}
+            onApproveUpgradeRequest={store.approveUpgradeRequest}
+            onDeclineUpgradeRequest={store.declineUpgradeRequest}
+            activeSubTab={activeTab === 'profile' ? 'overview' : activeTab}
+            onSelectSubTab={setActiveTab}
+          />
         )}
       </main>
       </div>
@@ -480,67 +506,113 @@ export default function App() {
       </footer>
 
       {/* Modals */}
-      {isPassportOpen && store.currentCandidateProfile && (
-        <SkillPassportModal
-          isOpen={isPassportOpen}
-          onClose={() => setIsPassportOpen(false)}
-          candidate={store.currentCandidateProfile}
-          claims={store.currentCandidateClaims}
-          onOpenExport={() => setIsExportPassportOpen(true)}
-        />
-      )}
+      {(() => {
+        const candidateForModals: CandidateProfile = store.currentCandidateProfile || {
+          uid: currentUser.uid,
+          fullName: currentUser.displayName || 'Jobseeker',
+          headline: 'Jobseeker',
+          experienceSummary: '',
+          skillIds: [],
+          locationArea: 'Soweto, Johannesburg',
+          availability: 'immediate',
+          popiaVisibility: 'public_link',
+          updatedAt: new Date().toISOString(),
+        };
 
-      {isExportPassportOpen && store.currentCandidateProfile && (
-        <ExportPassportModal
-          isOpen={isExportPassportOpen}
-          onClose={() => setIsExportPassportOpen(false)}
-          candidate={store.currentCandidateProfile}
-          claims={store.currentCandidateClaims}
-        />
-      )}
+        return (
+          <>
+            {isPassportOpen && (
+              <SkillPassportModal
+                isOpen={isPassportOpen}
+                onClose={() => setIsPassportOpen(false)}
+                candidate={candidateForModals}
+                claims={store.currentCandidateClaims}
+                onOpenExport={() => setIsExportPassportOpen(true)}
+              />
+            )}
 
-      {isAIDrafterOpen && store.currentCandidateProfile && (
-        <AICVDrafterModal
-          isOpen={isAIDrafterOpen}
-          onClose={() => setIsAIDrafterOpen(false)}
-          candidate={store.currentCandidateProfile}
-          claims={store.currentCandidateClaims}
-          onApplyDraft={handleApplyCVDraft}
-        />
-      )}
+            {isExportPassportOpen && (
+              <ExportPassportModal
+                isOpen={isExportPassportOpen}
+                onClose={() => setIsExportPassportOpen(false)}
+                candidate={candidateForModals}
+                claims={store.currentCandidateClaims}
+              />
+            )}
 
-      {selectedJobForModal && store.currentCandidateProfile && (
-        <OpportunityDetailModal
-          isOpen={Boolean(selectedJobForModal)}
-          onClose={() => setSelectedJobForModal(null)}
-          job={selectedJobForModal.job}
-          candidate={store.currentCandidateProfile}
-          claims={store.currentCandidateClaims}
-          matchBreakdown={selectedJobForModal.breakdown}
-          hasApplied={store.applications.some(
-            (a) =>
-              a.jobId === selectedJobForModal.job.id &&
-              a.candidateId === currentUser.uid
-          )}
-          application={
-            store.applications.find(
-              (a) =>
-                a.jobId === selectedJobForModal.job.id &&
-                a.candidateId === currentUser.uid
-            ) || null
-          }
-          onApply={handleApplyToJob}
-          onReport={handleReportJob}
-        />
-      )}
+            {isAIDrafterOpen && (
+              <AICVDrafterModal
+                isOpen={isAIDrafterOpen}
+                onClose={() => setIsAIDrafterOpen(false)}
+                candidate={candidateForModals}
+                claims={store.currentCandidateClaims}
+                onApplyDraft={handleApplyCVDraft}
+              />
+            )}
+
+            {selectedJobForModal && (
+              <OpportunityDetailModal
+                isOpen={Boolean(selectedJobForModal)}
+                onClose={() => setSelectedJobForModal(null)}
+                job={selectedJobForModal.job}
+                candidate={candidateForModals}
+                claims={store.currentCandidateClaims}
+                matchBreakdown={selectedJobForModal.breakdown}
+                hasApplied={store.applications.some(
+                  (a) =>
+                    a.jobId === selectedJobForModal.job.id &&
+                    a.candidateId === currentUser.uid
+                )}
+                application={
+                  store.applications.find(
+                    (a) =>
+                      a.jobId === selectedJobForModal.job.id &&
+                      a.candidateId === currentUser.uid
+                  ) || null
+                }
+                onApply={handleApplyToJob}
+                onReport={handleReportJob}
+              />
+            )}
+          </>
+        );
+      })()}
 
       {isCreateJobOpen && (
         <CreateOpportunityModal
           isOpen={isCreateJobOpen}
           onClose={() => setIsCreateJobOpen(false)}
-          onSubmit={store.postJob}
+          onSubmit={(jobData) => {
+            store.postJob(jobData);
+            setIsPulseSurveyOpen(true);
+          }}
           defaultLocation={store.currentEmployerProfile?.locationArea || 'Johannesburg CBD'}
+          activeJobCount={
+            store.jobs.filter((j) => j.status === 'open' && j.employerId === currentUser?.uid).length
+          }
+          employerPlan={store.currentEmployerProfile?.plan || 'free'}
+          onOpenUpgrade={() => setIsUpgradeModalOpen(true)}
         />
+      )}
+
+      {currentUser && currentUser.role === 'employer' && (
+        <>
+          <DemoUpgradeModal
+            isOpen={isUpgradeModalOpen}
+            onClose={() => setIsUpgradeModalOpen(false)}
+            employerUid={currentUser.uid}
+            businessName={store.currentEmployerProfile?.businessName || currentUser.displayName}
+            defaultEmail={currentUser.email}
+            currentPlan={store.currentEmployerProfile?.plan || 'free'}
+            onSubmitUpgradeRequest={store.requestEmployerUpgrade}
+          />
+          <PricingPulseSurveyModal
+            isOpen={isPulseSurveyOpen}
+            onClose={() => setIsPulseSurveyOpen(false)}
+            employerUid={currentUser.uid}
+            onSubmitSurvey={store.submitPricingPulseSurvey}
+          />
+        </>
       )}
 
       {selectedAppForModal && (
@@ -556,14 +628,15 @@ export default function App() {
             (w) => w.candidateId === selectedAppForModal.candidateId
           )}
           currentEmployerId={currentUser.uid}
+          job={store.jobs.find((j) => j.id === selectedAppForModal.jobId) || null}
           onUpdateStatus={(appId, newStatus, notes, payout) => {
             store.updateApplicationStatus(appId, newStatus, notes, payout);
             // Refresh modal application state
             const updated = store.applications.find((a) => a.id === appId);
             if (updated) setSelectedAppForModal({ ...updated, status: newStatus });
           }}
-          onConfirmPayout={(appId) => {
-            store.confirmWorkPayout(appId);
+          onConfirmPayout={(appId, details) => {
+            store.confirmWorkPayout(appId, details);
             const updated = store.applications.find((a) => a.id === appId);
             if (updated) setSelectedAppForModal({ ...updated, payoutConfirmed: true });
           }}
@@ -582,7 +655,7 @@ export default function App() {
         onDelete={store.deleteNotification}
         onUpdatePreferences={store.updateNotificationPreferences}
         onNavigateTab={(tab) => {
-          setActiveTab(tab);
+          handleSelectTab(tab);
           setIsNotificationsOpen(false);
         }}
       />

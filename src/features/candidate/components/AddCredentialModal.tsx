@@ -463,6 +463,13 @@ export const AddCredentialModal: React.FC<Props> = ({
                 {!selectedFile && (
                   <p className="text-[11px] text-stone-400 mt-1">PDF, JPEG, or PNG up to 5 MB</p>
                 )}
+
+                <div className="mt-3 p-2.5 rounded bg-amber-50/80 border border-amber-200 text-[11px] text-amber-900 text-left flex items-start gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <p>
+                    <strong>POPIA Identity Safety Tip:</strong> For driver&apos;s licenses or official IDs, entering your license code as plain text (e.g. Code 8/B or Code 10/C1 &amp; PrDP) or credential ID is safest. You do not need to upload photos of your physical card; you can present the card in person to the employer upon arrival.
+                  </p>
+                </div>
               </div>
             </div>
 

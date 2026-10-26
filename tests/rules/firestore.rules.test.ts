@@ -440,4 +440,55 @@ describe('firestore rules', () => {
       reviewedAt: '2026-10-24T12:00:00.000Z',
     }));
   });
+
+  it('Section 39: employer plan lock and upgrade request security rules', async () => {
+    const emp1 = env.authenticatedContext('emp1').firestore();
+    const admin = env.authenticatedContext('admin_user', { admin: true }).firestore();
+
+    // 1. Employer cannot self-assign a paid plan (starter, business, partner)
+    await assertFails(updateDoc(doc(emp1, 'employerProfiles/emp1'), {
+      plan: 'partner',
+    }));
+
+    // 2. Employer cannot modify planStatus, planSince, or planExpiresAt directly
+    await assertFails(updateDoc(doc(emp1, 'employerProfiles/emp1'), {
+      planStatus: 'active',
+      planSince: '2026-01-01T00:00:00.000Z',
+    }));
+
+    // 3. Admin CAN update employer plan
+    await assertSucceeds(updateDoc(doc(admin, 'employerProfiles/emp1'), {
+      plan: 'starter',
+      planStatus: 'active',
+      planSince: '2026-10-26T00:00:00.000Z',
+    }));
+
+    // 4. Employer can create own upgrade request with status 'pending'
+    await assertSucceeds(setDoc(doc(emp1, 'upgradeRequests/req_emp1_1'), {
+      id: 'req_emp1_1',
+      employerUid: 'emp1',
+      businessName: 'Fictional Employer',
+      targetPlan: 'business',
+      contactName: 'Manager John',
+      billingEmail: 'accounts@emp1.co.za',
+      status: 'pending',
+      requestedAt: '2026-10-26T12:00:00.000Z',
+    }));
+
+    // 5. Employer cannot forge an approved upgrade request
+    await assertFails(setDoc(doc(emp1, 'upgradeRequests/req_emp1_forged'), {
+      id: 'req_emp1_forged',
+      employerUid: 'emp1',
+      targetPlan: 'partner',
+      status: 'approved',
+      reviewedBy: 'Admin',
+    }));
+
+    // 6. Admin can update upgrade request status to approved
+    await assertSucceeds(updateDoc(doc(admin, 'upgradeRequests/req_emp1_1'), {
+      status: 'approved',
+      reviewedBy: 'Admin Nomsa',
+      reviewedAt: '2026-10-26T13:00:00.000Z',
+    }));
+  });
 });

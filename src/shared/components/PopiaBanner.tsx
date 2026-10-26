@@ -58,11 +58,11 @@ export const PopiaBanner: React.FC<Props> = ({ visibility, onUpdateVisibility, i
           <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <div>
               <p className="font-semibold text-stone-800 mb-1">What we collect and why</p>
-              <p>Your name, email, role, broad area, availability, skills and chosen evidence help run profiles, matching, applications and safety reviews. We do not collect precise GPS or identity documents.</p>
+              <p>Your name, email, role, broad area, availability, skills and chosen proof help run profiles, matching, applications and safety reviews. We do not collect precise GPS or identity documents.</p>
             </div>
             <div>
               <p className="font-semibold text-stone-800 mb-1">Who can see your information</p>
-              <p>You can see your own profile. An employer can see an application and allowed skill evidence only after you apply. Your private contact details are available only to that employer after shortlisting.</p>
+              <p>You can see your own profile. An employer can see an application and allowed skill proof only after you apply. Your private contact details are available only to that employer after shortlisting.</p>
             </div>
             <div>
               <p className="font-semibold text-stone-800 mb-1">How we use data</p>

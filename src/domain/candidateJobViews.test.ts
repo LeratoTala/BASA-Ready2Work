@@ -5,6 +5,7 @@ import {
   filterCandidateJobs,
 } from './candidateJobViews';
 import type { Job, Application, CandidateProfile, SkillClaim } from './types';
+import { formatEngagementType, ENGAGEMENT_TYPE_METADATA } from './types';
 
 describe('Candidate Job Listing Views (Available, Applied, Completed, All)', () => {
   const candidate: CandidateProfile = {
@@ -362,5 +363,29 @@ describe('Candidate Job Listing Views (Available, Applied, Completed, All)', () 
     // And applied has increased to 2
     assert.equal(applied.length, 2);
     assert.ok(applied.some((a) => a.job.id === 'job-available-1' && a.application?.status === 'submitted'));
+  });
+
+  it('supports transparent absorption and engagement types (permanent, internship, micro-internship, casual, learnership, contract)', () => {
+    const jobPermanent: Partial<Job> = { engagementType: 'permanent' };
+    const jobInternship: Partial<Job> = { engagementType: 'internship' };
+    const jobMicro: Partial<Job> = { engagementType: 'micro_internship' };
+    const jobCasual: Partial<Job> = { engagementType: 'casual' };
+    const jobLearnership: Partial<Job> = { engagementType: 'learnership' };
+    const jobContract: Partial<Job> = { engagementType: 'contract' };
+
+    assert.equal(formatEngagementType(jobPermanent.engagementType), 'Permanent Position');
+    assert.equal(formatEngagementType(jobInternship.engagementType), 'Graduate / Practical Internship');
+    assert.equal(formatEngagementType(jobMicro.engagementType), 'Micro-Internship / Project Gig');
+    assert.equal(formatEngagementType(jobCasual.engagementType), 'Casual / Relief Work');
+    assert.equal(formatEngagementType(jobLearnership.engagementType), 'Learnership / Apprenticeship');
+    assert.equal(formatEngagementType(jobContract.engagementType), 'Fixed-Term Contract');
+
+    // Assert expectations are provided for candidates
+    assert.ok(ENGAGEMENT_TYPE_METADATA.permanent.expectation.includes('Long-term permanent employment'));
+    assert.ok(ENGAGEMENT_TYPE_METADATA.internship.expectation.includes('Structured workplace internship'));
+    assert.ok(ENGAGEMENT_TYPE_METADATA.micro_internship.expectation.includes('Short-term trial engagement'));
+    assert.ok(ENGAGEMENT_TYPE_METADATA.casual.expectation.includes('shift-based or seasonal'));
+    assert.ok(ENGAGEMENT_TYPE_METADATA.learnership.expectation.includes('trade theory'));
+    assert.ok(ENGAGEMENT_TYPE_METADATA.contract.expectation.includes('Pre-agreed employment duration'));
   });
 });

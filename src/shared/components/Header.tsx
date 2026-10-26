@@ -73,21 +73,18 @@ export const Header: React.FC<Props> = ({
   onSubmitFeedback,
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
-  // Navigation tabs based on role per Section 4.4 - Each persona has their own dedicated profile page
+  // Navigation tabs based on role — simplified to essential, non-redundant views
   const candidateTabs = [
-    { id: 'dashboard', label: 'Home' },
-    { id: 'profile', label: 'My Profile' },
-    { id: 'skills', label: 'Skills & Evidence' },
-    { id: 'passport', label: 'Skill Passport' },
-    { id: 'opportunities', label: 'Opportunities' },
+    { id: 'dashboard', label: 'Opportunities' },
+    { id: 'skills', label: 'Skills & Proof' },
     { id: 'applications', label: 'My Applications' },
+    { id: 'profile', label: 'My Profile' },
   ];
 
   const employerTabs = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'profile', label: 'Company Profile' },
-    { id: 'jobs', label: 'My Jobs' },
+    { id: 'dashboard', label: 'Dashboard & Jobs' },
     { id: 'applicants', label: 'Applicants' },
+    { id: 'profile', label: 'Company Profile' },
   ];
 
   const adminTabs = [
@@ -96,7 +93,6 @@ export const Header: React.FC<Props> = ({
     { id: 'assessments', label: 'Assessor Workspace' },
     { id: 'credentials', label: 'Credential Review' },
     { id: 'reports', label: 'Moderation Reports' },
-    { id: 'profile', label: 'Assessor Profile' },
   ];
 
   let currentTabs = candidateTabs;
@@ -138,7 +134,7 @@ export const Header: React.FC<Props> = ({
             </div>
           </div>
           ) : (
-            <span className="text-stone-400 font-medium">Skills → Evidence → Work</span>
+            <span className="text-stone-400 font-medium">Skills → Proof → Work</span>
           )}
 
           {/* Right Action buttons */}
@@ -271,7 +267,7 @@ export const Header: React.FC<Props> = ({
               </span>
             </div>
             <p className="text-[11px] text-stone-500 font-medium">
-              Skills → Evidence → Work · South Africa
+              Skills → Proof → Work · South Africa
             </p>
           </div>
         </div>

@@ -15,7 +15,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "test": "tsx --test \"src/**/*.test.ts\" \"server/**/*.test.ts\"",
+    "test": "node --max-old-space-size=4096 --import tsx --test \"src/**/*.test.ts\" \"server/**/*.test.ts\"",
     "test:rules": "firebase emulators:exec --project basa-rules-test --only firestore,storage \"tsx --test tests/rules/*.test.ts\"",
     "firestore:recount-job-reports": "node scripts/recount-job-reports.mjs",
     "clean": "rm -rf dist"

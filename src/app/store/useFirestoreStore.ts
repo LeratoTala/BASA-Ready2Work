@@ -48,7 +48,11 @@ import type {
   CredentialEvidence,
   FeedbackRecord,
   EvidenceItem,
+  PayoutConfirmationDetails,
+  BusinessVerificationDetails,
 } from '../../domain/types';
+import { applyCompletedJobToSkillPassport } from '../../domain/jobCompletionSkills';
+import { updateClaimProof } from '../../domain/claimProofUpdate';
 import { resolveSkillLabelFromCredential } from '../../config/credentialRules';
 import { applicationId, isValidTransition } from '../../domain/applicationStatus';
 import {
@@ -536,19 +540,52 @@ export function useFirestoreStore(): BasaStore {
     fire(setDoc(doc(db, COLLECTIONS.employerProfiles, profileUid), clean({ ...safe, uid: profileUid }), { merge: true }));
   };
 
+  const requestEmployerVerification = async (
+    employerUid: string,
+    details: BusinessVerificationDetails,
+    documentFile?: File
+  ): Promise<void> => {
+    const user = requireUser();
+    if (user.role !== 'employer' && user.role !== 'admin') {
+      throw new Error('Only employers can request business verification.');
+    }
+
+    let fileUrl = details.documentFileUrl;
+    if (documentFile) {
+      fileUrl = URL.createObjectURL(documentFile);
+    }
+
+    const fullDetails: BusinessVerificationDetails = {
+      ...details,
+      documentFileName: documentFile ? documentFile.name : details.documentFileName,
+      documentFileUrl: fileUrl,
+      submittedAt: new Date().toISOString(),
+    };
+
+    const docRef = doc(db, COLLECTIONS.employerProfiles, employerUid);
+    await updateDoc(docRef, {
+      verificationStatus: 'pending',
+      verificationDetails: fullDetails,
+    });
+  };
+
   /**
    * Admin-only: update an employer's verification status.
    * Requires the Admin SDK on the server because Firestore rules block client updates to verificationStatus.
    * In this store we call the server route; alternatively an admin can use the Firebase console directly.
    */
-  const updateEmployerVerification = async (employerUid: string, status: 'verified' | 'unverified'): Promise<void> => {
+  const updateEmployerVerification = async (
+    employerUid: string,
+    status: 'verified' | 'unverified' | 'pending',
+    notes?: string
+  ): Promise<void> => {
     const user = requireUser();
     if (user.role !== 'admin') throw new Error('Admin authorization required.');
     const token = await firebaseUser!.getIdToken();
     const response = await fetch(`${env.apiBaseUrl}/api/admin/verify-employer`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ employerUid, status }),
+      body: JSON.stringify({ employerUid, status, notes }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Could not update employer verification status.');
@@ -613,6 +650,59 @@ export function useFirestoreStore(): BasaStore {
       throw error;
     }
     return newClaim;
+  };
+
+  const updateClaimEvidence = async (
+    claimId: string,
+    payload: {
+      evidenceTitle: string;
+      evidenceDescription: string;
+      evidenceType: 'photo_video' | 'client_review' | 'reference_note' | 'work_sample' | 'practical_demo';
+      evidenceUrlOrText?: string;
+      newFiles?: File[];
+      existingItemIdsToKeep?: string[];
+    }
+  ): Promise<SkillClaim> => {
+    const user = requireUser();
+    const existing = skillClaims.find((c) => c.id === claimId);
+    if (!existing) throw new Error('Skill claim not found');
+    if (user.role === 'candidate' && existing.candidateId !== user.uid) {
+      throw new Error('Permission denied: You can only edit proof for your own skills.');
+    }
+
+    const uploadedItems: EvidenceItem[] = [];
+    if (payload.newFiles && payload.newFiles.length > 0) {
+      for (let i = 0; i < payload.newFiles.length; i++) {
+        const file = payload.newFiles[i];
+        const fileId = `doc-upd-${Date.now()}-${i}`;
+        const path = await uploadCandidateEvidence(user.uid, claimId, file, fileId);
+        const isPdf = file.type === 'application/pdf' || file.name.endsWith('.pdf');
+        const isCert = isPdf || /cert|diploma|trade|nqa|training/i.test(file.name);
+        uploadedItems.push({
+          id: fileId,
+          type: isCert ? 'certificate' : 'photo_video',
+          title: file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' '),
+          fileName: file.name,
+          fileSize: `${Math.round(file.size / 1024)} KB`,
+          mimeType: file.type || (isPdf ? 'application/pdf' : 'image/jpeg'),
+          fileUrl: path,
+          description: payload.evidenceDescription || payload.evidenceTitle,
+          uploadedAt: nowIso(),
+        });
+      }
+    }
+
+    const updatedClaim = updateClaimProof(existing, {
+      evidenceTitle: payload.evidenceTitle,
+      evidenceDescription: payload.evidenceDescription,
+      evidenceType: payload.evidenceType,
+      evidenceUrlOrText: payload.evidenceUrlOrText,
+      newEvidenceItems: uploadedItems,
+      existingEvidenceItemIdsToKeep: payload.existingItemIdsToKeep,
+    });
+
+    fire(setDoc(doc(db, COLLECTIONS.skillClaims, claimId), clean(updatedClaim), { merge: true }));
+    return updatedClaim;
   };
 
   // Section 35 & Multi-Skill: Add Credential or Badge to Skill Claim
@@ -876,7 +966,8 @@ export function useFirestoreStore(): BasaStore {
     appId: string,
     newStatus: ApplicationStatus,
     employerNotes?: string,
-    payoutConfirmed?: boolean
+    payoutConfirmed?: boolean,
+    payoutDetails?: PayoutConfirmationDetails
   ) => {
     const user = requireUser();
     const app = applications.find((a) => a.id === appId);
@@ -888,16 +979,42 @@ export function useFirestoreStore(): BasaStore {
       if (app.candidateId !== user.uid) throw new Error('Permission denied.');
       if (newStatus !== 'withdrawn') throw new Error('Candidates may only withdraw their own application.');
     }
-    if (!isValidTransition(app.status, newStatus)) {
+    if (app.status !== newStatus && !isValidTransition(app.status, newStatus)) {
       throw new Error(`Invalid status transition: Cannot move application from '${app.status}' to '${newStatus}'.`);
     }
 
-    const batch = writeBatch(db);
+    const targetJob = jobs.find((j) => j.id === app.jobId);
     const isPaid = newStatus === 'completed' ? Boolean(payoutConfirmed) : false;
+    const payRateAmount = payoutDetails?.payRateAmount ?? app.payRateAmount ?? targetJob?.compensationAmount ?? 0;
+    const payRateUnit = payoutDetails?.payRateUnit ?? app.payRateUnit ?? (targetJob?.compensationUnit === 'hourly' ? 'hour' : targetJob?.compensationUnit === 'daily' ? 'day' : targetJob?.compensationUnit === 'weekly' ? 'week' : targetJob?.compensationUnit === 'fortnightly' ? 'fortnight' : targetJob?.compensationUnit === 'monthly' ? 'month' : 'fixed');
+    const actualTimeInWorkplace = payoutDetails?.actualTimeInWorkplace ?? app.actualTimeInWorkplace;
+    const actualHoursWorked = payoutDetails?.actualHoursWorked ?? payoutDetails?.hoursWorked ?? app.actualHoursWorked ?? app.hoursWorked;
+    const actualDaysWorked = payoutDetails?.actualDaysWorked ?? app.actualDaysWorked;
+    const daysOffAndLeave = payoutDetails?.daysOffAndLeave ?? app.daysOffAndLeave;
+    const daysOffLeaveLabel = payoutDetails?.daysOffLeaveLabel ?? app.daysOffLeaveLabel;
+    const employmentStartDate = payoutDetails?.employmentStartDate || app.employmentStartDate || (newStatus === 'selected' || newStatus === 'completed' ? (targetJob?.startDate || nowIso().split('T')[0]) : undefined);
+    const employmentEndDate = newStatus === 'completed' ? (payoutDetails?.employmentEndDate || nowIso().split('T')[0]) : undefined;
+    const exactAmount = payoutDetails?.exactAmountZAR ?? app.payoutAmountZAR ?? targetJob?.compensationAmount ?? 0;
+    const hoursWorked = actualHoursWorked;
+    const workDurationLabel = payoutDetails?.workDurationLabel ?? actualTimeInWorkplace ?? app.workDurationLabel;
+
+    const batch = writeBatch(db);
     const update: Record<string, unknown> = {
       status: newStatus,
       updatedAt: nowIso(),
       ...(newStatus === 'completed' ? { payoutConfirmed: isPaid } : {}),
+      ...(exactAmount !== undefined ? { payoutAmountZAR: exactAmount } : {}),
+      ...(payRateAmount !== undefined ? { payRateAmount } : {}),
+      ...(payRateUnit !== undefined ? { payRateUnit } : {}),
+      ...(actualTimeInWorkplace !== undefined ? { actualTimeInWorkplace } : {}),
+      ...(actualHoursWorked !== undefined ? { actualHoursWorked } : {}),
+      ...(actualDaysWorked !== undefined ? { actualDaysWorked } : {}),
+      ...(daysOffAndLeave !== undefined ? { daysOffAndLeave } : {}),
+      ...(daysOffLeaveLabel !== undefined ? { daysOffLeaveLabel } : {}),
+      ...(employmentStartDate !== undefined ? { employmentStartDate } : {}),
+      ...(employmentEndDate !== undefined ? { employmentEndDate } : {}),
+      ...(hoursWorked !== undefined ? { hoursWorked } : {}),
+      ...(workDurationLabel !== undefined ? { workDurationLabel } : {}),
     };
     if (user.role === 'employer' && employerNotes !== undefined) update.employerNotes = employerNotes;
     batch.update(doc(db, COLLECTIONS.applications, appId), update);
@@ -916,7 +1033,6 @@ export function useFirestoreStore(): BasaStore {
     }
 
     if (newStatus === 'completed' && user.role === 'employer') {
-      const job = jobs.find((j) => j.id === app.jobId);
       const ref = doc(collection(db, COLLECTIONS.workRecords));
       const record: WorkRecord = {
         id: ref.id,
@@ -929,12 +1045,54 @@ export function useFirestoreStore(): BasaStore {
         employerName: app.employerName,
         completionStatus: 'completed',
         employerConfirmed: true,
-        payoutConfirmed: payoutConfirmed ?? false,
-        amountZAR: job?.compensationAmount ?? 0,
+        payoutConfirmed: isPaid,
+        amountZAR: exactAmount,
+        payRateAmount,
+        payRateUnit,
+        actualTimeInWorkplace,
+        actualHoursWorked,
+        actualDaysWorked,
+        daysOffAndLeave,
+        daysOffLeaveLabel,
+        employmentStartDate,
+        employmentEndDate,
+        hoursWorked,
+        workDurationLabel,
         feedback: employerNotes ?? '',
         confirmedAt: nowIso(),
       };
       batch.set(ref, clean(record));
+
+      const targetJob = jobs.find((j) => j.id === app.jobId);
+      if (targetJob) {
+        const candProfile = candidateProfiles[app.candidateId];
+        const currSkillIds = candProfile ? candProfile.skillIds : [];
+        const updateResult = applyCompletedJobToSkillPassport({
+          candidateId: app.candidateId,
+          job: targetJob,
+          application: {
+            ...app,
+            status: 'completed',
+            actualTimeInWorkplace,
+            workDurationLabel,
+            payoutAmountZAR: exactAmount,
+          },
+          currentClaims: skillClaims,
+          currentSkillIds: currSkillIds,
+          workDurationLabel,
+          payoutAmountZAR: exactAmount,
+        });
+
+        for (const claim of updateResult.updatedClaims) {
+          batch.set(doc(db, COLLECTIONS.skillClaims, claim.id), clean(claim), { merge: true });
+        }
+        if (candProfile) {
+          batch.update(doc(db, COLLECTIONS.candidateProfiles, app.candidateId), {
+            skillIds: updateResult.updatedSkillIds,
+            updatedAt: nowIso(),
+          });
+        }
+      }
     }
 
     // Generate in-app notification for candidate (R1 / FR-15)
@@ -955,26 +1113,67 @@ export function useFirestoreStore(): BasaStore {
     fire(batch.commit());
   };
 
-  const confirmWorkPayout = async (applicationId: string) => {
+  const confirmWorkPayout = async (
+    applicationId: string,
+    payoutDetails?: PayoutConfirmationDetails
+  ) => {
     const user = requireUser();
     const app = applications.find((a) => a.id === applicationId);
     if (!app) throw new Error('Application not found');
     if (user.role === 'employer' && app.employerId !== user.uid) {
       throw new Error('Access denied: You cannot modify records for another employer.');
     }
+    const targetJob = jobs.find((j) => j.id === app.jobId);
+    const payRateAmount = payoutDetails?.payRateAmount ?? app.payRateAmount ?? targetJob?.compensationAmount ?? 0;
+    const payRateUnit = payoutDetails?.payRateUnit ?? app.payRateUnit ?? (targetJob?.compensationUnit === 'hourly' ? 'hour' : targetJob?.compensationUnit === 'daily' ? 'day' : targetJob?.compensationUnit === 'weekly' ? 'week' : targetJob?.compensationUnit === 'fortnightly' ? 'fortnight' : targetJob?.compensationUnit === 'monthly' ? 'month' : 'fixed');
+    const actualTimeInWorkplace = payoutDetails?.actualTimeInWorkplace ?? app.actualTimeInWorkplace;
+    const actualHoursWorked = payoutDetails?.actualHoursWorked ?? payoutDetails?.hoursWorked ?? app.actualHoursWorked ?? app.hoursWorked;
+    const actualDaysWorked = payoutDetails?.actualDaysWorked ?? app.actualDaysWorked;
+    const daysOffAndLeave = payoutDetails?.daysOffAndLeave ?? app.daysOffAndLeave;
+    const daysOffLeaveLabel = payoutDetails?.daysOffLeaveLabel ?? app.daysOffLeaveLabel;
+    const employmentStartDate = app.employmentStartDate || targetJob?.startDate || nowIso().split('T')[0];
+    const employmentEndDate = payoutDetails?.employmentEndDate || app.employmentEndDate || nowIso().split('T')[0];
+    const exactAmount = payoutDetails?.exactAmountZAR ?? app.payoutAmountZAR ?? targetJob?.compensationAmount ?? 0;
+    const hoursWorked = actualHoursWorked;
+    const workDurationLabel = payoutDetails?.workDurationLabel ?? actualTimeInWorkplace ?? app.workDurationLabel;
+
     const batch = writeBatch(db);
-    batch.update(doc(db, COLLECTIONS.applications, applicationId), {
+    batch.update(doc(db, COLLECTIONS.applications, applicationId), clean({
       payoutConfirmed: true,
       paidAt: nowIso(),
       updatedAt: nowIso(),
-    });
+      payRateAmount,
+      payRateUnit,
+      actualTimeInWorkplace,
+      actualHoursWorked,
+      actualDaysWorked,
+      daysOffAndLeave,
+      daysOffLeaveLabel,
+      employmentStartDate,
+      employmentEndDate,
+      payoutAmountZAR: exactAmount,
+      hoursWorked,
+      workDurationLabel,
+    }));
 
     const relatedWork = workRecords.find((w) => w.applicationId === applicationId);
     if (relatedWork) {
-      batch.update(doc(db, COLLECTIONS.workRecords, relatedWork.id), {
+      batch.update(doc(db, COLLECTIONS.workRecords, relatedWork.id), clean({
         payoutConfirmed: true,
         confirmedAt: nowIso(),
-      });
+        amountZAR: exactAmount,
+        payRateAmount,
+        payRateUnit,
+        actualTimeInWorkplace: actualTimeInWorkplace ?? relatedWork.actualTimeInWorkplace,
+        actualHoursWorked: actualHoursWorked ?? relatedWork.actualHoursWorked,
+        actualDaysWorked: actualDaysWorked ?? relatedWork.actualDaysWorked,
+        daysOffAndLeave: daysOffAndLeave ?? relatedWork.daysOffAndLeave,
+        daysOffLeaveLabel: daysOffLeaveLabel ?? relatedWork.daysOffLeaveLabel,
+        employmentStartDate: employmentStartDate ?? relatedWork.employmentStartDate,
+        employmentEndDate: employmentEndDate ?? relatedWork.employmentEndDate,
+        hoursWorked: hoursWorked ?? relatedWork.hoursWorked,
+        workDurationLabel: workDurationLabel ?? relatedWork.workDurationLabel,
+      }));
     }
 
     await batch.commit();
@@ -1104,10 +1303,12 @@ export function useFirestoreStore(): BasaStore {
     employerProfiles,
     currentEmployerProfile: currentUser ? employerProfiles[currentUser.uid] : null,
     updateEmployerProfile,
+    requestEmployerVerification,
     updateEmployerVerification,
     skillClaims,
     currentCandidateClaims: currentUser ? skillClaims.filter((c) => c.candidateId === currentUser.uid) : [],
     addSkillClaim,
+    updateClaimEvidence,
     addCredentialToClaim,
     reviewCredential,
     assessments,
@@ -1154,6 +1355,20 @@ export function useFirestoreStore(): BasaStore {
         id: `fb-${Date.now()}`,
         createdAt: nowIso(),
       };
+      return rec;
+    },
+    // Section 39: Employer Upgrade Requests & Pricing Pulse Surveys
+    upgradeRequests: [] as any[],
+    pulseSurveys: [] as any[],
+    requestEmployerUpgrade: (reqData: any) => {
+      const rec = { ...reqData, id: `upgrade-${Date.now()}`, requestedAt: nowIso(), status: 'pending' };
+      return rec;
+    },
+    approveUpgradeRequest: (_requestId: string, _adminUid: string, _adminName: string) => {},
+    declineUpgradeRequest: (_requestId: string, _adminUid: string, _adminName: string, _note?: string) => {},
+    downgradeEmployerPlan: (_employerUid: string, _newPlan: 'free' | 'starter' | 'business') => {},
+    submitPricingPulseSurvey: (respData: any) => {
+      const rec = { ...respData, id: `pulse-${Date.now()}`, submittedAt: nowIso() };
       return rec;
     },
     syncStatus,

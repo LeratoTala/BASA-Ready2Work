@@ -216,6 +216,20 @@ export const SKILL_DEFINITIONS: SkillDefinition[] = [
     description: 'Light vehicle parcel delivery, pre-trip vehicle safety inspection, waybill proof of delivery and urban navigation.',
     active: true,
   },
+  {
+    id: 'skill-heavy-vehicle-driving',
+    name: 'Medium & Heavy Vehicle Driving (Code 10/C1 & PrDP)',
+    category: 'Logistics & Driving',
+    description: 'Medium rigid truck driving (up to 16,000 kg GVM), air brake safety checks, cargo securing, delivery logbooks and defensive driving with PrDP.',
+    active: true,
+  },
+  {
+    id: 'skill-extra-heavy-driving',
+    name: 'Extra-Heavy Articulated Truck Driving (Code 14/EC)',
+    category: 'Logistics & Driving',
+    description: 'Heavy articulated vehicle combination, coupling/uncoupling semi-trailers, reverse docking, load distribution and long-haul journey compliance.',
+    active: true,
+  },
 
   // ==========================================
   // 6. CARE, COMMUNITY & BEAUTY SERVICES

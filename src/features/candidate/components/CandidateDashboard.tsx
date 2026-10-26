@@ -14,8 +14,9 @@ import {
   Share2,
   Download,
   Compass,
+  Calendar,
 } from 'lucide-react';
-import { Application, CandidateProfile, Job, MatchBreakdown, SkillClaim, WorkRecord } from '../../../domain/types';
+import { Application, CandidateProfile, Job, MatchBreakdown, SkillClaim, WorkRecord, formatRateUnit, ENGAGEMENT_TYPE_METADATA, formatEngagementType } from '../../../domain/types';
 import { calculateMatchScore } from '../../../domain/matching';
 import {
   classifyCandidateJobs,
@@ -305,7 +306,7 @@ export const CandidateDashboard: React.FC<Props> = ({
         >
           <div className="space-y-1">
             <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider block">
-              Evidence Portfolio
+              My Proof & Work Samples
             </span>
             <h4 className="text-sm font-bold text-stone-900 group-hover:text-amber-800">
               Manage Skills ({claims.length})
@@ -326,7 +327,7 @@ export const CandidateDashboard: React.FC<Props> = ({
             <h4 className="text-sm font-bold text-stone-900 group-hover:text-amber-800">
               View Skill Passport
             </h4>
-            <p className="text-xs text-stone-500">Recorded skills and evidence labels.</p>
+            <p className="text-xs text-stone-500">Recorded skills and proof labels.</p>
           </div>
           <ShieldCheck className="w-5 h-5 text-stone-400 group-hover:text-amber-600 shrink-0" />
         </button>
@@ -354,7 +355,7 @@ export const CandidateDashboard: React.FC<Props> = ({
           <div>
             <h2 className="text-lg font-bold text-stone-900">Opportunities &amp; Applications</h2>
             <p className="text-xs text-stone-500">
-              How we match you: Skills you have (50%) + Proof & evidence (25%) + Available hours (15%) + How close it is (10%).
+              How we match you: Skills you have (50%) + Your proof (25%) + Available hours (15%) + How close it is (10%).
             </p>
           </div>
           <span className="text-xs text-stone-500 font-medium">
@@ -624,6 +625,10 @@ export const CandidateDashboard: React.FC<Props> = ({
                             <span className="font-mono text-[10px] font-bold text-stone-600 bg-stone-100 border border-stone-200 px-1.5 py-0.5 rounded">
                               ID: #{job.id}
                             </span>
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-1.5 py-0.2 rounded" title="Company verified against official registries to prevent fraudulent posts">
+                              <ShieldCheck className="w-2.5 h-2.5 text-emerald-600" />
+                              <span>Verified Employer</span>
+                            </span>
                           </div>
                           <h3 className="font-bold text-base text-stone-900 group-hover:text-amber-800 mt-0.5">
                             {job.title}
@@ -686,6 +691,17 @@ export const CandidateDashboard: React.FC<Props> = ({
                               {job.status === 'open' ? 'Open to Apply' : 'Closed'}
                             </span>
                           )}
+
+                          {job.engagementType && (
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                                ENGAGEMENT_TYPE_METADATA[job.engagementType]?.badgeClass || 'bg-stone-100 text-stone-700 border-stone-200'
+                              }`}
+                              title={ENGAGEMENT_TYPE_METADATA[job.engagementType]?.expectation}
+                            >
+                              {ENGAGEMENT_TYPE_METADATA[job.engagementType]?.shortLabel || job.engagementType}
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -719,36 +735,68 @@ export const CandidateDashboard: React.FC<Props> = ({
                         ))}
                       </div>
 
-                      {/* Completed Engagement Payout Alert Box */}
+                      {/* Active Workplace Employment Status (No End Date displayed while still at workplace) */}
+                      {!isCompleted && application?.status === 'selected' && (
+                        <div className="mt-2 p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-900 flex items-center gap-2">
+                          <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>
+                            Currently working at workplace · Started: <strong>{application.employmentStartDate || job.startDate}</strong> (Active employment)
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Completed Engagement Rate & Time Served Display */}
                       {isCompleted && (
-                        <div
-                          className={`mt-2 p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 ${
-                            payoutStatus === 'paid'
-                              ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
-                              : 'bg-amber-50 border-amber-300 text-amber-950'
-                          }`}
-                        >
-                          <div className="flex items-center gap-1.5 font-medium">
-                            {payoutStatus === 'paid' ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                            ) : (
-                              <Clock className="w-4 h-4 text-amber-600 shrink-0" />
-                            )}
-                            <span>
-                              {payoutStatus === 'paid'
-                                ? 'Payment confirmed by employer'
-                                : 'Work completed · Waiting for employer payment'}
+                        <div className="space-y-1.5 mt-2">
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className="flex items-center gap-1 font-semibold text-stone-800 bg-stone-100 border border-stone-200 px-2.5 py-1 rounded-lg">
+                              <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                              <span>
+                                Time Served: <strong>{application?.actualTimeInWorkplace || application?.workDurationLabel || (application?.hoursWorked ? `${application.hoursWorked} hours` : 'Full duration')}</strong>
+                              </span>
+                            </span>
+                            <span className="font-bold text-stone-900 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg">
+                              Rate: R{application?.payRateAmount ?? job.compensationAmount} / {formatRateUnit(application?.payRateUnit || job.compensationUnit)}
                             </span>
                           </div>
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 ${
+
+                          {/* Completed Duration Dates (Start date & Completion date shown now that work is completed) */}
+                          <div className="text-[11px] text-stone-500 flex items-center gap-1.5 pl-1">
+                            <Calendar className="w-3.5 h-3.5 text-stone-400" />
+                            <span>
+                              Duration: Started <strong>{application?.employmentStartDate || job.startDate}</strong> · Completed <strong>{application?.employmentEndDate || 'Concluded'}</strong>
+                            </span>
+                          </div>
+
+                          <div
+                            className={`p-2.5 rounded-lg border text-xs flex items-center justify-between gap-2 ${
                               payoutStatus === 'paid'
-                                ? 'bg-emerald-600 text-white'
-                                : 'bg-amber-200 text-amber-900 border border-amber-300'
+                                ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                                : 'bg-amber-50 border-amber-300 text-amber-950'
                             }`}
                           >
-                            {payoutStatus === 'paid' ? 'Paid' : 'Pending'}
-                          </span>
+                            <div className="flex items-center gap-1.5 font-medium">
+                              {payoutStatus === 'paid' ? (
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                              ) : (
+                                <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                              )}
+                              <span>
+                                {payoutStatus === 'paid'
+                                  ? `Payment rate of R${application?.payRateAmount ?? job.compensationAmount} / ${formatRateUnit(application?.payRateUnit || job.compensationUnit)} confirmed by employer for ${application?.actualTimeInWorkplace || application?.workDurationLabel || 'time served'}`
+                                  : `Work completed (${application?.actualTimeInWorkplace || application?.workDurationLabel || 'time served'}) · Waiting for employer payment at R${application?.payRateAmount ?? job.compensationAmount} / ${formatRateUnit(application?.payRateUnit || job.compensationUnit)}`}
+                              </span>
+                            </div>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider shrink-0 ${
+                                payoutStatus === 'paid'
+                                  ? 'bg-emerald-600 text-white'
+                                  : 'bg-amber-200 text-amber-900 border border-amber-300'
+                              }`}
+                            >
+                              {payoutStatus === 'paid' ? 'Paid' : 'Pending'}
+                            </span>
+                          </div>
                         </div>
                       )}
 

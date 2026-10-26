@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, MapPin, Calendar, Clock, DollarSign, Award, CheckCircle2, AlertTriangle, ShieldCheck, Flag, Check, ChevronRight } from 'lucide-react';
-import { Application, CandidateProfile, Job, MatchBreakdown, SkillClaim } from '../../../domain/types';
+import { Application, CandidateProfile, Job, MatchBreakdown, SkillClaim, formatRateUnit, ENGAGEMENT_TYPE_METADATA, formatEngagementType } from '../../../domain/types';
+import { useOSModalNavigation } from '../../../shared/hooks/useOSNavigation';
 
 interface Props {
   isOpen: boolean;
@@ -27,6 +28,12 @@ export const OpportunityDetailModal: React.FC<Props> = ({
   onApply,
   onReport,
 }) => {
+  useOSModalNavigation({
+    isOpen: Boolean(isOpen && job),
+    onClose,
+    modalId: 'opportunity-detail',
+  });
+
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showApplyPreview, setShowApplyPreview] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
@@ -86,29 +93,42 @@ export const OpportunityDetailModal: React.FC<Props> = ({
                 </span>
                 {job.status === 'open' ? (
                   <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 rounded">
-                    Open & Accepting Applications
+                    Open &amp; Accepting Applications
                   </span>
                 ) : (
                   <span className="text-[11px] font-semibold text-red-400 bg-red-950/60 border border-red-800 px-2 py-0.5 rounded">
                     Closed / Suspended
                   </span>
                 )}
+                {job.engagementType && (
+                  <span className={`text-[11px] font-semibold border px-2 py-0.5 rounded ${
+                    ENGAGEMENT_TYPE_METADATA[job.engagementType]?.badgeClass || 'bg-stone-800 text-stone-200 border-stone-700'
+                  }`}>
+                    {formatEngagementType(job.engagementType)}
+                  </span>
+                )}
               </div>
               <h3 className="text-xl font-bold tracking-tight text-white">{job.title}</h3>
-              <p className="text-xs text-stone-300 font-medium">{job.employerName}</p>
+              <div className="flex items-center gap-2 pt-0.5">
+                <p className="text-xs text-stone-300 font-medium">{job.employerName}</p>
+                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-300 bg-emerald-950/70 border border-emerald-800 px-2 py-0.2 rounded" title="Company verified against official registries to prevent fraudulent posts">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  <span>Verified Registered Employer</span>
+                </span>
+              </div>
             </div>
             <button onClick={onClose} className="text-stone-400 hover:text-white p-1 rounded">
               <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Key Job Meta Bar */}
+          {/* Key Job Meta Bar: If candidate is at workplace, only show start date (no end date) until completed */}
           <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 bg-stone-800/80 rounded-lg p-3 text-xs border border-stone-700/60">
             <div>
-              <span className="text-stone-400 block">Compensation</span>
+              <span className="text-stone-400 block">Pay Rate</span>
               <span className="font-bold text-amber-400 text-sm">
-                R{job.compensationAmount}{' '}
-                <span className="text-[11px] font-normal text-stone-300">/ {job.compensationUnit}</span>
+                R{application?.payRateAmount ?? job.compensationAmount}{' '}
+                <span className="text-[11px] font-normal text-stone-300">/ {formatRateUnit(application?.payRateUnit || job.compensationUnit)}</span>
               </span>
             </div>
             <div>
@@ -121,12 +141,28 @@ export const OpportunityDetailModal: React.FC<Props> = ({
               )}
             </div>
             <div>
-              <span className="text-stone-400 block">Start Date</span>
-              <span className="font-medium text-white">{job.startDate}</span>
+              <span className="text-stone-400 block">
+                {application?.status === 'selected' ? 'Started Employment' : application?.status === 'completed' ? 'Started Date' : 'Start Date'}
+              </span>
+              <span className="font-medium text-white">{application?.employmentStartDate || job.startDate}</span>
             </div>
             <div>
-              <span className="text-stone-400 block">Deadline</span>
-              <span className="font-medium text-white">{job.applicationDeadline}</span>
+              {application?.status === 'selected' ? (
+                <div>
+                  <span className="text-stone-400 block">Workplace Status</span>
+                  <span className="font-semibold text-emerald-400">Active at Workplace</span>
+                </div>
+              ) : application?.status === 'completed' ? (
+                <div>
+                  <span className="text-stone-400 block">Completion Date</span>
+                  <span className="font-semibold text-emerald-400">{application.employmentEndDate || 'Concluded'}</span>
+                </div>
+              ) : (
+                <div>
+                  <span className="text-stone-400 block">Deadline</span>
+                  <span className="font-medium text-white">{job.applicationDeadline}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -161,17 +197,32 @@ export const OpportunityDetailModal: React.FC<Props> = ({
                 <div className="font-bold text-sm">
                   {application?.status === 'completed'
                     ? application.payoutConfirmed
-                      ? 'Work Completed · Payment Confirmed'
-                      : 'Work Completed · Payment Pending'
+                      ? `Work Completed · Payment Confirmed (Rate: R${application.payRateAmount ?? job.compensationAmount} / ${formatRateUnit(application.payRateUnit || job.compensationUnit)})`
+                      : `Work Completed · Payment Pending (Rate: R${application.payRateAmount ?? job.compensationAmount} / ${formatRateUnit(application.payRateUnit || job.compensationUnit)})`
+                    : application?.status === 'selected'
+                    ? `At Workplace · Started: ${application.employmentStartDate || job.startDate}`
                     : `Application on File · ${application?.status ? application.status.replace('_', ' ') : 'Submitted'}`}
                 </div>
                 <p className="text-[11px] text-stone-600">
                   {application?.status === 'completed'
                     ? application.payoutConfirmed
-                      ? `Employer confirmed payment for this work (${application.paidAt ? new Date(application.paidAt).toLocaleDateString() : 'Paid'}).`
-                      : 'Work was marked completed by employer. Payout confirmation from employer is pending.'
+                      ? `Employer confirmed payment rate of R${application.payRateAmount ?? job.compensationAmount} / ${formatRateUnit(application.payRateUnit || job.compensationUnit)} for ${application.actualTimeInWorkplace || application.workDurationLabel || 'time served'} (${application.paidAt ? new Date(application.paidAt).toLocaleDateString() : 'Paid'}).`
+                      : `Work completed (${application.actualTimeInWorkplace || application.workDurationLabel || 'time served'}). Payout confirmation at agreed rate is pending.`
+                    : application?.status === 'selected'
+                    ? `Candidate started employment on ${application.employmentStartDate || job.startDate}. End date will be recorded once the duration is completed.`
                     : `Submitted on ${application?.submittedAt ? new Date(application.submittedAt).toLocaleDateString() : 'recent'}. You cannot submit duplicate applications for this post.`}
                 </p>
+                {application?.status === 'completed' && (
+                  <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-stone-700">
+                    <span className="flex items-center gap-1 bg-white/90 border border-stone-200 px-2 py-0.5 rounded">
+                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Time Served: <strong>{application.actualTimeInWorkplace || application.workDurationLabel || 'Time served'}</strong></span>
+                    </span>
+                    <span className="bg-white/90 border border-stone-200 px-2 py-0.5 rounded">
+                      Started: <strong>{application.employmentStartDate || job.startDate}</strong> · Completed: <strong>{application.employmentEndDate || 'Concluded'}</strong>
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -281,6 +332,30 @@ export const OpportunityDetailModal: React.FC<Props> = ({
               Opportunity Overview
             </h4>
             <p className="leading-relaxed text-stone-700">{job.description}</p>
+          </div>
+
+          {/* Opportunity & Absorption Pathway: What to expect */}
+          <div className="p-3.5 bg-stone-50 rounded-xl border border-stone-200 space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="font-bold text-stone-900 uppercase tracking-wider text-[11px]">
+                Opportunity &amp; Absorption Pathway:
+              </span>
+              <span
+                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
+                  job.engagementType && ENGAGEMENT_TYPE_METADATA[job.engagementType]
+                    ? ENGAGEMENT_TYPE_METADATA[job.engagementType].badgeClass
+                    : 'bg-stone-100 text-stone-800 border-stone-300'
+                }`}
+              >
+                {formatEngagementType(job.engagementType)}
+              </span>
+            </div>
+            <p className="text-stone-700 text-xs leading-relaxed">
+              <strong>What to expect on this job: </strong>
+              {job.engagementType && ENGAGEMENT_TYPE_METADATA[job.engagementType]
+                ? ENGAGEMENT_TYPE_METADATA[job.engagementType].expectation
+                : 'Standard workplace opportunity with clear compensation in ZAR.'}
+            </p>
           </div>
 
           <div>

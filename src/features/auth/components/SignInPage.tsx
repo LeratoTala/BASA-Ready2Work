@@ -182,7 +182,7 @@ export const SignInPage: React.FC<Props> = ({
                   Ready2Work
                 </span>
               </div>
-              <p className="text-[11px] text-stone-400">Skills → Evidence → Work · South Africa</p>
+              <p className="text-[11px] text-stone-400">Skills → Proof → Work · South Africa</p>
             </div>
           </div>
 
@@ -206,7 +206,7 @@ export const SignInPage: React.FC<Props> = ({
               Sign in to BASA
             </h1>
             <p className="text-xs text-stone-500 max-w-xs mx-auto">
-              Access your Skill Passport, opportunities, and verified applicant dossiers.
+              Access your Skill Passport, opportunities, and verified applicant profiles.
             </p>
           </div>
 

@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { CandidateProfile, SkillClaim } from '../../../domain/types';
 import { generateLinkedInSummary, generatePassportPdf } from '../../../services/passportExport';
+import { useOSModalNavigation } from '../../../shared/hooks/useOSNavigation';
+import { triggerOSShare, triggerOSHaptic } from '../../../shared/utils/osOperations';
 
 interface Props {
   isOpen: boolean;
@@ -21,6 +23,12 @@ interface Props {
 }
 
 export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidate, claims }) => {
+  useOSModalNavigation({
+    isOpen,
+    onClose,
+    modalId: 'export-passport',
+  });
+
   const [activeTab, setActiveTab] = useState<'pdf' | 'linkedin'>('pdf');
   const [copied, setCopied] = useState(false);
   const [linkedInText, setLinkedInText] = useState(() => generateLinkedInSummary(candidate, claims));
@@ -28,9 +36,27 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
 
   if (!isOpen) return null;
 
+  const handleShareOS = async () => {
+    triggerOSHaptic('light');
+    const result = await triggerOSShare({
+      title: `${candidate.fullName} - BASA Skill Passport`,
+      text: `${candidate.fullName} · ${candidate.headline}\nVerified Skill Passport on BASA: Ready2Work\n${claims.length} registered claims with evidence.`,
+      url: window.location.href,
+    });
+    if (result.shared) {
+      triggerOSHaptic('success');
+      if (result.method === 'clipboard') {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2500);
+      }
+    }
+  };
+
   const handleCopyLinkedIn = () => {
+    triggerOSHaptic('light');
     navigator.clipboard?.writeText(linkedInText);
     setCopied(true);
+    triggerOSHaptic('success');
     setTimeout(() => setCopied(false), 2500);
   };
 
@@ -58,7 +84,7 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
               </span>
             </div>
             <h3 className="text-xl font-bold tracking-tight text-white mt-1">
-              Export Skills and Evidence
+              Export Skills and Proof
             </h3>
             <p className="text-xs text-stone-400">
               Download a PDF summary or copy an editable LinkedIn summary.
@@ -103,10 +129,10 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
                 <div className="flex items-start justify-between">
                   <div>
                     <h4 className="font-bold text-stone-900 text-sm">
-                      BASA Skills and Evidence Summary (A4 Format)
+                      BASA Skills and Proof Summary (A4 Format)
                     </h4>
                     <p className="text-stone-500 text-xs">
-                      Includes your profile summary and the evidence labels recorded for each claim.
+                      Includes your profile summary and the proof labels recorded for each claim.
                     </p>
                   </div>
                 </div>
@@ -114,7 +140,7 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
                 {/* Preview Box */}
                 <div className="bg-white border border-stone-200 rounded p-4 text-[11px] font-mono text-stone-700 space-y-1.5 shadow-xs">
                   <div className="text-stone-900 font-bold border-b border-stone-100 pb-1 flex justify-between">
-                    <span>BASA: READY2WORK · SKILLS AND EVIDENCE</span>
+                    <span>BASA: READY2WORK · SKILLS AND PROOF</span>
                   </div>
                   <p>Candidate: {candidate.fullName}</p>
                   <p>Headline: {candidate.headline}</p>
@@ -138,6 +164,14 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
                   Ready to submit to employers, funders, or training providers.
                 </span>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleShareOS}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-stone-300 hover:bg-stone-50 font-semibold text-stone-700 transition-colors cursor-pointer"
+                    title="Share via native OS Share Sheet (WhatsApp, Mail, AirDrop)"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-blue-600" />
+                    <span>OS Share</span>
+                  </button>
                   <button
                     onClick={() => window.print()}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-stone-300 hover:bg-stone-50 font-semibold text-stone-700 transition-colors"
@@ -163,7 +197,7 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
               <div className="bg-blue-50/60 border border-blue-200/60 rounded-lg p-3 text-xs text-blue-900 flex items-start gap-2">
                 <Linkedin className="w-4 h-4 text-blue-700 shrink-0 mt-0.5" />
                 <div>
-                  <strong>Editable LinkedIn summary:</strong> Includes your recorded claims and their current evidence labels. Review the text before sharing.
+                  <strong>Editable LinkedIn summary:</strong> Includes your recorded claims and their current proof labels. Review the text before sharing.
                 </div>
               </div>
 
@@ -194,13 +228,20 @@ export const ExportPassportModal: React.FC<Props> = ({ isOpen, onClose, candidat
 
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={handleShareOS}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-stone-300 hover:bg-stone-50 font-semibold text-stone-700 transition-colors cursor-pointer"
+                    title="Share via native OS Share Sheet (WhatsApp, Mail, AirDrop)"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-blue-600" />
+                    <span>OS Share</span>
+                  </button>
+                  <button
                     onClick={handleCopyLinkedIn}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-stone-300 hover:bg-stone-50 font-semibold text-stone-800 transition-colors cursor-pointer"
                   >
                     {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                     <span>{copied ? 'Copied' : 'Copy Text'}</span>
                   </button>
-
                 </div>
               </div>
             </div>

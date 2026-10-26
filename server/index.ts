@@ -8,6 +8,7 @@ import { registerRouter } from './routes/register';
 import { applyRouter } from './routes/apply';
 import { deleteAccountRouter } from './routes/deleteAccount';
 import { adminVerifyEmployerRouter } from './routes/adminVerifyEmployer';
+import { jobsRouter } from './routes/jobs';
 import { verifyAppCheck } from './middleware/verifyIdToken';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -50,6 +51,7 @@ async function main() {
     applyRouter,
     deleteAccountRouter,
     adminVerifyEmployerRouter,
+    jobsRouter,
     cvDraftRouter
   );
 

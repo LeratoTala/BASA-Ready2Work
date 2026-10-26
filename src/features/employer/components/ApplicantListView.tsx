@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Application, CandidateProfile, Job, SkillClaim } from '../../../domain/types';
+import { Application, CandidateProfile, Job, SkillClaim, PayoutConfirmationDetails } from '../../../domain/types';
 import { Users, Filter, ChevronRight, Award, MapPin, Building2, CheckCircle2, Clock, DollarSign } from 'lucide-react';
+import { ConfirmPayoutModal } from './ConfirmPayoutModal';
 
 interface Props {
   applications: Application[];
@@ -8,7 +9,7 @@ interface Props {
   onSelectApplication: (app: Application) => void;
   candidateProfiles: Record<string, CandidateProfile>;
   skillClaims: SkillClaim[];
-  onConfirmPayout?: (applicationId: string) => void;
+  onConfirmPayout?: (applicationId: string, details?: PayoutConfirmationDetails) => void;
 }
 
 export const ApplicantListView: React.FC<Props> = ({
@@ -22,6 +23,7 @@ export const ApplicantListView: React.FC<Props> = ({
   const [activeTab, setActiveTab] = useState<'active' | 'completed'>('active');
   const [selectedJobFilter, setSelectedJobFilter] = useState<string>('all');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<string>('all');
+  const [payoutModalApp, setPayoutModalApp] = useState<Application | null>(null);
 
   const activeApps = applications.filter(
     (a) => a.status !== 'completed' && a.status !== 'withdrawn'
@@ -206,6 +208,30 @@ export const ApplicantListView: React.FC<Props> = ({
                     )}
                   </div>
 
+                  {/* Active Workplace Status (No end date while still working) */}
+                  {!isCompleted && app.status === 'selected' && (
+                    <div className="flex items-center gap-1 text-[11px] text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded mt-1 w-fit">
+                      <Clock className="w-3 h-3 text-emerald-600" />
+                      <span>At workplace · Started: <strong>{app.employmentStartDate || 'Recent'}</strong> (Duration ongoing)</span>
+                    </div>
+                  )}
+
+                  {/* Completed Time Served & Rate Display */}
+                  {isCompleted && (
+                    <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                      <span className="flex items-center gap-1 font-medium text-stone-700 bg-stone-100 border border-stone-200 px-2 py-0.5 rounded text-[11px]">
+                        <Clock className="w-3 h-3 text-amber-600" />
+                        <span>Time Served: <strong>{app.actualTimeInWorkplace || app.workDurationLabel || (app.hoursWorked ? `${app.hoursWorked} hours` : 'Full duration')}</strong></span>
+                      </span>
+                      <span className="font-bold text-emerald-800 text-[11px]">
+                        Rate: R{app.payRateAmount ?? 'agreed'} / {app.payRateUnit ?? 'hour'}
+                      </span>
+                      <span className="text-[11px] text-stone-500">
+                        Started {app.employmentStartDate} · Completed {app.employmentEndDate}
+                      </span>
+                    </div>
+                  )}
+
                   {/* Completed Notes & Payout Confirmation Action */}
                   {isCompleted && (
                     <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-stone-100 text-xs">
@@ -219,7 +245,7 @@ export const ApplicantListView: React.FC<Props> = ({
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onConfirmPayout(app.id);
+                            setPayoutModalApp(app);
                           }}
                           className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded text-xs flex items-center gap-1 cursor-pointer ml-auto"
                         >
@@ -241,7 +267,7 @@ export const ApplicantListView: React.FC<Props> = ({
                   </div>
 
                   <button className="flex items-center gap-1 text-xs font-semibold text-amber-800 group-hover:underline">
-                    <span>{isCompleted ? 'View Record' : 'Inspect Dossier'}</span>
+                    <span>{isCompleted ? 'View Record' : 'See profile and proof'}</span>
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -249,6 +275,20 @@ export const ApplicantListView: React.FC<Props> = ({
             );
           })}
         </div>
+      )}
+
+      {/* Confirm Payout Modal */}
+      {payoutModalApp && (
+        <ConfirmPayoutModal
+          isOpen={Boolean(payoutModalApp)}
+          onClose={() => setPayoutModalApp(null)}
+          application={payoutModalApp}
+          job={jobs.find((j) => j.id === payoutModalApp.jobId) || null}
+          onConfirmPayout={(appId, details) => {
+            onConfirmPayout?.(appId, details);
+            setPayoutModalApp(null);
+          }}
+        />
       )}
     </div>
   );

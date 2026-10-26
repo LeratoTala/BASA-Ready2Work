@@ -14,6 +14,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { InAppNotification, NotificationPreferences, NotificationType } from '../../../domain/types';
+import { useOSModalNavigation } from '../../../shared/hooks/useOSNavigation';
 
 interface Props {
   isOpen: boolean;
@@ -40,6 +41,12 @@ export const NotificationCenterModal: React.FC<Props> = ({
   onUpdatePreferences,
   onNavigateTab,
 }) => {
+  useOSModalNavigation({
+    isOpen,
+    onClose,
+    modalId: 'notification-center',
+  });
+
   const [activeView, setActiveView] = useState<'list' | 'preferences'>('list');
 
   if (!isOpen) return null;
@@ -166,7 +173,7 @@ export const NotificationCenterModal: React.FC<Props> = ({
               <label className="flex items-start justify-between gap-3 pt-3 cursor-pointer">
                 <div>
                   <div className="text-sm font-medium text-stone-800">Skill Assessment Results</div>
-                  <div className="text-xs text-stone-500">When an assessor grades practical demonstration evidence.</div>
+                  <div className="text-xs text-stone-500">When an assessor grades practical demonstration proof.</div>
                 </div>
                 <input
                   type="checkbox"
