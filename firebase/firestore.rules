@@ -352,5 +352,13 @@ service cloud.firestore {
         && !('reviewedAt' in incoming());
       allow update, delete: if isAdmin();
     }
+
+    // ---------- employer downgrade requests ----------
+    match /downgradeRequests/{requestId} {
+      allow read: if isAdmin() || (signedIn() && resource.data.employerUid == request.auth.uid);
+      allow create: if hasRole('employer')
+        && incoming().employerUid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
   }
 }

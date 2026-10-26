@@ -31,6 +31,13 @@ Platform revenue is generated exclusively through employer subscriptions calibra
 
 *\*All prices, tiers, and limits are pilot assumptions to validate through real SMME feedback and in-app pulse surveys.*
 
+### 2.1 Honest Subscription Mechanics & Zero Lock-In
+- **Invoiced Upgrades:** Upgrades operate on an honest invoice-and-approval workflow (`/api/employer/upgrade-request`). The employer requests a tier with their billing reference, an admin issues the invoice, and activates the plan upon payment.
+- **30-Day Billing Cycles:** Activated paid subscriptions are valid for 30 days (`planExpiresAt = now + 30 days`) before the next manual renewal. If unrenewed, the employer account safely reverts to Free tier access (1 active job limit).
+- **Instant Self-Service Downgrade & Cancellation:** Employers can downgrade to a lower tier or cancel back to Free at any time. It executes **instantly** without waiting for admin approval or delays.
+- **Tier Quota Adherence Check:** Before downgrading or cancelling, the platform verifies that current active listings do not exceed the target tier's capacity (Free: 1, Starter: 5, Business: 20). If active listings exceed the target, the switch is automatically declined with an instruction to close excess listings until balanced within scale.
+- **Zero Deletion Guarantee:** Downgrading or cancelling **never deletes** past jobs, applications, or candidate records. Employers retain full read access to historical recruitment data.
+
 ---
 
 ## 3. Financial Viability & Break-Even Economics

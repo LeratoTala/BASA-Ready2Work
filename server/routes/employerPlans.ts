@@ -64,12 +64,13 @@ employerPlansRouter.post('/employer/upgrade-request', verifyIdToken, async (req,
 
     const now = new Date().toISOString();
     const reqRef = db.collection('upgradeRequests').doc();
+    const safeTargetPlan = (targetPlan === 'business' || targetPlan === 'partner' ? targetPlan : 'starter') as 'starter' | 'business' | 'partner';
     const newReq: EmployerUpgradeRequest = {
       id: reqRef.id,
       employerUid: employerId,
-      businessName: businessName || employerData.companyName || 'Registered Employer',
-      targetPlan,
-      contactName: contactName || employerData.contactName || '',
+      businessName: businessName || employerData.businessName || 'Registered Employer',
+      targetPlan: safeTargetPlan,
+      contactName: contactName || 'Authorized Representative',
       billingEmail: billingEmail || employerData.contactEmail || '',
       poNumber,
       status: 'pending',
@@ -130,12 +131,21 @@ employerPlansRouter.post('/employer/change-plan', verifyIdToken, async (req, res
     const employerData = employerSnap.data() as EmployerProfile;
     const currentPlan = (employerData.plan || 'free') as EmployerPlanId;
 
+    // Count open active jobs to enforce adherence to target tier limits
+    const openJobsSnap = await db
+      .collection('jobs')
+      .where('employerId', '==', employerId)
+      .where('status', '==', 'open')
+      .get();
+    const currentActiveJobCount = openJobsSnap.size;
+
     const validation = validatePlanChange({
       callerUid,
       employerId,
       targetPlan,
       currentPlan,
       reason,
+      currentActiveJobCount,
     });
 
     if (!validation.valid) {
@@ -149,6 +159,7 @@ employerPlansRouter.post('/employer/change-plan', verifyIdToken, async (req, res
       plan: targetPlan,
       planStatus: 'active',
       planSince: now,
+      planExpiresAt: null,
       updatedAt: now,
     });
 
@@ -163,15 +174,125 @@ employerPlansRouter.post('/employer/change-plan', verifyIdToken, async (req, res
       performedBy: callerUid,
     });
 
+    // Record downgrade request in downgradeRequests collection
+    await db.collection('downgradeRequests').add({
+      employerUid: employerId,
+      employerId,
+      businessName: employerData.businessName,
+      currentPlan,
+      targetPlan,
+      reason: reason || 'Employer self-service downgrade or cancellation to free tier',
+      requestedAt: now,
+      status: 'completed',
+    });
+
     return res.json({
       success: true,
       plan: targetPlan,
       planStatus: 'active',
-      message: `Plan changed to ${targetPlan}. Existing jobs and applicants remain accessible.`,
+      message: `Plan changed to ${targetPlan} immediately. Existing jobs and applicants remain accessible.`,
     });
   } catch (err: any) {
     console.error('[EmployerPlans] Error changing plan:', err);
     return res.status(500).json({ error: 'Failed to update plan. Please try again.' });
+  }
+});
+
+/**
+ * POST /api/employer/downgrade & POST /api/employer/downgrade-request
+ *
+ * Dedicated alias endpoint for instant employer subscription downgrades or cancellations.
+ * Instant self-service action; takes effect immediately without admin approval.
+ */
+employerPlansRouter.post(['/employer/downgrade', '/employer/downgrade-request'], verifyIdToken, async (req, res) => {
+  if (process.env.VITE_ENABLE_DEMO_DATA === 'true') {
+    return res.status(403).json({ error: 'Firestore plan changes are disabled in fictional demo mode.' });
+  }
+
+  const { uid: callerUid } = req as typeof req & { uid?: string };
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const employerId = typeof body.employerId === 'string' ? body.employerId.trim() : '';
+  const targetPlan = body.targetPlan as EmployerPlanId;
+  const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
+
+  if (!employerId) {
+    return res.status(400).json({ error: 'employerId is required.' });
+  }
+
+  try {
+    const db = getAdminFirestore();
+    const employerRef = db.doc(`employerProfiles/${employerId}`);
+    const employerSnap = await employerRef.get();
+
+    if (!employerSnap.exists) {
+      return res.status(404).json({ error: 'Employer profile not found.' });
+    }
+
+    const employerData = employerSnap.data() as EmployerProfile;
+    const currentPlan = (employerData.plan || 'free') as EmployerPlanId;
+
+    // Count open active jobs to enforce adherence to target tier limits
+    const openJobsSnap = await db
+      .collection('jobs')
+      .where('employerId', '==', employerId)
+      .where('status', '==', 'open')
+      .get();
+    const currentActiveJobCount = openJobsSnap.size;
+
+    const validation = validatePlanChange({
+      callerUid,
+      employerId,
+      targetPlan,
+      currentPlan,
+      reason,
+      currentActiveJobCount,
+    });
+
+    if (!validation.valid) {
+      return res.status(validation.statusCode).json({ error: validation.error });
+    }
+
+    const now = new Date().toISOString();
+
+    await employerRef.update({
+      plan: targetPlan,
+      planStatus: 'active',
+      planSince: now,
+      planExpiresAt: null,
+      updatedAt: now,
+    });
+
+    await db.collection('auditLogs').add({
+      action: 'employer_plan_downgrade',
+      employerId,
+      previousPlan: currentPlan,
+      newPlan: targetPlan,
+      reason: reason || 'Employer self-service downgrade or cancellation',
+      timestamp: now,
+      performedBy: callerUid,
+    });
+
+    const docRef = await db.collection('downgradeRequests').add({
+      employerUid: employerId,
+      employerId,
+      businessName: employerData.businessName,
+      currentPlan,
+      targetPlan,
+      reason: reason || 'Employer self-service downgrade or cancellation',
+      requestedAt: now,
+      status: 'completed',
+    });
+
+    return res.json({
+      success: true,
+      requestId: docRef.id,
+      plan: targetPlan,
+      planStatus: 'active',
+      message: `Instant downgrade completed. Plan changed to ${targetPlan}. Existing jobs and applicants remain accessible.`,
+    });
+  } catch (err: any) {
+    console.error('[EmployerPlans] Error processing downgrade:', err);
+    return res.status(500).json({ error: 'Failed to process downgrade. Please try again.' });
   }
 });
 
@@ -239,10 +360,14 @@ employerPlansRouter.post('/admin/approve-upgrade', verifyIdToken, async (req, re
         adminNote: adminNote || 'Approved and activated by admin.',
       });
 
+      // Paid tiers are active for a 30-day billing cycle before the next manual invoice/payment
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
       await employerRef.update({
         plan: reqData.targetPlan,
         planStatus: 'active',
         planSince: now,
+        planExpiresAt: expiresAt,
         updatedAt: now,
       });
 

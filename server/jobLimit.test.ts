@@ -60,6 +60,15 @@ describe('Server-Side Job Creation Limits Enforcement (Section 39 / Requirement 
   });
 
   it('enforces Business tier limit of 20 active jobs on the server', () => {
+    const underLimit = verifyJobCreationLimits({
+      employerUid: 'emp_biz',
+      employerVerificationStatus: 'verified',
+      employerPlan: 'business',
+      currentActiveJobCount: 19,
+    });
+    assert.equal(underLimit.allowed, true);
+    assert.equal(underLimit.limit, 20);
+
     const atLimit = verifyJobCreationLimits({
       employerUid: 'emp_biz',
       employerVerificationStatus: 'verified',
@@ -68,6 +77,7 @@ describe('Server-Side Job Creation Limits Enforcement (Section 39 / Requirement 
     });
     assert.equal(atLimit.allowed, false);
     assert.equal(atLimit.statusCode, 403);
+    assert.match(atLimit.error || '', /limit of 20 active jobs/i);
   });
 
   it('treats an expired plan (planExpiresAt in the past) as free tier (limit of 1)', () => {

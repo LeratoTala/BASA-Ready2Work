@@ -22,12 +22,13 @@ import {
   PayoutConfirmationDetails,
   BusinessVerificationDetails,
   EmployerUpgradeRequest,
+  EmployerDowngradeRequest,
   PricingPulseSurveyResponse,
   EvidenceItem,
 } from '../../domain/types';
 import { applyCompletedJobToSkillPassport } from '../../domain/jobCompletionSkills';
 import { updateClaimProof } from '../../domain/claimProofUpdate';
-import { canEmployerPostActiveJob } from '../../config/plans';
+import { canEmployerPostActiveJob, EMPLOYER_PLANS } from '../../config/plans';
 import { FEATURE_FLAGS } from '../../config/featureFlags';
 import { resolveSkillLabelFromCredential } from '../../config/credentialRules';
 import {
@@ -109,9 +110,12 @@ export function useDemoStore() {
   const [feedbackList, setFeedbackList] = useState<FeedbackRecord[]>(() =>
     loadStored('basa_feedback', [])
   );
-  // Section 39: Employer Upgrade Requests & Pricing Pulse Surveys
+  // Section 39: Employer Upgrade & Downgrade Requests & Pricing Pulse Surveys
   const [upgradeRequests, setUpgradeRequests] = useState<EmployerUpgradeRequest[]>(() =>
     loadStored('basa_upgrade_requests', [])
+  );
+  const [downgradeRequests, setDowngradeRequests] = useState<EmployerDowngradeRequest[]>(() =>
+    loadStored('basa_downgrade_requests', [])
   );
   const [pulseSurveys, setPulseSurveys] = useState<PricingPulseSurveyResponse[]>(() =>
     loadStored('basa_pulse_surveys', [])
@@ -948,7 +952,7 @@ export function useDemoStore() {
   };
 
   // Post a Job
-  const postJob = (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'reportCount' | 'employerId' | 'employerName' | 'employerVerified'>) => {
+  const postJob = (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'reportCount' | 'employerId' | 'employerName' | 'employerVerified'>): Job => {
     if (!currentUser) throw new Error('Authentication required');
     if (currentUser.role !== 'employer') {
       throw new Error('Only employers can post opportunities.');
@@ -958,11 +962,15 @@ export function useDemoStore() {
       throw new Error('Employer account unverified: You cannot post opportunities until an administrator verifies your business profile (Section 30.1).');
     }
 
-    // Section 39.2 & 39.3: Active job limit gating based on employer plan
+    // Section 39.2 & 39.3: Active job limit gating based on employer plan (with expiry check)
     const currentActiveJobs = jobs.filter(
       (j) => j.employerId === currentUser.uid && j.status === 'open'
     ).length;
-    const gating = canEmployerPostActiveJob(currentActiveJobs, empProfile?.plan || 'free');
+    const gating = canEmployerPostActiveJob(
+      currentActiveJobs,
+      empProfile?.plan || 'free',
+      empProfile?.planExpiresAt
+    );
     if (!gating.allowed) {
       throw new Error(gating.reason || 'Active job posting limit reached for current subscription plan.');
     }
@@ -1529,6 +1537,9 @@ export function useDemoStore() {
             plan: isInstantDemo ? reqData.targetPlan : emp.plan,
             planStatus: isInstantDemo ? 'active' : 'upgrade_pending',
             planSince: isInstantDemo ? now : emp.planSince,
+            planExpiresAt: isInstantDemo
+              ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+              : emp.planExpiresAt,
           },
         };
       });
@@ -1546,35 +1557,46 @@ export function useDemoStore() {
     let targetUid = '';
     let targetPlan: 'starter' | 'business' | 'partner' = 'starter';
 
-    setUpgradeRequests((prev) =>
-      prev.map((r) => {
+    const req = upgradeRequests.find((r) => r.id === requestId);
+    if (req) {
+      targetUid = req.employerUid;
+      targetPlan = req.targetPlan;
+    }
+
+    setUpgradeRequests((prev) => {
+      const updated = prev.map((r) => {
         if (r.id === requestId) {
           targetUid = r.employerUid;
           targetPlan = r.targetPlan;
           return {
             ...r,
-            status: 'approved',
+            status: 'approved' as const,
             reviewedBy: adminName || adminUid,
             reviewedAt: now,
           };
         }
         return r;
-      })
-    );
+      });
+      saveStored('basa_upgrade_requests', updated);
+      return updated;
+    });
 
     if (targetUid) {
       setEmployerProfiles((prev) => {
         const emp = prev[targetUid];
         if (!emp) return prev;
-        return {
+        const updated = {
           ...prev,
           [targetUid]: {
             ...emp,
             plan: targetPlan,
-            planStatus: 'active',
+            planStatus: 'active' as const,
             planSince: now,
+            planExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           },
         };
+        saveStored('basa_employer_profiles', updated);
+        return updated;
       });
     }
   };
@@ -1589,56 +1611,111 @@ export function useDemoStore() {
     const now = new Date().toISOString();
     let targetUid = '';
 
-    setUpgradeRequests((prev) =>
-      prev.map((r) => {
+    setUpgradeRequests((prev) => {
+      const updated = prev.map((r) => {
         if (r.id === requestId) {
           targetUid = r.employerUid;
           return {
             ...r,
-            status: 'declined',
+            status: 'declined' as const,
             reviewedBy: adminName || adminUid,
             reviewedAt: now,
             adminNote: adminNote || 'Declined during manual verification.',
           };
         }
         return r;
-      })
-    );
+      });
+      saveStored('basa_upgrade_requests', updated);
+      return updated;
+    });
 
     if (targetUid) {
       setEmployerProfiles((prev) => {
         const emp = prev[targetUid];
         if (!emp) return prev;
-        return {
+        const updated = {
           ...prev,
           [targetUid]: {
             ...emp,
-            planStatus: 'declined',
+            planStatus: 'declined' as const,
           },
         };
+        saveStored('basa_employer_profiles', updated);
+        return updated;
       });
     }
   };
 
   // Section 39: Employer Plan Downgrade / Cancel (Back to Free)
-  // Invariant: NEVER deletes existing jobs or applicants; only blocks new jobs beyond new limit
+  // Invariant: Adherence to target tier rules required before downgrade or cancellation.
   const downgradeEmployerPlan = (
     employerUid: string,
-    newPlan: 'free' | 'starter' | 'business'
+    newPlan: 'free' | 'starter' | 'business',
+    reason?: string
   ) => {
     const now = new Date().toISOString();
+    const currentProfile = employerProfiles[employerUid];
+    const previousPlan = currentProfile?.plan || 'starter';
+    const activeJobs = jobs.filter((j) => j.employerId === employerUid && j.status === 'open');
+    const targetConfig = EMPLOYER_PLANS[newPlan];
+    const targetLimit = targetConfig.activeJobLimit;
+
+    // Check tier rules adherence: active jobs must not exceed target tier capacity
+    if (activeJobs.length > targetLimit) {
+      const excess = activeJobs.length - targetLimit;
+      const targetName = targetConfig.name;
+      const declineReason = `Cannot ${newPlan === 'free' ? 'cancel' : 'downgrade'} to ${targetName}: You currently have ${activeJobs.length} active jobs, which exceeds this tier's limit of ${targetLimit}. Please close ${excess} active job${excess === 1 ? '' : 's'} first until your active jobs balance within the scale of the tier.`;
+
+      const declinedReq: EmployerDowngradeRequest = {
+        id: `down-${Date.now()}`,
+        employerUid,
+        businessName: currentProfile?.businessName || 'Business Profile',
+        currentPlan: previousPlan,
+        targetPlan: newPlan,
+        reason: `${reason || 'Downgrade request'} [Automatically Declined: ${excess} excess active jobs must be closed first]`,
+        requestedAt: now,
+        status: 'pending',
+      };
+      setDowngradeRequests((prev) => {
+        const updated = [declinedReq, ...prev];
+        saveStored('basa_downgrade_requests', updated);
+        return updated;
+      });
+
+      throw new Error(declineReason);
+    }
+
     setEmployerProfiles((prev) => {
       const emp = prev[employerUid];
       if (!emp) return prev;
-      return {
+      const updated = {
         ...prev,
         [employerUid]: {
           ...emp,
           plan: newPlan,
-          planStatus: 'active',
+          planStatus: 'active' as const,
           planSince: now,
+          planExpiresAt: undefined,
         },
       };
+      saveStored('basa_employer_profiles', updated);
+      return updated;
+    });
+
+    const newReq: EmployerDowngradeRequest = {
+      id: `down-${Date.now()}`,
+      employerUid,
+      businessName: currentProfile?.businessName || 'Business Profile',
+      currentPlan: previousPlan,
+      targetPlan: newPlan,
+      reason: reason || 'Employer downgrade / cancellation requested',
+      requestedAt: now,
+      status: 'completed',
+    };
+    setDowngradeRequests((prev) => {
+      const updated = [newReq, ...prev];
+      saveStored('basa_downgrade_requests', updated);
+      return updated;
     });
   };
 
@@ -1771,6 +1848,7 @@ export function useDemoStore() {
     submitFeedback,
     // Section 39: Employer Subscription Plans & Pricing Pulse
     upgradeRequests,
+    downgradeRequests,
     pulseSurveys,
     requestEmployerUpgrade,
     approveUpgradeRequest,

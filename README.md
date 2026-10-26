@@ -103,14 +103,21 @@ Use this quick-reference directory to find the exact documentation file for your
 ### 11. Employer Subscription Model & Pilot Pricing (Section 39)
 * **Candidates NEVER Pay:** Jobseekers never pay any fee to register, build a Skill Passport, get verified, or apply for opportunities.
 * **100% Plan-Blind Matching:** Candidate ranking algorithms are completely blind to an employer's subscription plan—paying more never elevates unverified applicants or inflates match scores.
+* **No Payment Provider (Manual Invoicing Only):** There is NO third-party card processing gateway or automated recurring debit provider (no Stripe, PayFast, or Ozow). Subscription tier upgrades operate strictly on a request-and-approval model: the employer submits a request with PO number/billing details $\to$ a BASA administrator invoices manually and approves $\to$ server Admin SDK updates the plan.
 * **Calibrated Pilot Tiers (Assumptions to Validate):**
   * **Free (SMME Pilot):** 1 active job listing at a time, full applicant review, basic candidate profiles (permanently free for informal and micro-enterprises).
   * **Starter (R199/month):** Up to 5 active jobs, verified candidate filters & shortlists, applicant profile view.
   * **Business Growth (R599/month):** Up to 20 active jobs, verified-first matching filters, priority email support.
   * **Enterprise / Partner (Custom SLA):** Unlimited listings, bespoke trade rubrics, dedicated account review.
-* **Honest Workflow & Zero Lock-In:** Requesting an upgrade logs a pending invoice request without mutating the employer's plan until an admin approves. Downgrading or cancelling back to Free **never deletes** past jobs or applicants; it only prevents publishing new jobs beyond the new limit.
-* **Pitch Demo Mode:** Evaluators can test instant tier upgrades using the demo shortcut gated behind the `demoInstantApproval` feature flag (default OFF in production).
-* **Revenue Pilot Transparency:** The Admin workspace displays honest zero-state metrics (R0.00 MRR) until manual invoices clear.
+* **Honest Workflow, Instant Downgrade & Zero Lock-In:** Upgrades operate via an invoiced request workflow requiring admin confirmation. In contrast, **downgrades and cancellations are instant self-service actions** requiring zero admin approval:
+  * Cancelling instantly resets the subscription to the Free SMME Pilot tier (`R0/month`).
+  * **Strict Tier Rule Adherence:** If currently open active jobs exceed the target tier's capacity (Free: 1, Starter: 5, Business: 20), the system automatically declines the action and requires the employer to close excess jobs first.
+  * **Zero Deletion Guarantee:** Downgrading or cancelling **never deletes** past jobs or applicant records.
+  * **30-Day Billing Cycle Expiry:** Activated plans run for 30 days before next invoice renewal; unrenewed plans revert to Free tier access.
+* **Implementation Truth (Real vs. Demo vs. Unit-Tested):**
+  * **Demo Mode:** Fully functional on-device simulation with 3 pre-seeded demo accounts (see [`docs/DEMO_ACCOUNTS.md`](docs/DEMO_ACCOUNTS.md)).
+  * **Firestore Mode:** Client reads from Firestore; writes to plan fields are blocked by `firestore.rules` and routed through backend routes (`/api/employer/upgrade-request`, `/api/employer/change-plan`, `/api/admin/approve-upgrade`, `/api/jobs/create`). See [`docs/ENV.md`](docs/ENV.md) for required environment variables.
+  * **Backend Routes Status:** Server routes and plan gating logic are tested at unit level in `server/jobLimit.test.ts` and `server/employerPlanOps.test.ts`. End-to-end live deployment to cloud requires manual Firebase/GCP provisioning.
 
 ---
 

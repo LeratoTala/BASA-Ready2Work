@@ -46,12 +46,13 @@ import {
   EvidenceItem,
   formatRegistrationType,
   EmployerUpgradeRequest,
+  EmployerDowngradeRequest,
   PricingPulseSurveyResponse,
 } from '../../../domain/types';
 import { getRubricForSkill } from '../../../domain/rubrics';
 import { calculatePilotMetrics } from '../../../domain/pilotMetrics';
 import { maskCredentialId, isCredentialExpired } from '../../../domain/credentialValidation';
-import { EMPLOYER_PLANS } from '../../../config/plans';
+import { EMPLOYER_PLANS, getDaysRemaining } from '../../../config/plans';
 import { analyzeEvidenceWithAI } from '../../../domain/aiEvidenceAnalysis';
 import { getSkillClaimProofStatus } from '../../../domain/claimProofUpdate';
 
@@ -70,6 +71,7 @@ interface Props {
   endorsements?: PeerEndorsement[];
   mentorReviews?: MentorReview[];
   upgradeRequests?: EmployerUpgradeRequest[];
+  downgradeRequests?: EmployerDowngradeRequest[];
   pulseSurveys?: PricingPulseSurveyResponse[];
   onSubmitAssessment: (assessment: Omit<AssessmentRecord, 'id' | 'createdAt'>, claimId: string) => void;
   onResolveReport: (reportId: string, action: 'dismiss' | 'suspend_job') => void;
@@ -114,6 +116,7 @@ export const AdminDashboard: React.FC<Props> = ({
   endorsements = [],
   mentorReviews = [],
   upgradeRequests = [],
+  downgradeRequests = [],
   pulseSurveys = [],
   onSubmitAssessment,
   onResolveReport,
@@ -2389,6 +2392,59 @@ export const AdminDashboard: React.FC<Props> = ({
               </div>
             </div>
 
+            {/* Active Paid Subscriptions (30-Day Billing Cycles) */}
+            {empList.filter((e) => e.plan && e.plan !== 'free').length > 0 && (
+              <div className="bg-white rounded-xl border border-stone-200 p-6 shadow-xs space-y-4">
+                <div className="border-b border-stone-100 pb-3">
+                  <h3 className="font-bold text-base text-stone-900 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-600" />
+                    Active Paid Subscriptions (30-Day Billing Cycles)
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Track manual invoicing schedules. Each paid tier is active for 30 days before the next payment.
+                  </p>
+                </div>
+                <div className="divide-y divide-stone-100">
+                  {empList
+                    .filter((e) => e.plan && e.plan !== 'free')
+                    .map((emp) => {
+                      const daysLeft = getDaysRemaining(emp.planExpiresAt);
+                      const isExpired = daysLeft === 0;
+                      return (
+                        <div key={emp.uid} className="py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                          <div className="space-y-0.5">
+                            <span className="font-bold text-stone-900 block">{emp.businessName}</span>
+                            <span className="text-stone-500 text-[11px] block">
+                              Tier: <strong className="capitalize text-stone-800">{emp.plan}</strong> · Contact: {emp.contactEmail}
+                              {emp.planSince && ` · Active since: ${new Date(emp.planSince).toLocaleDateString()}`}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {emp.planExpiresAt ? (
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                  isExpired
+                                    ? 'bg-red-100 text-red-800 border border-red-300'
+                                    : daysLeft !== null && daysLeft <= 5
+                                    ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                    : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                }`}
+                              >
+                                {isExpired
+                                  ? 'Invoice Overdue (Reverted to Free)'
+                                  : `Invoice due in ${daysLeft}d (${new Date(emp.planExpiresAt).toLocaleDateString()})`}
+                              </span>
+                            ) : (
+                              <span className="text-stone-400 text-[10px]">30-day cycle active</span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            )}
+
             {/* Pending Upgrade Requests Queue */}
             <div className="bg-white rounded-xl border border-stone-200 p-6 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-stone-100 pb-3">
@@ -2462,6 +2518,52 @@ export const AdminDashboard: React.FC<Props> = ({
                             {req.status}
                           </span>
                         )}
+                        <span className="text-[10px] text-stone-400">
+                          {new Date(req.requestedAt).toLocaleDateString()}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Employer Downgrade & Cancellation Audit History */}
+            <div className="bg-white rounded-xl border border-stone-200 p-6 shadow-xs space-y-4">
+              <div className="flex items-center justify-between border-b border-stone-100 pb-3">
+                <div>
+                  <h3 className="font-bold text-base text-stone-900">
+                    Instant Downgrades &amp; Cancellations ({downgradeRequests.length})
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Audit log of instant self-service tier reductions and cancellations back to Free SMME. No admin approval required.
+                  </p>
+                </div>
+              </div>
+
+              {downgradeRequests.length === 0 ? (
+                <div className="p-8 text-center text-xs text-stone-500 bg-stone-50 rounded-lg border border-dashed border-stone-200">
+                  No employer downgrade or cancellation events recorded.
+                </div>
+              ) : (
+                <div className="divide-y divide-stone-100">
+                  {downgradeRequests.map((req) => (
+                    <div key={req.id} className="py-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+                      <div className="space-y-0.5">
+                        <span className="font-bold text-stone-900 block">{req.businessName}</span>
+                        <span className="text-stone-500 text-[11px] block">
+                          Downgraded from <strong className="capitalize text-stone-800">{req.currentPlan}</strong> to <strong className="capitalize text-stone-800">{req.targetPlan}</strong>
+                          {req.reason && ` · Note: "${req.reason}"`}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                          req.status === 'completed'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            : 'bg-stone-100 text-stone-700 border-stone-300'
+                        }`}>
+                          {req.status === 'completed' ? 'INSTANT' : req.status}
+                        </span>
                         <span className="text-[10px] text-stone-400">
                           {new Date(req.requestedAt).toLocaleDateString()}
                         </span>

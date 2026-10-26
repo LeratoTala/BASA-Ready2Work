@@ -1,8 +1,15 @@
+/**
+ * STATIC RULES-FILE TEXT REGEX CHECK
+ * NOTE: This is a static lexical check of firebase/firestore.rules text,
+ * NOT a live Firebase emulator integration test.
+ * Live emulator testing for these rules is defined in tests/rules/firestore.rules.test.ts.
+ */
+
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 
-describe('Security Rules: Employer Plan Write Lock (Section 39 / Requirement 1)', () => {
+describe('Security Rules: Employer Plan Write Lock Static File Check (Section 39 / Requirement 1)', () => {
   const rules = readFileSync('firebase/firestore.rules', 'utf8');
 
   it('prohibits employers from updating plan, planStatus, planSince, or planExpiresAt directly', () => {

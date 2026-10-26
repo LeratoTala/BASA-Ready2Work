@@ -16,8 +16,8 @@ import {
 export const INITIAL_USERS: User[] = [
   {
     uid: 'candidate-thabo',
-    displayName: 'Thabo Ndlovu',
-    email: 'thabo.ndlovu@kasimail.co.za',
+    displayName: 'Thabo Ndlovu (Job Seeker)',
+    email: 'thabo.demo@basa-test.co.za',
     role: 'candidate',
     createdAt: '2026-09-12T08:30:00Z',
     accountStatus: 'active',
@@ -32,8 +32,8 @@ export const INITIAL_USERS: User[] = [
   },
   {
     uid: 'employer-zola',
-    displayName: 'Zola Artisan Café (Zola Sithole)',
-    email: 'owner@zolacafe.co.za',
+    displayName: 'Zola Sithole (Employer - Zola Café)',
+    email: 'zola.demo@basa-test.co.za',
     role: 'employer',
     createdAt: '2026-08-01T09:00:00Z',
     accountStatus: 'active',
@@ -56,8 +56,8 @@ export const INITIAL_USERS: User[] = [
   },
   {
     uid: 'admin-nomsa',
-    displayName: 'Nomsa Dlamini (Assessor)',
-    email: 'nomsa.assessor@basa-skills.org.za',
+    displayName: 'Nomsa Dlamini (Assessor & Mentor)',
+    email: 'nomsa.mentor@basa-test.co.za',
     role: 'admin',
     createdAt: '2026-07-01T08:00:00Z',
     accountStatus: 'active',

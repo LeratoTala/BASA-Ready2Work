@@ -12,3 +12,4 @@ coverage/
 firebase-debug.log
 *-service-account*.json
 serviceAccount*.json
+*.tsbuildinfo

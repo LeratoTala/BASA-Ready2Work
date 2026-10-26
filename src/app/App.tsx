@@ -402,7 +402,7 @@ export default function App() {
                 onViewApplicants={() => setActiveTab('applicants')}
                 onRequestVerification={store.requestEmployerVerification}
                 onOpenUpgrade={() => setIsUpgradeModalOpen(true)}
-                onDowngradePlan={(newPlan) => store.downgradeEmployerPlan(currentUser.uid, newPlan)}
+                onDowngradePlan={(newPlan, reason) => store.downgradeEmployerPlan(currentUser.uid, newPlan, reason)}
               />
             )}
 
@@ -466,6 +466,7 @@ export default function App() {
             endorsements={store.endorsements}
             mentorReviews={store.mentorReviews}
             upgradeRequests={store.upgradeRequests}
+            downgradeRequests={store.downgradeRequests}
             pulseSurveys={store.pulseSurveys}
             onSubmitAssessment={store.submitAssessment}
             onResolveReport={store.resolveReport}
@@ -582,8 +583,8 @@ export default function App() {
         <CreateOpportunityModal
           isOpen={isCreateJobOpen}
           onClose={() => setIsCreateJobOpen(false)}
-          onSubmit={(jobData) => {
-            store.postJob(jobData);
+          onSubmit={async (jobData) => {
+            await store.postJob(jobData);
             setIsPulseSurveyOpen(true);
           }}
           defaultLocation={store.currentEmployerProfile?.locationArea || 'Johannesburg CBD'}

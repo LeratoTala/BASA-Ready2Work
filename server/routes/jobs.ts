@@ -44,11 +44,12 @@ jobsRouter.post('/jobs/create', verifyIdToken, async (req, res) => {
 
     const activeJobCount = activeJobsSnap.size;
 
-    // Server-side limit verification
+    // Server-side limit verification (with expiry check)
     const limitCheck = verifyJobCreationLimits({
       employerUid: uid,
       employerVerificationStatus: employer.verificationStatus,
       employerPlan: employer.plan || 'free',
+      planExpiresAt: employer.planExpiresAt,
       currentActiveJobCount: activeJobCount,
     });
 

@@ -7,6 +7,13 @@ export const PLAN_RANK: Record<EmployerPlanId, number> = {
   partner: 3,
 };
 
+export const PLAN_ACTIVE_JOB_LIMIT: Record<EmployerPlanId, number> = {
+  free: 1,
+  starter: 5,
+  business: 20,
+  partner: 999999,
+};
+
 export interface UpgradeRequestInput {
   callerUid?: string;
   employerId: string;
@@ -21,6 +28,7 @@ export interface PlanChangeInput {
   targetPlan: EmployerPlanId;
   currentPlan: EmployerPlanId;
   reason?: string;
+  currentActiveJobCount?: number;
 }
 
 export interface AdminApproveUpgradeInput {
@@ -124,6 +132,20 @@ export function validatePlanChange(input: PlanChangeInput): ValidationResult {
       statusCode: 400,
       error: `Invalid plan change: "${input.targetPlan}" is not a downgrade from "${input.currentPlan}". Upgrades must be submitted via /api/employer/upgrade-request.`,
     };
+  }
+
+  // Tier rules adherence: current active jobs cannot exceed target tier limit
+  if (input.currentActiveJobCount !== undefined) {
+    const targetLimit = PLAN_ACTIVE_JOB_LIMIT[input.targetPlan] ?? 1;
+    if (input.currentActiveJobCount > targetLimit) {
+      const excess = input.currentActiveJobCount - targetLimit;
+      const targetName = input.targetPlan === 'free' ? 'Free (SMME Pilot) Tier' : `${input.targetPlan.toUpperCase()} plan`;
+      return {
+        valid: false,
+        statusCode: 422,
+        error: `Cannot ${input.targetPlan === 'free' ? 'cancel' : 'downgrade'} to ${targetName}: You currently have ${input.currentActiveJobCount} active jobs, which exceeds this tier's limit of ${targetLimit}. Please close ${excess} active job${excess === 1 ? '' : 's'} first until your active jobs balance within the scale of the tier.`,
+      };
+    }
   }
 
   return { valid: true, statusCode: 200 };

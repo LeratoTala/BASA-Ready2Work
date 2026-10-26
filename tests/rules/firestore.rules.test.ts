@@ -455,6 +455,22 @@ describe('firestore rules', () => {
       planStatus: 'active',
       planSince: '2026-01-01T00:00:00.000Z',
     }));
+    await assertFails(updateDoc(doc(emp1, 'employerProfiles/emp1'), {
+      planExpiresAt: '2027-01-01T00:00:00.000Z',
+    }));
+
+    // 2b. Employer CAN update allowed profile fields (contactPhone, description, industry)
+    await assertSucceeds(updateDoc(doc(emp1, 'employerProfiles/emp1'), {
+      contactPhone: '0829998877',
+      description: 'Updated workshop description for small business operations.',
+      industry: 'Electrical & Solar',
+    }));
+
+    // 2c. Another employer cannot modify emp1's profile
+    const emp2 = env.authenticatedContext('emp2').firestore();
+    await assertFails(updateDoc(doc(emp2, 'employerProfiles/emp1'), {
+      description: 'Attacker overwriting competitor description',
+    }));
 
     // 3. Admin CAN update employer plan
     await assertSucceeds(updateDoc(doc(admin, 'employerProfiles/emp1'), {

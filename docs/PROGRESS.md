@@ -2,7 +2,7 @@
 
 **Updated:** 2026-10-26  
 **Auditor / Agent:** BASA Ready2Work Engineering Agent  
-**Build & Test State:** Clean build · 0 TypeScript errors · 121 / 121 unit & domain tests passing across 40 suites.
+**Build & Test State:** Clean build · 0 TypeScript errors · 203 / 203 unit, domain & e2e tests passing across 53 suites.
 
 ---
 
@@ -13,7 +13,13 @@ The BASA: Ready2Work platform has completed all core functional requirements and
 - **Honest Skill Passport (Section 29):** Strict 4-tier honest labels (`Self-reported`, `Peer-endorsed`, `Task-assessed`, `Mentor-reviewed`), Grade 6 plain-language explanations, and AI CV tags (`"Written with AI help - not verified"`).
 - **Fraud & Exploitation Protection (Section 30):** Mandatory transparent ZAR compensation, unverified employer posting blocks, 3-report auto-hide with community moderation queue, safety tips banners, contact masking (POPIA), and endorsement cap/ring detection.
 - **Badges & Modular Credentials (Section 35 & Multi-Skill):** Candidates can post a single vocational certificate or badge, link multiple modular skills it covers, have skills automatically added to their Skill Passport, and have all linked skills verified simultaneously upon assessor approval.
-- **Admin Job Pay Terms Inspector & Statutory NMW Checks:** Complete compensation inspector evaluating effective hourly rates and providing statutory National Minimum Wage guidance.
+- **Employer Subscription Model & Capacity Management (Section 39):**
+  - **Tier Capacity:** Free (1 active job), Starter (5 active jobs), Business (20 active jobs), Partner (Custom/Unlimited).
+  - **Upgrades:** Invoiced request workflow (`/api/employer/upgrade-request`) reviewed and confirmed by Admin upon payment receipt.
+  - **Instant Downgrades & Cancellations:** Employers can downgrade or cancel back to Free at any time. Takes effect **instantly** without admin delays.
+  - **Tier Rule Adherence:** Downgrading or cancelling automatically declines (`HTTP 422`) if current active jobs exceed the target tier limit; employers must close excess active listings first to balance within scale.
+  - **30-Day Billing Cycle Expiry:** Subscriptions active for 30 days before next manual invoice. Unrenewed plans revert to Free tier access.
+- **Admin Job Pay Terms Inspector & Statutory NMW Guidance:** Complete compensation inspector evaluating effective hourly rates with neutral statutory National Minimum Wage guidance.
 - **Duplicate Application Prevention:** Deterministic ID generation (`jobId_candidateId`) and store guards block candidates from applying for the same job post more than once.
 - **User Validation & Success Metrics (Sections 31 & 32):** In-app 5-star user feedback form (`FeedbackModal.tsx`), validation interview protocols (`VALIDATION_PLAN.md`), template (`VALIDATION_FINDINGS.md`), and pilot metrics (`SUCCESS_METRICS.md`).
 
@@ -47,7 +53,28 @@ The BASA: Ready2Work platform has completed all core functional requirements and
 | **FR-24** | **Job Closure Guard, Reopening & Job ID Visibility** | **Done** | Employers must update every applicant's status before closing a job; reopening support; persistent Job ID (#job-id) on every card; completed view tracks whether the job is currently open or closed; applied & all jobs display closed jobs with status badges. |
 | **FR-25** | **Grade 6 Plain-Language Accessibility** | **Done** | Simplified candidate and employer interfaces using everyday English instead of technical jargon; clear matching formula breakdown; plain privacy disclosures; intuitive tab guidance banners. |
 | **FR-26** | **Time Served in Institution & Pay Rate Display (No Lump Sum)** | **Done** | Eliminates lump-sum totals; prominently displays agreed unit rate (money/hr, money/day, money/week, money/fortnight, or money/month); tracks total time served in the institution with approved leaves/days off contributing directly rather than flagged separately; strictly limits active candidate date visibility to employment start date until completed. |
-| **FR-27** | **Absorption Pathway & Opportunity Type Transparency** | **Done** | Mandatory employer specification of engagement type (Permanent, Internship, Micro-internship, Casual/shifts, Learnership, Contract); displays expectations prominently so candidates know what to expect. |
+## 4. Implementation Truth: Real vs. Demo-Only vs. Unit-Tested Only
+
+* **Real & Production-Ready:**
+  * Client multi-provider authentication and session lifecycle management.
+  * Deterministic matching algorithm ($50\% \text{ Skills} + 25\% \text{ Evidence} + 15\% \text{ Availability} + 10\% \text{ Location}$).
+  * Trade practical micro-task rubrics engine (100-pt scale, $\ge 70$ pass threshold).
+  * Data retention engine with 6-month unselected purge and 12/18 month inactivity lifecycle.
+  * PII stripping and zero-hallucination prompt generator with `{{NAME}}` placeholder.
+  * Firestore and Cloud Storage security rules preventing candidate self-promotion and locking employer plan fields.
+  * Grade 6 plain-language UI accessibility and PWA offline manifest.
+
+* **Unit-Tested Backend Routes (Tested, Not Live Deployed):**
+  * Express routes (`/api/employer/upgrade-request`, `/api/employer/change-plan`, `/api/admin/approve-upgrade`, `/api/jobs/create`, `/api/cv-draft`, `/api/apply`, `/api/register`, `/api/delete-account`, `/api/admin/verify-employer`) are implemented with Firebase Admin SDK and unit-tested in `server/*.test.ts`.
+  * These routes are tested with mock tokens and isolated test harnesses; they require manual GCP deployment and service account credentials to run against a live production database (see [`docs/ENV.md`](ENV.md)).
+
+* **Demo-Only Simulation:**
+  * Full on-device mock store (`useDemoStore.ts`) persisting to `localStorage` with pre-seeded fake accounts (see [`docs/DEMO_ACCOUNTS.md`](DEMO_ACCOUNTS.md)).
+  * Allows offline pitch demos, rubric evaluations, and UI navigation without any Firebase or cloud configuration.
+
+* **No Payment Provider (Manual Invoicing Only):**
+  * The platform contains **zero automated payment gateways** (no Stripe, PayFast, Ozow, or card processing).
+  * Subscriptions operate strictly on an honest B2B pilot flow: employer submits upgrade request $\to$ admin sends manual invoice and activates tier $\to$ server Admin SDK updates plan.
 
 ---
 

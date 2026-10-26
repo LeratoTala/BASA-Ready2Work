@@ -8,7 +8,9 @@ import { useOSModalNavigation } from '../../../shared/hooks/useOSNavigation';
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'reportCount' | 'employerId' | 'employerName' | 'employerVerified'>) => void;
+  onSubmit: (
+    jobData: Omit<Job, 'id' | 'createdAt' | 'status' | 'reportCount' | 'employerId' | 'employerName' | 'employerVerified'>
+  ) => void | Promise<void>;
   defaultLocation?: string;
   activeJobCount?: number;
   employerPlan?: EmployerPlanId;

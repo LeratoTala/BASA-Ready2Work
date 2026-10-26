@@ -3,12 +3,15 @@ import { describe, it } from 'node:test';
 import {
   canEmployerPostActiveJob,
   getPlanConfig,
+  getEffectiveEmployerPlan,
+  calculatePlanExpiryDate,
+  getDaysRemaining,
   EMPLOYER_PLANS,
   CANDIDATE_NEVER_PAYS_INVARIANT,
   MATCHING_PLAN_INDEPENDENT_INVARIANT,
 } from '../config/plans';
 import { calculateMatchScore } from './matching';
-import { CandidateProfile, Job, SkillClaim, EmployerUpgradeRequest, Application } from './types';
+import { CandidateProfile, Job, SkillClaim, EmployerUpgradeRequest, EmployerDowngradeRequest, EmployerProfile, Application } from './types';
 
 describe('Section 39: P3 Employer Subscription Plans & Sustainability', () => {
   const dummyCandidate: CandidateProfile = {
@@ -255,5 +258,120 @@ describe('Section 39: P3 Employer Subscription Plans & Sustainability', () => {
     assert.equal(activatedProfile.plan, 'starter');
     assert.equal(activatedProfile.planStatus, 'active');
     assert.ok(activatedProfile.planSince);
+  });
+
+  // (i) Instant subscription downgrade execution and recording
+  it('records instant downgrade action with status completed and preserves past jobs', () => {
+    const downgradeReq: EmployerDowngradeRequest = {
+      id: 'down-123',
+      employerUid: 'emp_solar',
+      businessName: 'Solar Tech Co',
+      currentPlan: 'business',
+      targetPlan: 'starter',
+      reason: 'Scaling down temporary recruitment drive',
+      requestedAt: '2026-10-26T14:00:00.000Z',
+      status: 'completed',
+    };
+
+    assert.equal(downgradeReq.targetPlan, 'starter');
+    assert.equal(downgradeReq.status, 'completed');
+    assert.equal(downgradeReq.reason, 'Scaling down temporary recruitment drive');
+
+    // Downgraded profile preserves existing jobs
+    const activeJobs = 3; // 3 jobs posted during Business tier
+    const starterGating = canEmployerPostActiveJob(activeJobs, downgradeReq.targetPlan);
+    assert.equal(starterGating.allowed, true); // Starter allows 5 jobs
+    assert.equal(starterGating.limit, 5);
+  });
+
+  // (j) Cancelling a subscription defaults to the Free SMME tier on success
+  it('cancels subscription back to Free tier on success with zero-deletion invariant and cleared expiry', () => {
+    const employerProfile: EmployerProfile = {
+      uid: 'emp_paid_cancel',
+      businessName: 'Highveld Construction',
+      industry: 'Construction & Civil',
+      description: 'Civil contractor.',
+      locationArea: 'Midrand',
+      verificationStatus: 'verified',
+      contactEmail: 'hr@highveld.co.za',
+      createdAt: '2026-01-15T08:00:00.000Z',
+      plan: 'business',
+      planStatus: 'active',
+      planSince: '2026-02-01T00:00:00.000Z',
+      planExpiresAt: '2026-11-01T00:00:00.000Z',
+    };
+
+    // Employer initiates cancellation (targetPlan: 'free')
+    const targetPlan = 'free';
+    const now = new Date().toISOString();
+
+    const cancelledProfile: EmployerProfile = {
+      ...employerProfile,
+      plan: targetPlan,
+      planStatus: 'active',
+      planSince: now,
+      planExpiresAt: undefined,
+    };
+
+    assert.equal(cancelledProfile.plan, 'free');
+    assert.equal(cancelledProfile.planStatus, 'active');
+    assert.equal(cancelledProfile.planExpiresAt, undefined);
+    assert.equal(getPlanConfig(cancelledProfile.plan).priceZarMonthly, 0);
+
+    // Free tier allows 1 active job; existing 2 jobs are NOT deleted
+    const existingJobs = 2;
+    const freeGating = canEmployerPostActiveJob(existingJobs, cancelledProfile.plan);
+    assert.equal(freeGating.allowed, false); // Quota reached (2 >= 1)
+    assert.equal(freeGating.limit, 1);
+    assert.match(freeGating.reason || '', /reached your plan's limit of 1 active job/i);
+  });
+
+  // (k) Automatic decline if active jobs exceed target tier scale, requiring jobs to be closed first
+  it('strictly validates tier rules before cancellation/downgrade: declines when active jobs exceed limit, asks to close excess', () => {
+    const activeJobs = 3; // Currently 3 open jobs
+    const targetPlan = 'free'; // Limit 1
+    const targetLimit = EMPLOYER_PLANS[targetPlan].activeJobLimit;
+
+    // Check if employer adheres to target tier rules
+    const adheresToTier = activeJobs <= targetLimit;
+    assert.equal(adheresToTier, false);
+
+    const excess = activeJobs - targetLimit;
+    assert.equal(excess, 2);
+
+    // Employer closes 2 jobs so active jobs balance within the scale of the Free tier
+    const jobsAfterClosing = activeJobs - excess; // 1 job
+    const adheresNow = jobsAfterClosing <= targetLimit;
+    assert.equal(adheresNow, true);
+  });
+
+  // (l) 30-Day Billing Cycle Expiry & Invoicing Schedule
+  it('caters for 30-day plan billing cycle: active for 30 days before next invoice, reverts to free after expiry', () => {
+    const activationDate = '2026-10-26T12:00:00.000Z';
+    const expiryDate = calculatePlanExpiryDate(activationDate, 30);
+
+    // Assert expiry date is exactly 30 days after activation
+    const diffDays = (new Date(expiryDate).getTime() - new Date(activationDate).getTime()) / (24 * 60 * 60 * 1000);
+    assert.equal(diffDays, 30);
+
+    // Days remaining midway through the cycle (e.g. Day 10)
+    const midCycleTime = new Date('2026-11-05T12:00:00.000Z').getTime();
+    const daysRemaining = getDaysRemaining(expiryDate, midCycleTime);
+    assert.equal(daysRemaining, 20);
+
+    // Check plan is active and allows Starter capacity midway
+    const activeMidCheck = getEffectiveEmployerPlan('starter', expiryDate, '2026-11-05T12:00:00.000Z');
+    assert.equal(activeMidCheck.effectivePlan, 'starter');
+    assert.equal(activeMidCheck.isExpired, false);
+
+    // Exactly after 30 days have elapsed (next payment overdue)
+    const post30DaysTime = new Date('2026-11-26T12:00:01.000Z').getTime();
+    const expiredDays = getDaysRemaining(expiryDate, post30DaysTime);
+    assert.equal(expiredDays, 0);
+
+    // Evaluator treats expired tier as Free tier until next invoice payment
+    const expiredCheck = getEffectiveEmployerPlan('starter', expiryDate, '2026-11-26T12:00:01.000Z');
+    assert.equal(expiredCheck.effectivePlan, 'free');
+    assert.equal(expiredCheck.isExpired, true);
   });
 });

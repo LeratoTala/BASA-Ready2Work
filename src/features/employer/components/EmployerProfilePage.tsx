@@ -21,10 +21,12 @@ import {
   Trash2,
   Info,
   Sparkles,
+  ArrowDownCircle,
 } from 'lucide-react';
 import { Application, EmployerProfile, Job, BusinessVerificationDetails, formatRegistrationType } from '../../../domain/types';
-import { getPlanConfig, EMPLOYER_PLANS } from '../../../config/plans';
+import { getPlanConfig, EMPLOYER_PLANS, getDaysRemaining } from '../../../config/plans';
 import { RequestEmployerVerificationModal } from './RequestEmployerVerificationModal';
+import { DowngradePlanModal } from './DowngradePlanModal';
 
 interface Props {
   employer: EmployerProfile;
@@ -40,7 +42,7 @@ interface Props {
     file?: File
   ) => Promise<void> | void;
   onOpenUpgrade?: () => void;
-  onDowngradePlan?: (newPlan: 'free' | 'starter' | 'business') => void;
+  onDowngradePlan?: (newPlan: 'free' | 'starter' | 'business', reason?: string) => void;
 }
 
 export const EmployerProfilePage: React.FC<Props> = ({
@@ -57,6 +59,8 @@ export const EmployerProfilePage: React.FC<Props> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
+  const [isDowngradeModalOpen, setIsDowngradeModalOpen] = useState(false);
+  const [selectedDowngradeTier, setSelectedDowngradeTier] = useState<'free' | 'starter' | 'business' | undefined>(undefined);
   const [businessName, setBusinessName] = useState(employer.businessName);
   const [industry, setIndustry] = useState(employer.industry);
   const [description, setDescription] = useState(employer.description);
@@ -445,6 +449,19 @@ export const EmployerProfilePage: React.FC<Props> = ({
                     <span>Request Upgrade</span>
                   </button>
                 )}
+                {isPaid && onDowngradePlan && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDowngradeTier(undefined);
+                      setIsDowngradeModalOpen(true);
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-50 text-stone-700 font-semibold text-xs cursor-pointer"
+                  >
+                    <ArrowDownCircle className="w-3.5 h-3.5 text-stone-500" />
+                    <span>Downgrade Plan</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -490,10 +507,20 @@ export const EmployerProfilePage: React.FC<Props> = ({
                   )}
                 </div>
                 {employer.planSince && (
-                  <span className="text-[10px] text-stone-400 block">
+                  <span className="text-[10px] text-stone-500 block">
                     Active since: {new Date(employer.planSince).toLocaleDateString()}
                   </span>
                 )}
+                {isPaid && employer.planExpiresAt && (() => {
+                  const daysLeft = getDaysRemaining(employer.planExpiresAt);
+                  return (
+                    <span className={`text-[10px] block font-medium ${daysLeft === 0 ? 'text-red-600 font-bold' : 'text-stone-500'}`}>
+                      {daysLeft === 0
+                        ? '30-day billing cycle ended. Reverted to Free until renewed.'
+                        : `Next payment / renews: ${new Date(employer.planExpiresAt).toLocaleDateString()} (${daysLeft}d left)`}
+                    </span>
+                  );
+                })()}
               </div>
             </div>
 
@@ -512,24 +539,28 @@ export const EmployerProfilePage: React.FC<Props> = ({
             {isPaid && (
               <div className="pt-2 border-t border-stone-100 flex flex-wrap items-center justify-between gap-3 text-xs">
                 <span className="text-stone-500 text-[11px]">
-                  Need to reduce hiring costs? You can downgrade or cancel back to Free at any time.
+                  Need to reduce hiring costs? Downgrade or cancel back to Free instantly at any time. Zero lock-in, no admin approval required.
                 </span>
                 <div className="flex items-center gap-2">
-                  {employer.plan === 'business' && (
-                    <button
-                      type="button"
-                      onClick={() => handleConfirmDowngrade('starter')}
-                      className="px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-50 text-stone-700 font-semibold text-xs cursor-pointer"
-                    >
-                      Downgrade to Starter (5 jobs)
-                    </button>
-                  )}
                   <button
                     type="button"
-                    onClick={() => handleConfirmDowngrade('free')}
+                    onClick={() => {
+                      setSelectedDowngradeTier(undefined);
+                      setIsDowngradeModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-lg border border-stone-300 hover:bg-stone-50 text-stone-700 font-semibold text-xs cursor-pointer"
+                  >
+                    Downgrade Plan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedDowngradeTier('free');
+                      setIsDowngradeModalOpen(true);
+                    }}
                     className="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 font-semibold text-xs cursor-pointer"
                   >
-                    Cancel Plan (Back to Free SMME)
+                    Cancel Plan (Instant)
                   </button>
                 </div>
               </div>
@@ -651,6 +682,28 @@ export const EmployerProfilePage: React.FC<Props> = ({
           employer={employer}
           onSubmitVerification={async (empUid, details, file) => {
             await onRequestVerification?.(empUid, details, file);
+          }}
+        />
+      )}
+
+      {/* Downgrade & Cancel Plan Modal */}
+      {isDowngradeModalOpen && (
+        <DowngradePlanModal
+          isOpen={isDowngradeModalOpen}
+          onClose={() => setIsDowngradeModalOpen(false)}
+          employerUid={employer.uid}
+          businessName={employer.businessName}
+          currentPlan={employer.plan || 'starter'}
+          activeJobCount={activeJobs.length}
+          initialTargetPlan={selectedDowngradeTier}
+          onConfirmDowngrade={(targetPlan, reason) => {
+            if (onDowngradePlan) {
+              try {
+                onDowngradePlan(targetPlan, reason);
+              } catch (err: any) {
+                alert(err?.message || 'Failed to downgrade plan.');
+              }
+            }
           }}
         />
       )}

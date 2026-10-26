@@ -156,6 +156,63 @@ describe('Server-Side Employer Plan Operations (Section 39 / Phase 3)', () => {
       assert.equal(cancelFromBusiness.valid, true);
       assert.equal(cancelFromBusiness.statusCode, 200);
     });
+
+    it('automatically declines downgrade or cancellation if active jobs exceed target tier limit', () => {
+      // 3 active jobs exceeds Free tier limit of 1
+      const excessCancel = validatePlanChange({
+        callerUid: 'emp_123',
+        employerId: 'emp_123',
+        targetPlan: 'free',
+        currentPlan: 'starter',
+        currentActiveJobCount: 3,
+      });
+
+      assert.equal(excessCancel.valid, false);
+      assert.equal(excessCancel.statusCode, 422);
+      assert.match(excessCancel.error || '', /Cannot cancel to Free \(SMME Pilot\) Tier/i);
+      assert.match(excessCancel.error || '', /exceeds this tier's limit of 1/i);
+      assert.match(excessCancel.error || '', /Please close 2 active jobs first/i);
+
+      // 8 active jobs exceeds Starter limit of 5
+      const excessDowngrade = validatePlanChange({
+        callerUid: 'emp_123',
+        employerId: 'emp_123',
+        targetPlan: 'starter',
+        currentPlan: 'business',
+        currentActiveJobCount: 8,
+      });
+
+      assert.equal(excessDowngrade.valid, false);
+      assert.equal(excessDowngrade.statusCode, 422);
+      assert.match(excessDowngrade.error || '', /Cannot downgrade to STARTER plan/i);
+      assert.match(excessDowngrade.error || '', /Please close 3 active jobs first/i);
+    });
+
+    it('allows downgrade or cancellation when active jobs balance within the scale of the tier', () => {
+      // 1 active job adheres to Free tier limit of 1
+      const validCancel = validatePlanChange({
+        callerUid: 'emp_123',
+        employerId: 'emp_123',
+        targetPlan: 'free',
+        currentPlan: 'starter',
+        currentActiveJobCount: 1,
+      });
+
+      assert.equal(validCancel.valid, true);
+      assert.equal(validCancel.statusCode, 200);
+
+      // 4 active jobs adheres to Starter tier limit of 5
+      const validDowngrade = validatePlanChange({
+        callerUid: 'emp_123',
+        employerId: 'emp_123',
+        targetPlan: 'starter',
+        currentPlan: 'business',
+        currentActiveJobCount: 4,
+      });
+
+      assert.equal(validDowngrade.valid, true);
+      assert.equal(validDowngrade.statusCode, 200);
+    });
   });
 
   describe('validateAdminApproveUpgrade', () => {

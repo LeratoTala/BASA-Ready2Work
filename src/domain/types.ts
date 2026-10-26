@@ -208,6 +208,17 @@ export interface EmployerUpgradeRequest {
   adminNote?: string;
 }
 
+export interface EmployerDowngradeRequest {
+  id: string;
+  employerUid: string;
+  businessName: string;
+  currentPlan: 'free' | 'starter' | 'business' | 'partner';
+  targetPlan: 'free' | 'starter' | 'business';
+  reason?: string;
+  requestedAt: string;
+  status: 'completed' | 'pending';
+}
+
 export interface PricingPulseSurveyResponse {
   id: string;
   employerUid: string;

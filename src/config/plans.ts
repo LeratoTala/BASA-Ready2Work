@@ -98,6 +98,25 @@ export function getPlanConfig(planId?: string): EmployerPlanConfig {
 }
 
 /**
+ * Calculates a 30-day plan billing cycle expiry date.
+ */
+export function calculatePlanExpiryDate(fromDateIso?: string, days = 30): string {
+  const base = fromDateIso ? new Date(fromDateIso).getTime() : Date.now();
+  return new Date(base + days * 24 * 60 * 60 * 1000).toISOString();
+}
+
+/**
+ * Returns remaining days on an active subscription plan, or null if no expiry is set (e.g. Free tier).
+ */
+export function getDaysRemaining(expiresAt?: string, nowMs = Date.now()): number | null {
+  if (!expiresAt) return null;
+  const expiryMs = new Date(expiresAt).getTime();
+  if (Number.isNaN(expiryMs)) return null;
+  const diffMs = expiryMs - nowMs;
+  return Math.max(0, Math.ceil(diffMs / (24 * 60 * 60 * 1000)));
+}
+
+/**
  * Evaluates whether an employer's plan has expired.
  * A plan whose planExpiresAt is in the past is treated as 'free' for job limit and access purposes.
  */
