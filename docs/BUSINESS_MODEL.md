@@ -61,7 +61,7 @@ Hiring entry-level staff through traditional classifieds (e.g. Gumtree, Facebook
 
 1. **Massive Time Savings:** A typical job post on general job boards generates 200–500 unvetted CVs, mostly fabricated or irrelevant. BASA pre-screens candidates by demonstrated practical ability, reducing applicant screening time by **over 80%**.
 2. **Lower No-Show and Mismatch Rates:** A verified candidate who has passed a 100-point bench test or earned peer contractor endorsements has proven attendance and tool competence.
-3. **Transparent Pay Transparency:** Enforcing the South African National Minimum Wage benchmark (assumed R27.58/hr, to be confirmed against current statutory gazette) and clear pay terms ensures employers attract serious, reliable talent without wage disputes.
+3. **Transparent Pay Transparency:** Promoting awareness of the statutory South African National Minimum Wage and clear pay terms ensures employers attract serious, reliable talent without wage disputes.
 4. **Negligible Cost Compared to Alternatives:** Commercial recruitment agencies charge 15%–20% of first-year salary (R6,000–R12,000 per hire). At **R199/month**, an SMME can hire up to 5 candidates for less than the cost of a single tank of fuel.
 
 ---

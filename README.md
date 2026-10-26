@@ -36,7 +36,7 @@ Use this quick-reference directory to find the exact documentation file for your
 |---|---|
 | **Candidate (Youth Jobseeker)** | Build a verifiable Skill Passport with honest status labels, attach work photos/evidence, post single certificates covering multiple modular skills, request peer contractor endorsements, take 100-pt practical rubric tests, see explainable job matches ranked by commute distance, submit 1-click applications (duplicate applications strictly prevented), and track payment confirmation. |
 | **Employer** | Post opportunities with mandatory transparent ZAR pay terms (`hourly`, `daily`, or `fixed`), inspect vetted applicant evidence instead of unverified paper CVs, advance candidates through hiring stages, view active listings vs. finished engagements, and explicitly confirm candidate payments. |
-| **Assessor & Administrator** | Grade bench tests against standardized 100-pt rubrics, approve peer contractor endorsements, review badges/certificates and upgrade all linked passport skills simultaneously, inspect job compensation against the statutory South African National Minimum Wage benchmark (assumed $\ge \text{R}27.58/\text{hr}$, subject to confirmation against current gazette), resolve community reports, and operate multiple administrative roles (Assessor vs Moderator). |
+| **Assessor & Administrator** | Grade bench tests against standardized 100-pt rubrics, approve peer contractor endorsements, review badges/certificates and upgrade all linked passport skills simultaneously, inspect job compensation against statutory South African National Minimum Wage guidelines, resolve community reports, and operate multiple administrative roles (Assessor vs Moderator). |
 
 ---
 
@@ -54,8 +54,8 @@ Use this quick-reference directory to find the exact documentation file for your
 
 ### 3. Admin Job Pay Terms & National Minimum Wage (NMW) Inspector
 * Admin dashboard features an `[Inspect Terms & NMW]` tool on every live listing.
-* Automatically computes effective hourly earnings and validates compliance against the statutory South African National Minimum Wage benchmark of **$\text{R}27.58/\text{hour}$**.
-* Non-compliant postings trigger an exploitation alert with 1-click listing suspension.
+* Automatically computes effective hourly earnings and prompts administrators to check the rate against the current statutory National Minimum Wage gazetted by the Department of Employment and Labour.
+* Enables administrative oversight and review under Section 30 youth worker protections.
 
 ### 4. Work Completion Decoupled from Payment Confirmation & Workplace Time Accounting
 * When work is completed, payout confirmation defaults to `false`.

@@ -135,8 +135,6 @@ export const AdminDashboard: React.FC<Props> = ({
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [showSuggestedScores, setShowSuggestedScores] = useState(false);
 
-  const SA_STATUTORY_MINIMUM_WAGE_HOURLY = 27.58;
-
   const calculateEffectiveHourlyRate = (job: Job): number => {
     if (job.compensationUnit === 'hourly') return job.compensationAmount;
     if (job.compensationUnit === 'daily') return job.compensationAmount / 8;
@@ -2182,51 +2180,31 @@ export const AdminDashboard: React.FC<Props> = ({
 
                 {(() => {
                   const effectiveHourly = calculateEffectiveHourlyRate(inspectingJob);
-                  const isCompliant = effectiveHourly >= SA_STATUTORY_MINIMUM_WAGE_HOURLY;
 
                   return (
                     <div className="space-y-2.5">
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-stone-600 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-stone-600 text-xs">
                         <div className="p-2.5 bg-white rounded border border-stone-200">
                           <span className="text-stone-400 block text-[10px] uppercase font-bold">Effective Hourly Rate</span>
                           <span className="text-base font-bold text-stone-900">R{effectiveHourly.toFixed(2)}</span>
                           <span className="text-[10px] text-stone-400 block">/ hour equivalent</span>
                         </div>
                         <div className="p-2.5 bg-white rounded border border-stone-200">
-                          <span className="text-stone-400 block text-[10px] uppercase font-bold">SA National Minimum Wage</span>
-                          <span className="text-base font-bold text-stone-900">R{SA_STATUTORY_MINIMUM_WAGE_HOURLY.toFixed(2)}</span>
-                          <span className="text-[10px] text-stone-400 block">assumed benchmark (validate with gazette)</span>
-                        </div>
-                        <div className="p-2.5 bg-white rounded border border-stone-200">
-                          <span className="text-stone-400 block text-[10px] uppercase font-bold">Compliance Status</span>
-                          <span className={`text-base font-bold ${isCompliant ? 'text-emerald-700' : 'text-rose-700'}`}>
-                            {isCompliant ? 'Compliant' : 'Non-Compliant'}
-                          </span>
-                          <span className="text-[10px] text-stone-400 block">Dept of Labour NMW</span>
+                          <span className="text-stone-400 block text-[10px] uppercase font-bold">Statutory Benchmark</span>
+                          <span className="text-sm font-semibold text-stone-800">National Minimum Wage</span>
+                          <span className="text-[10px] text-stone-400 block">Department of Employment and Labour</span>
                         </div>
                       </div>
 
-                      {isCompliant ? (
-                        <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg flex items-start gap-2">
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-bold">✓ Compliant with South African National Minimum Wage</p>
-                            <p className="text-[11px] text-emerald-700 mt-0.5">
-                              The effective rate of R{effectiveHourly.toFixed(2)}/hr meets or exceeds the statutory R{SA_STATUTORY_MINIMUM_WAGE_HOURLY}/hr threshold. Youth workers are not at risk of sub-minimum compensation.
-                            </p>
-                          </div>
+                      <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold">Statutory Pay Guidance</p>
+                          <p className="text-[11px] text-amber-800 mt-0.5">
+                            Check this rate against the current statutory National Minimum Wage.
+                          </p>
                         </div>
-                      ) : (
-                        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-900 rounded-lg flex items-start gap-2">
-                          <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-bold">⚠️ Statutory Violation Alert: Rate Below National Minimum Wage</p>
-                            <p className="text-[11px] text-rose-700 mt-0.5">
-                              The calculated effective rate of R{effectiveHourly.toFixed(2)}/hr is BELOW the statutory R{SA_STATUTORY_MINIMUM_WAGE_HOURLY}/hr benchmark under the National Minimum Wage Act. This posting should be suspended under Section 30 fraud and exploitation protections until corrected.
-                            </p>
-                          </div>
-                        </div>
-                      )}
+                      </div>
                     </div>
                   );
                 })()}

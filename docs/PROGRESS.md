@@ -13,7 +13,7 @@ The BASA: Ready2Work platform has completed all core functional requirements and
 - **Honest Skill Passport (Section 29):** Strict 4-tier honest labels (`Self-reported`, `Peer-endorsed`, `Task-assessed`, `Mentor-reviewed`), Grade 6 plain-language explanations, and AI CV tags (`"Written with AI help - not verified"`).
 - **Fraud & Exploitation Protection (Section 30):** Mandatory transparent ZAR compensation, unverified employer posting blocks, 3-report auto-hide with community moderation queue, safety tips banners, contact masking (POPIA), and endorsement cap/ring detection.
 - **Badges & Modular Credentials (Section 35 & Multi-Skill):** Candidates can post a single vocational certificate or badge, link multiple modular skills it covers, have skills automatically added to their Skill Passport, and have all linked skills verified simultaneously upon assessor approval.
-- **Admin Job Pay Terms Inspector & Statutory NMW Checks:** Complete compensation inspector evaluating effective hourly rates against the statutory South African National Minimum Wage benchmark ($\ge \text{R}27.58/\text{hr}$).
+- **Admin Job Pay Terms Inspector & Statutory NMW Checks:** Complete compensation inspector evaluating effective hourly rates and providing statutory National Minimum Wage guidance.
 - **Duplicate Application Prevention:** Deterministic ID generation (`jobId_candidateId`) and store guards block candidates from applying for the same job post more than once.
 - **User Validation & Success Metrics (Sections 31 & 32):** In-app 5-star user feedback form (`FeedbackModal.tsx`), validation interview protocols (`VALIDATION_PLAN.md`), template (`VALIDATION_FINDINGS.md`), and pilot metrics (`SUCCESS_METRICS.md`).
 
@@ -42,7 +42,7 @@ The BASA: Ready2Work platform has completed all core functional requirements and
 | **FR-19** | **Verification Engine** | **Done** | Peer endorsements, 100-pt practical micro-task rubrics ($\ge 70$ pass mark), and designated mentor reviews. |
 | **FR-20** | **Decoupled Payout Confirmation** | **Done** | Work completion decoupled from payout; employer must explicitly confirm payment before status shows `paid`. |
 | **FR-21** | **Badges & Multi-Skill Credentials** | **Done** | Single certificate or badge links across multiple practical skills; batch verification on passport upon assessor approval. |
-| **FR-22** | **National Minimum Wage Compliance** | **Done** | Automated statutory checks ($\ge \text{R}27.58/\text{hr}$) on Admin Job Inspector. |
+| **FR-22** | **National Minimum Wage Compliance** | **Done** | Statutory wage guidance on Admin Job Inspector. |
 | **FR-23** | **Candidate Categorized Job Views** | **Done** | 4 distinct candidate views: Available (unapplied only; hides applied jobs to prevent duplicates), Applied (shows live review status), Completed (tracks paid vs payment pending), and All Jobs (shows application status across all posts). |
 | **FR-24** | **Job Closure Guard, Reopening & Job ID Visibility** | **Done** | Employers must update every applicant's status before closing a job; reopening support; persistent Job ID (#job-id) on every card; completed view tracks whether the job is currently open or closed; applied & all jobs display closed jobs with status badges. |
 | **FR-25** | **Grade 6 Plain-Language Accessibility** | **Done** | Simplified candidate and employer interfaces using everyday English instead of technical jargon; clear matching formula breakdown; plain privacy disclosures; intuitive tab guidance banners. |

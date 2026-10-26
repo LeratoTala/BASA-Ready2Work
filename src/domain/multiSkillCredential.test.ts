@@ -119,13 +119,18 @@ describe('Multi-Skill Credential Association & Passport Verifications', () => {
   });
 });
 
-describe('Admin Job Terms & South African National Minimum Wage (NMW) Inspector', () => {
-  const SA_STATUTORY_MINIMUM_WAGE_HOURLY = 27.58;
-
+describe('Admin Job Terms & Statutory National Minimum Wage Advisory Inspector', () => {
   const calculateEffectiveHourlyRate = (job: Partial<Job>): number => {
     if (job.compensationUnit === 'hourly') return job.compensationAmount ?? 0;
     if (job.compensationUnit === 'daily') return (job.compensationAmount ?? 0) / 8;
+    if (job.compensationUnit === 'weekly') return (job.compensationAmount ?? 0) / 40;
+    if (job.compensationUnit === 'fortnightly') return (job.compensationAmount ?? 0) / 80;
+    if (job.compensationUnit === 'monthly') return (job.compensationAmount ?? 0) / 173.33;
     return job.compensationAmount ?? 0;
+  };
+
+  const getStatutoryGuidanceNote = (): string => {
+    return 'Check this rate against the current statutory National Minimum Wage.';
   };
 
   it('correctly calculates effective hourly rate from daily pay', () => {
@@ -135,34 +140,23 @@ describe('Admin Job Terms & South African National Minimum Wage (NMW) Inspector'
     };
     const effectiveRate = calculateEffectiveHourlyRate(job);
     assert.equal(effectiveRate, 40); // 320 / 8 = R40/hr
-    assert.ok(effectiveRate >= SA_STATUTORY_MINIMUM_WAGE_HOURLY);
   });
 
-  it('flags sub-minimum wage exploitative rates below R27.58/hr', () => {
-    const exploitativeJob: Partial<Job> = {
-      title: 'Workshop Cleaner & Packer',
-      compensationAmount: 160,
-      compensationUnit: 'daily', // 160 / 8 = R20/hr, below R27.58 statutory NMW
+  it('correctly calculates effective hourly rate from weekly and monthly pay', () => {
+    const weeklyJob: Partial<Job> = {
+      title: 'Workshop Assistant',
+      compensationAmount: 1200,
+      compensationUnit: 'weekly', // 1200 / 40 = R30/hr
     };
 
-    const effectiveRate = calculateEffectiveHourlyRate(exploitativeJob);
-    assert.equal(effectiveRate, 20);
-    assert.ok(
-      effectiveRate < SA_STATUTORY_MINIMUM_WAGE_HOURLY,
-      'Effective rate of R20/hr is below statutory R27.58/hr and must trigger alert'
-    );
+    const effectiveRate = calculateEffectiveHourlyRate(weeklyJob);
+    assert.equal(effectiveRate, 30);
   });
 
-  it('validates compliant hourly job meeting statutory threshold', () => {
-    const compliantJob: Partial<Job> = {
-      title: 'Junior Barista Assistant',
-      compensationAmount: 35,
-      compensationUnit: 'hourly',
-    };
-
-    const effectiveRate = calculateEffectiveHourlyRate(compliantJob);
-    assert.equal(effectiveRate, 35);
-    assert.ok(effectiveRate >= SA_STATUTORY_MINIMUM_WAGE_HOURLY);
+  it('displays neutral statutory advisory guidance without hardcoded threshold figures', () => {
+    const guidance = getStatutoryGuidanceNote();
+    assert.equal(guidance, 'Check this rate against the current statutory National Minimum Wage.');
+    assert.ok(!/\d/.test(guidance), 'Guidance note must contain no hardcoded numeric figures');
   });
 });
 
