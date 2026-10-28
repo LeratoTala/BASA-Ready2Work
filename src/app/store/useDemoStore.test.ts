@@ -30,7 +30,7 @@ describe('useDemoStore and demo sandbox storage', () => {
   });
 
   it('renders useDemoStore without stack overflow and initializes the 7 demo personas', () => {
-    let capturedStore: ReturnType<typeof useDemoStore> | null = null;
+    let capturedStore: any = null;
 
     function TestComponent() {
       capturedStore = useDemoStore();
@@ -57,15 +57,15 @@ describe('useDemoStore and demo sandbox storage', () => {
 
     // Verify Tshiamo has both pending verification and pending upgrade
     assert.equal(store.employerProfiles['employer-tshiamo'].verificationStatus, 'pending');
-    assert.equal(store.upgradeRequests.some((u) => u.employerUid === 'employer-tshiamo' && u.status === 'pending'), true);
+    assert.equal(store.upgradeRequests.some((u: any) => u.employerUid === 'employer-tshiamo' && u.status === 'pending'), true);
 
     // Verify admin profiles exist
-    assert.ok(store.users.find((u) => u.uid === 'admin-nomsa' && u.role === 'admin'));
-    assert.ok(store.users.find((u) => u.uid === 'admin-sipho' && u.role === 'admin'));
+    assert.ok(store.users.find((u: any) => u.uid === 'admin-nomsa' && u.role === 'admin'));
+    assert.ok(store.users.find((u: any) => u.uid === 'admin-sipho' && u.role === 'admin'));
   });
 
   it('enforces demo storage prefix on all writes and reads', () => {
-    let capturedStore: ReturnType<typeof useDemoStore> | null = null;
+    let capturedStore: any = null;
 
     function TestComponent() {
       capturedStore = useDemoStore();
@@ -84,7 +84,7 @@ describe('useDemoStore and demo sandbox storage', () => {
     assert.ok(mockStorage[prefixedUserKey].includes('employer-zola'));
 
     // In a subsequent render, useDemoStore restores the saved user from the prefixed key
-    let secondRenderStore: ReturnType<typeof useDemoStore> | null = null;
+    let secondRenderStore: any = null;
     function SecondComponent() {
       secondRenderStore = useDemoStore();
       return React.createElement('div', null, secondRenderStore.currentUser?.displayName ?? '');
@@ -108,7 +108,7 @@ describe('useDemoStore and demo sandbox storage', () => {
     mockStorage[`${DEMO_STORAGE_PREFIX}${STORAGE_KEYS.currentUser}`] = JSON.stringify({ uid: 'employer-zola' });
     mockStorage[`${DEMO_STORAGE_PREFIX}basa_feedback`] = JSON.stringify([{ id: 'test-feedback' }]);
 
-    let capturedStore: ReturnType<typeof useDemoStore> | null = null;
+    let capturedStore: any = null;
     function TestComponent() {
       capturedStore = useDemoStore();
       return React.createElement('div', null, 'ok');

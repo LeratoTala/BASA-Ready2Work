@@ -139,12 +139,14 @@ export const AdminDashboard: React.FC<Props> = ({
   const [showSuggestedScores, setShowSuggestedScores] = useState(false);
 
   const calculateEffectiveHourlyRate = (job: Job): number => {
-    if (job.compensationUnit === 'hourly') return job.compensationAmount;
-    if (job.compensationUnit === 'daily') return job.compensationAmount / 8;
-    if (job.compensationUnit === 'weekly') return job.compensationAmount / 40;
-    if (job.compensationUnit === 'fortnightly') return job.compensationAmount / 80;
-    if (job.compensationUnit === 'monthly') return job.compensationAmount / 173.33;
-    return job.compensationAmount;
+    const amount = Number(job?.compensationAmount ?? (job as any)?.rateAmount ?? 0);
+    const unit: string = String(job?.compensationUnit ?? (job as any)?.rateType ?? 'hourly');
+    if (unit === 'hourly' || unit === 'hour') return amount;
+    if (unit === 'daily' || unit === 'day') return amount / 8;
+    if (unit === 'weekly' || unit === 'week') return amount / 40;
+    if (unit === 'fortnightly' || unit === 'fortnight') return amount / 80;
+    if (unit === 'monthly' || unit === 'month') return amount / 173.33;
+    return amount;
   };
   const [deletionWorking, setDeletionWorking] = useState<string | null>(null);
   const [verifyWorking, setVerifyWorking] = useState<string | null>(null);
@@ -659,7 +661,7 @@ export const AdminDashboard: React.FC<Props> = ({
                       <div className="flex flex-wrap items-center gap-3 text-stone-500 text-[11px]">
                         <span className="flex items-center gap-1 font-medium text-stone-800">
                           <Building2 className="w-3.5 h-3.5 text-stone-400" />
-                          {job.employerName}
+                          {job?.employerName || 'Employer'}
                           {job.employerVerified && (
                             <span className="text-[10px] text-emerald-700 font-semibold flex items-center gap-0.5 ml-1">
                               <ShieldCheck className="w-3 h-3 text-emerald-600" /> Verified
@@ -669,11 +671,11 @@ export const AdminDashboard: React.FC<Props> = ({
                         <span>·</span>
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-stone-400" />
-                          {job.locationArea} ({job.workMode})
+                          {job?.locationArea || 'South Africa'} ({job?.workMode || 'in_person'})
                         </span>
                         <span>·</span>
                         <span className="font-semibold text-emerald-800">
-                          R{job.compensationAmount.toLocaleString()} / {job.compensationUnit}
+                          R{Number(job?.compensationAmount ?? (job as any)?.rateAmount ?? 0).toLocaleString()} / {job?.compensationUnit ?? (job as any)?.rateType ?? 'hour'}
                         </span>
                       </div>
                     </div>
@@ -2177,7 +2179,7 @@ export const AdminDashboard: React.FC<Props> = ({
                     Compensation & South African Statutory Wage Check
                   </span>
                   <span className="font-extrabold text-sm text-emerald-800">
-                    R{inspectingJob.compensationAmount.toLocaleString()} / {inspectingJob.compensationUnit}
+                    R{Number(inspectingJob?.compensationAmount ?? (inspectingJob as any)?.rateAmount ?? 0).toLocaleString()} / {inspectingJob?.compensationUnit ?? (inspectingJob as any)?.rateType ?? 'hour'}
                   </span>
                 </div>
 
@@ -2847,7 +2849,7 @@ export const AdminDashboard: React.FC<Props> = ({
                             <div>
                               <span className="font-bold text-stone-900 block">{j.title}</span>
                               <span className="text-[10px] text-stone-500">
-                                {j.locationArea} · R{j.compensationAmount} / {j.compensationUnit}
+                                {j.locationArea} · R{Number(j?.compensationAmount ?? (j as any)?.rateAmount ?? 0).toLocaleString()} / {j?.compensationUnit ?? (j as any)?.rateType ?? 'hour'}
                               </span>
                             </div>
                             <span

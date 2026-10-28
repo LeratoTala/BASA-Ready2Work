@@ -86,6 +86,32 @@ const byId = <T extends { uid: string }>(items: T[]): Record<string, T> =>
  * Every query is scoped to what the signed-in role may read (Firestore rules are not filters).
  * Authoritative permission checks live in firebase/firestore.rules; checks here give fast feedback.
  */
+function normalizeJob(data: any, id: string): Job {
+  return {
+    ...data,
+    id: data.id || id,
+    employerId: data.employerId || '',
+    employerName: data.employerName || 'Employer',
+    employerVerified: Boolean(data.employerVerified),
+    title: data.title || 'Untitled Opportunity',
+    description: data.description || '',
+    responsibilities: Array.isArray(data.responsibilities) ? data.responsibilities : [],
+    requiredSkillIds: Array.isArray(data.requiredSkillIds) ? data.requiredSkillIds : [],
+    requiredSkillNames: Array.isArray(data.requiredSkillNames) ? data.requiredSkillNames : [],
+    locationArea: data.locationArea || 'South Africa',
+    workMode: (data.workMode || 'in_person') as any,
+    compensationAmount: Number(data.compensationAmount ?? data.rateAmount ?? 0),
+    compensationCurrency: data.compensationCurrency || 'ZAR',
+    compensationUnit: (data.compensationUnit ?? data.rateType ?? 'hourly') as any,
+    engagementType: data.engagementType,
+    startDate: data.startDate || new Date().toISOString().split('T')[0],
+    applicationDeadline: data.applicationDeadline || '',
+    status: data.status || 'open',
+    reportCount: Number(data.reportCount ?? 0),
+    createdAt: data.createdAt || new Date().toISOString(),
+  };
+}
+
 export function useFirestoreStore(): BasaStore {
   const { db, auth, googleProvider } = getFirebase();
   const prefs = useLocalPrefs();
@@ -255,7 +281,7 @@ export function useFirestoreStore(): BasaStore {
     );
 
     if (role === 'candidate') {
-      listCol<Job>(query(col(COLLECTIONS.jobs), where('status', '==', 'open')), setJobs);
+      listCol<Job>(query(col(COLLECTIONS.jobs), where('status', '==', 'open')), (items) => setJobs(items.map((j) => normalizeJob(j, j.id))));
       listCol<SkillClaim>(query(col(COLLECTIONS.skillClaims), where('candidateId', '==', uid)), setSkillClaims);
       listCol<AssessmentRecord>(query(col(COLLECTIONS.assessments), where('candidateId', '==', uid)), setAssessments);
       listCol<PeerEndorsement>(query(col(COLLECTIONS.endorsements), where('candidateId', '==', uid)), setEndorsements);
@@ -310,7 +336,7 @@ export function useFirestoreStore(): BasaStore {
         )
       );
     } else if (role === 'employer') {
-      listCol<Job>(query(col(COLLECTIONS.jobs), where('employerId', '==', uid)), setJobs);
+      listCol<Job>(query(col(COLLECTIONS.jobs), where('employerId', '==', uid)), (items) => setJobs(items.map((j) => normalizeJob(j, j.id))));
       listCol<Application>(query(col(COLLECTIONS.applications), where('employerId', '==', uid)), setApplications);
       listCol<WorkRecord>(query(col(COLLECTIONS.workRecords), where('employerId', '==', uid)), setWorkRecords);
       unsubs.push(
@@ -322,7 +348,7 @@ export function useFirestoreStore(): BasaStore {
       );
     } else {
       listCol<User>(col(COLLECTIONS.users), setAllUsers);
-      listCol<Job>(col(COLLECTIONS.jobs), setJobs);
+      listCol<Job>(col(COLLECTIONS.jobs), (items) => setJobs(items.map((j) => normalizeJob(j, j.id))));
       listCol<SkillClaim>(col(COLLECTIONS.skillClaims), setSkillClaims);
       listCol<AssessmentRecord>(col(COLLECTIONS.assessments), setAssessments);
       listCol<PeerEndorsement>(col(COLLECTIONS.endorsements), setEndorsements);
