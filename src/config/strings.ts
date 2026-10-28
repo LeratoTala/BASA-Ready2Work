@@ -108,3 +108,27 @@ export const UI_STRINGS = {
   candidateProofTitle: 'Uploaded Proof & Work Samples',
   accessDeniedProfile: 'You do not have permission to view applicant profiles belonging to another employer.',
 } as const;
+
+export const START_SCREEN_STRINGS = {
+  title: 'BASA: Ready2Work',
+  tagline: 'Turn informal skills into credible evidence and real work.',
+  subTagline: 'Skills-first, zero upfront fees, and low-data friendly for South Africa.',
+  realCardTitle: 'Sign in or create an account',
+  realCardDesc: 'Connect your real profile, build your verified Skill Passport, apply to open jobs, or hire verified local talent.',
+  realCardDisabledNote: 'Real accounts are not available on this deployment.',
+  demoCardTitle: 'Quick Access Demo',
+  demoCardTag: 'Explore with sample profiles, no sign-up',
+  demoCardDesc: 'A sandbox with 7 sample profiles: candidates, employers, and assessors. No passwords, no credit cards, completely free.',
+  demoCardBadge: 'Instant Sandbox',
+  footerText: 'Fair Work · Zero Upfront Fees · POPIA Compliant',
+} as const;
+
+export const DEMO_PERSONA_DESCRIPTIONS: Record<string, string> = {
+  'candidate-thabo': 'Jobseeker in Soweto · Barista & Solar Assistant with active applications',
+  'candidate-nomvula': 'Retail Merchandiser & Digital Assistant · Multi-tier skills & pending endorsement',
+  'employer-zola': 'Zola Artisan Café (Free Plan) · 1 open barista job with applicant pipeline',
+  'employer-sunpower': 'SunPower Solars (Starter Plan) · 2-3 open solar jobs with mixed applicants',
+  'employer-tshiamo': 'Kasi Fresh Logistics (Free Plan) · Pending business verification & upgrade request',
+  'admin-nomsa': 'Lead Assessor & Mentor · Practical rubrics queue, pending verification & upgrades',
+  'admin-sipho': 'Compliance & Moderation Officer · Moderation reports queue & privacy requests',
+};

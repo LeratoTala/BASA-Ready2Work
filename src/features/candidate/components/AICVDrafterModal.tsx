@@ -13,15 +13,17 @@ import {
   Lock,
   ArrowRight,
   Trash2,
+  Info,
 } from 'lucide-react';
 import { CandidateProfile, SkillClaim } from '../../../domain/types';
-import { getFirebase } from '../../../services/firebase';
 import { UI_STRINGS } from '../../../config/strings';
 import {
   AI_CV_DISCLAIMER_TAG,
   TEMPLATE_DISCLAIMER_TAG,
   canSaveAiCvDraft,
   AiCvDraftLine,
+  sanitizeCandidateCvInput,
+  buildFallbackTemplateDraft,
 } from '../../../domain/aiCvSafeguards';
 import { useOSModalNavigation } from '../../../shared/hooks/useOSNavigation';
 
@@ -31,6 +33,7 @@ interface Props {
   candidate: CandidateProfile;
   claims: SkillClaim[];
   onApplyDraft: (headline: string, summary: string) => void;
+  mode?: 'demo' | 'real';
 }
 
 export const AICVDrafterModal: React.FC<Props> = ({
@@ -39,6 +42,7 @@ export const AICVDrafterModal: React.FC<Props> = ({
   candidate,
   claims,
   onApplyDraft,
+  mode = 'real',
 }) => {
   useOSModalNavigation({
     isOpen,
@@ -60,6 +64,7 @@ export const AICVDrafterModal: React.FC<Props> = ({
   const [draftLines, setDraftLines] = useState<AiCvDraftLine[]>([]);
   const [disclaimerTag, setDisclaimerTag] = useState<string>(AI_CV_DISCLAIMER_TAG);
   const [suggestedHeadline, setSuggestedHeadline] = useState<string>('');
+  const [isDemoSimulated, setIsDemoSimulated] = useState(false);
   
   // 37.5 Human-in-the-loop truthfulness confirmation
   const [isTruthConfirmed, setIsTruthConfirmed] = useState(false);
@@ -72,16 +77,38 @@ export const AICVDrafterModal: React.FC<Props> = ({
     setError(null);
     setSuccessSaved(false);
     setIsTruthConfirmed(false);
+    setIsDemoSimulated(false);
 
     try {
-      let idToken = '';
-      if (!env.enableDemoData) {
-        try {
-          const { auth } = getFirebase();
-          idToken = (await auth.currentUser?.getIdToken()) ?? '';
-        } catch {
-          // Fall back gracefully
+      // In Demo Mode: zero network calls, zero server load, instant local fallback draft
+      if (mode === 'demo') {
+        const sanitized = sanitizeCandidateCvInput(
+          candidate.fullName,
+          claims.map((c) => ({
+            name: c.skillName,
+            label: c.verificationStatus,
+          })),
+          experienceNotes
+        );
+        const fallback = buildFallbackTemplateDraft(sanitized);
+        setDraftLines(fallback.lines);
+        setDisclaimerTag(fallback.disclaimerTag);
+        if (!suggestedHeadline) {
+          setSuggestedHeadline(headline || `${claims[0]?.skillName || 'Skilled'} Assistant`);
         }
+        setIsDemoSimulated(true);
+        setLoading(false);
+        return;
+      }
+
+      // Real Mode: verify Firebase token and fetch from backend server
+      let idToken = '';
+      try {
+        const { getFirebase } = await import('../../../services/firebase');
+        const { auth } = getFirebase();
+        idToken = (await auth.currentUser?.getIdToken()) ?? '';
+      } catch {
+        // Fall back gracefully
       }
 
       const response = await fetch(`${env.apiBaseUrl}/api/cv-draft`, {
@@ -153,8 +180,6 @@ export const AICVDrafterModal: React.FC<Props> = ({
       onClose();
     }, 1200);
   };
-
-  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 overflow-y-auto">
@@ -247,6 +272,13 @@ export const AICVDrafterModal: React.FC<Props> = ({
                 <strong>Section 37 Safeguards Active:</strong> AI rewording only. Cannot invent qualifications or upgrade Self-reported skills to certified. You must confirm all facts before saving.
               </div>
             </div>
+
+            {isDemoSimulated && (
+              <div className="bg-blue-50 border border-blue-200 px-4 py-2.5 rounded-lg text-xs text-blue-900 flex items-center gap-2">
+                <Info className="w-4 h-4 text-blue-600 shrink-0" />
+                <span>Demo: AI drafting is simulated.</span>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Left Column: Source Facts */}

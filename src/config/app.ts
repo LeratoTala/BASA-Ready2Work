@@ -8,6 +8,8 @@ export const APP = {
   apiTimeoutMs: 15_000,
 } as const;
 
+export const DEMO_STORAGE_PREFIX = 'basa_demo_v1:';
+
 export const STORAGE_KEYS = {
   currentUser: `${APP.storagePrefix}currentUser`,
   users: `${APP.storagePrefix}users`,

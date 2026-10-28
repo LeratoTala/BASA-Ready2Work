@@ -1,10 +1,8 @@
-import { env } from '../../config/env';
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Flame,
   Wifi,
   WifiOff,
-  RotateCcw,
   Shield,
   Building2,
   User,
@@ -15,6 +13,8 @@ import {
   Tablet,
   Bell,
   MessageSquare,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 import { Role, User as UserType, FeedbackRecord } from '../../domain/types';
 import { SyncIndicator } from './SyncIndicator';
@@ -33,7 +33,7 @@ interface Props {
   onSelectTab: (tab: string) => void;
   lowDataMode: boolean;
   onToggleLowData: () => void;
-  onResetDemoData: () => void;
+  onResetDemoData?: () => void;
   theme: ColorTheme;
   onToggleTheme: () => void;
   syncStatus: SyncState;
@@ -47,6 +47,7 @@ interface Props {
   unreadNotificationCount?: number;
   onOpenNotifications?: () => void;
   onSubmitFeedback?: (feedback: Omit<FeedbackRecord, 'id' | 'createdAt'>) => void;
+  mode?: 'demo' | 'real';
 }
 
 export const Header: React.FC<Props> = ({
@@ -57,7 +58,6 @@ export const Header: React.FC<Props> = ({
   onSelectTab,
   lowDataMode,
   onToggleLowData,
-  onResetDemoData,
   theme,
   onToggleTheme,
   syncStatus,
@@ -71,8 +71,25 @@ export const Header: React.FC<Props> = ({
   unreadNotificationCount,
   onOpenNotifications,
   onSubmitFeedback,
+  mode = 'real',
 }) => {
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [isSwitcherOpen, setIsSwitcherOpen] = useState(false);
+  const switcherRef = useRef<HTMLDivElement>(null);
+
+  // Close persona dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (switcherRef.current && !switcherRef.current.contains(e.target as Node)) {
+        setIsSwitcherOpen(false);
+      }
+    };
+    if (isSwitcherOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isSwitcherOpen]);
+
   // Navigation tabs based on role — simplified to essential, non-redundant views
   const candidateTabs = [
     { id: 'dashboard', label: 'Opportunities' },
@@ -99,40 +116,135 @@ export const Header: React.FC<Props> = ({
   if (currentUser?.role === 'employer') currentTabs = employerTabs;
   if (currentUser?.role === 'admin') currentTabs = adminTabs;
 
+  const isDemo = mode === 'demo';
+
+  // Grouped users for demo switcher
+  const candidateUsers = users.filter((u) => u.role === 'candidate');
+  const employerUsers = users.filter((u) => u.role === 'employer');
+  const adminUsers = users.filter((u) => u.role === 'admin');
+
   return (
     <header className="bg-white border-b border-stone-200 sticky top-0 z-40">
       {/* Top Utility & Persona Switcher Bar */}
       <div className="bg-stone-900 text-stone-200 text-xs px-4 py-2">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          {/* Persona quick switch */}
-          {env.enableDemoData ? (
-          <div className="flex items-center gap-2">
-            <span className="text-stone-400 font-medium hidden sm:inline">Active Persona:</span>
-            <div className="flex items-center gap-1 bg-stone-800 p-0.5 rounded border border-stone-700">
-              {users.map((u) => {
-                const isSelected = currentUser ? u.uid === currentUser.uid : false;
-                let roleIcon = <User className="w-3 h-3" />;
-                if (u.role === 'employer') roleIcon = <Building2 className="w-3 h-3" />;
-                if (u.role === 'admin') roleIcon = <Shield className="w-3 h-3" />;
+          {/* Persona quick switch (demo only) */}
+          {isDemo ? (
+            <div className="relative" ref={switcherRef}>
+              <button
+                type="button"
+                onClick={() => setIsSwitcherOpen((prev) => !prev)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-700 font-medium text-xs cursor-pointer transition-colors shadow-2xs"
+                aria-expanded={isSwitcherOpen}
+                aria-label="Switch demo profile"
+              >
+                <span className="text-stone-400 font-normal">Switch profile:</span>
+                <span className="text-white font-semibold">
+                  {currentUser ? currentUser.displayName.split(' ')[0] : 'Select'}
+                </span>
+                <span className="text-[10px] text-amber-400 capitalize bg-stone-900 px-1 py-0.5 rounded border border-stone-700">
+                  {currentUser?.role ?? 'demo'}
+                </span>
+                <ChevronDown className="w-3.5 h-3.5 text-stone-400 ml-0.5" />
+              </button>
 
-                return (
-                  <button
-                    key={u.uid}
-                    onClick={() => onSwitchUser(u.uid)}
-                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer ${
-                      isSelected
-                        ? 'bg-amber-600 text-white font-medium shadow-xs'
-                        : 'text-stone-300 hover:text-white hover:bg-stone-700'
-                    }`}
-                  >
-                    {roleIcon}
-                    <span>{u.displayName.split(' ')[0]}</span>
-                    <span className="text-[10px] opacity-75 capitalize hidden md:inline">({u.role})</span>
-                  </button>
-                );
-              })}
+              {isSwitcherOpen && (
+                <div className="absolute left-0 top-full mt-1.5 w-72 max-w-[90vw] bg-stone-900 border border-stone-700 rounded-xl shadow-2xl p-2 z-50 text-stone-200 divide-y divide-stone-800">
+                  {/* Candidates */}
+                  <div className="pb-1.5">
+                    <span className="block px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                      Candidates
+                    </span>
+                    {candidateUsers.map((u) => {
+                      const isSelected = currentUser?.uid === u.uid;
+                      return (
+                        <button
+                          key={u.uid}
+                          type="button"
+                          onClick={() => {
+                            onSwitchUser(u.uid);
+                            setIsSwitcherOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-amber-600 text-white font-semibold'
+                              : 'hover:bg-stone-800 text-stone-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <User className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{u.displayName}</span>
+                          </div>
+                          {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Employers */}
+                  <div className="py-1.5">
+                    <span className="block px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-blue-400">
+                      Employers
+                    </span>
+                    {employerUsers.map((u) => {
+                      const isSelected = currentUser?.uid === u.uid;
+                      return (
+                        <button
+                          key={u.uid}
+                          type="button"
+                          onClick={() => {
+                            onSwitchUser(u.uid);
+                            setIsSwitcherOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-blue-600 text-white font-semibold'
+                              : 'hover:bg-stone-800 text-stone-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Building2 className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{u.displayName}</span>
+                          </div>
+                          {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Admins */}
+                  <div className="pt-1.5">
+                    <span className="block px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                      Admins & Assessors
+                    </span>
+                    {adminUsers.map((u) => {
+                      const isSelected = currentUser?.uid === u.uid;
+                      return (
+                        <button
+                          key={u.uid}
+                          type="button"
+                          onClick={() => {
+                            onSwitchUser(u.uid);
+                            setIsSwitcherOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                            isSelected
+                              ? 'bg-emerald-600 text-white font-semibold'
+                              : 'hover:bg-stone-800 text-stone-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <Shield className="w-3.5 h-3.5 shrink-0" />
+                            <span className="truncate">{u.displayName}</span>
+                          </div>
+                          {isSelected && <Check className="w-3.5 h-3.5 shrink-0" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-          </div>
           ) : (
             <span className="text-stone-400 font-medium">Skills → Proof → Work</span>
           )}
@@ -142,42 +254,45 @@ export const Header: React.FC<Props> = ({
             <ThemeToggle theme={theme} onToggle={onToggleTheme} />
 
             {/* Viewport simulator: demo-only. Real devices use the responsive layout. */}
-            {env.enableDemoData && (
-            <div className="hidden sm:flex items-center gap-0.5 bg-stone-800 p-0.5 rounded border border-stone-700">
-              <button
-                onClick={() => onSetViewportMode('desktop')}
-                className={`p-1 rounded cursor-pointer transition-colors ${
-                  viewportMode === 'desktop'
-                    ? 'bg-amber-600 text-white'
-                    : 'text-stone-400 hover:text-white'
-                }`}
-                title="Desktop View (1440px wide)"
-              >
-                <Monitor className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => onSetViewportMode('tablet')}
-                className={`p-1 rounded cursor-pointer transition-colors ${
-                  viewportMode === 'tablet'
-                    ? 'bg-amber-600 text-white'
-                    : 'text-stone-400 hover:text-white'
-                }`}
-                title="Tablet View (768px wide)"
-              >
-                <Tablet className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => onSetViewportMode('mobile')}
-                className={`p-1 rounded cursor-pointer transition-colors ${
-                  viewportMode === 'mobile'
-                    ? 'bg-amber-600 text-white'
-                    : 'text-stone-400 hover:text-white'
-                }`}
-                title="Mobile Android/iPhone Phone View (390px)"
-              >
-                <Smartphone className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            {isDemo && (
+              <div className="hidden sm:flex items-center gap-0.5 bg-stone-800 p-0.5 rounded border border-stone-700">
+                <button
+                  type="button"
+                  onClick={() => onSetViewportMode('desktop')}
+                  className={`p-1 rounded cursor-pointer transition-colors ${
+                    viewportMode === 'desktop'
+                      ? 'bg-amber-600 text-white'
+                      : 'text-stone-400 hover:text-white'
+                  }`}
+                  title="Desktop View (1440px wide)"
+                >
+                  <Monitor className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSetViewportMode('tablet')}
+                  className={`p-1 rounded cursor-pointer transition-colors ${
+                    viewportMode === 'tablet'
+                      ? 'bg-amber-600 text-white'
+                      : 'text-stone-400 hover:text-white'
+                  }`}
+                  title="Tablet View (768px wide)"
+                >
+                  <Tablet className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onSetViewportMode('mobile')}
+                  className={`p-1 rounded cursor-pointer transition-colors ${
+                    viewportMode === 'mobile'
+                      ? 'bg-amber-600 text-white'
+                      : 'text-stone-400 hover:text-white'
+                  }`}
+                  title="Mobile Android/iPhone Phone View (390px)"
+                >
+                  <Smartphone className="w-3.5 h-3.5" />
+                </button>
+              </div>
             )}
 
             {/* Sync Status Indicator */}
@@ -191,6 +306,7 @@ export const Header: React.FC<Props> = ({
             {/* Google Auth Sign In */}
             {onSignInGoogle && !currentUser && (
               <button
+                type="button"
                 onClick={onSignInGoogle}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs bg-stone-800 text-stone-300 border border-stone-700 hover:text-white hover:bg-stone-700 transition-colors cursor-pointer"
                 title="Authenticate with Google Account"
@@ -203,6 +319,7 @@ export const Header: React.FC<Props> = ({
             {/* Sign Out Button */}
             {onSignOutGoogle && currentUser && (
               <button
+                type="button"
                 onClick={onSignOutGoogle}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs bg-stone-800 text-stone-300 border border-stone-700 hover:text-rose-400 hover:border-rose-900/60 hover:bg-rose-950/40 transition-colors cursor-pointer"
                 title="Sign out of Ready2Work"
@@ -214,6 +331,7 @@ export const Header: React.FC<Props> = ({
 
             {/* Feedback Button (Section 31.2) */}
             <button
+              type="button"
               onClick={() => setIsFeedbackOpen(true)}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded text-xs bg-amber-500/20 text-amber-300 border border-amber-600/50 hover:bg-amber-500/30 transition-colors cursor-pointer"
               title="Tell us what you think (Section 31.2)"
@@ -224,6 +342,7 @@ export const Header: React.FC<Props> = ({
 
             {/* Low Data Mode Toggle */}
             <button
+              type="button"
               onClick={onToggleLowData}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs transition-colors cursor-pointer border ${
                 lowDataMode
@@ -235,19 +354,6 @@ export const Header: React.FC<Props> = ({
               {lowDataMode ? <WifiOff className="w-3 h-3 text-emerald-400" /> : <Wifi className="w-3 h-3" />}
               <span>{lowDataMode ? 'Low-Data: ON' : 'Low-Data Mode'}</span>
             </button>
-
-            {env.enableDemoData && (
-              <>
-            {/* Reset Seed Data */}
-            <button
-              onClick={onResetDemoData}
-              className="flex items-center gap-1 text-stone-400 hover:text-stone-200 transition-colors p-1"
-              title="Reset sample candidates, jobs, and evaluations to initial demo state"
-            >
-              <RotateCcw className="w-3 h-3" />
-            </button>
-              </>
-            )}
           </div>
         </div>
       </div>
@@ -261,24 +367,23 @@ export const Header: React.FC<Props> = ({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="font-extrabold text-lg tracking-tight text-stone-950">BASA</span>
-              <span className="text-amber-700 font-bold text-sm bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+              <span className="font-black text-lg tracking-tight text-stone-950">BASA</span>
+              <span className="text-amber-800 text-xs font-bold bg-amber-100 border border-amber-300 px-2 py-0.5 rounded">
                 Ready2Work
               </span>
             </div>
-            <p className="text-[11px] text-stone-500 font-medium">
-              Skills → Proof → Work · South Africa
-            </p>
+            <p className="text-xs text-stone-500 font-medium">Bridge to Actual Skills & Access · South Africa</p>
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <nav className="flex items-center gap-1 overflow-x-auto py-1">
+        {/* Dynamic Role Navigation Tabs */}
+        <nav aria-label="Main Navigation" className="flex flex-wrap items-center gap-1 sm:gap-2">
           {currentTabs.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => onSelectTab(tab.id)}
                 className={`px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer rounded-md ${
                   isActive

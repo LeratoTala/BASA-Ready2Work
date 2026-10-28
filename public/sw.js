@@ -6,7 +6,7 @@
  * (HTML/JS/CSS) is served from the browser cache when the user is offline.
  */
 
-const CACHE_NAME = 'basa-shell-v1';
+const CACHE_NAME = 'basa-shell-v2';
 
 // Static shell assets to pre-cache on install.
 const SHELL_ASSETS = [

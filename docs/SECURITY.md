@@ -14,14 +14,14 @@ Optional evidence images are limited to JPEG, PNG or WebP up to 5 MB. Storage pa
 ## Before going public (checklist)
 - [ ] Enable **Firebase App Check** and restrict the web API key to your domains.
 - [ ] Add authorized domains only for your real hosts (Firebase Auth settings).
-- [x] Require Firebase ID-token verification for the AI endpoint outside fictional demo mode.
+- [x] Require Firebase ID-token verification on all API endpoints; missing or invalid tokens always return 401 (no bypass flags permitted).
 - [ ] Keep AI drafting disabled by default; review the provider's current data-use terms before setting `GEMINI_ENABLED=true`.
 - [x] Exclude candidate names, contact details, location and account identifiers from AI prompts; show a reminder not to enter them in free text.
 - [x] Move candidate phone/contact into a private document revealed only after shortlisting; legacy profile fields migrate on next candidate sign-in.
 - [ ] Before public launch, verify legacy profile contact fields have been migrated for all active candidates.
 - [ ] Publish a privacy notice; define correction, deletion and evidence-retention process.
 - [ ] Configure and publish the BASA service operator's privacy contact before public use.
-- [ ] Confirm `VITE_ENABLE_DEMO_DATA=false` in production.
+- [x] Runtime mode isolation: Quick Access Demo mode operates exclusively in client localStorage with prefix `basa_demo_v1:`, makes 0 Firebase/network calls, and cannot create accounts.
 - [ ] Run `npm run test:rules` against the emulator in CI.
 - [ ] Rotate any key that was ever shared outside your team.
 

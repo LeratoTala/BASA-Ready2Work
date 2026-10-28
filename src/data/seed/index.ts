@@ -1,22 +1,20 @@
-import { env } from '../../config/env';
 import * as demo from './demoData';
 
 /**
- * Initial application state.
- * Fictional demo data is used ONLY when VITE_ENABLE_DEMO_DATA=true.
- * Otherwise the app starts empty and all data comes from the backend.
+ * Initial fictional seed state for Quick Access Demo mode.
+ * Imported and loaded ONLY by the demo store (useDemoStore).
  */
-const useDemo = env.enableDemoData;
-
-export const INITIAL_USERS = useDemo ? demo.INITIAL_USERS : [];
-export const INITIAL_CANDIDATE_PROFILES = useDemo ? demo.INITIAL_CANDIDATE_PROFILES : {};
-export const INITIAL_EMPLOYER_PROFILES = useDemo ? demo.INITIAL_EMPLOYER_PROFILES : {};
-export const INITIAL_SKILL_CLAIMS = useDemo ? demo.INITIAL_SKILL_CLAIMS : [];
-export const INITIAL_ASSESSMENTS = useDemo ? demo.INITIAL_ASSESSMENTS : [];
-export const INITIAL_JOBS = useDemo ? demo.INITIAL_JOBS : [];
-export const INITIAL_APPLICATIONS = useDemo ? demo.INITIAL_APPLICATIONS : [];
-export const INITIAL_WORK_RECORDS = useDemo ? demo.INITIAL_WORK_RECORDS : [];
-export const INITIAL_REPORTS = useDemo ? demo.INITIAL_REPORTS : [];
-export const INITIAL_NOTIFICATIONS = useDemo ? demo.INITIAL_NOTIFICATIONS : [];
-export const INITIAL_ENDORSEMENTS = useDemo ? demo.INITIAL_ENDORSEMENTS : [];
-export const INITIAL_MENTOR_REVIEWS = useDemo ? demo.INITIAL_MENTOR_REVIEWS : [];
+export const INITIAL_USERS = demo.INITIAL_USERS;
+export const INITIAL_CANDIDATE_PROFILES = demo.INITIAL_CANDIDATE_PROFILES;
+export const INITIAL_EMPLOYER_PROFILES = demo.INITIAL_EMPLOYER_PROFILES;
+export const INITIAL_SKILL_CLAIMS = demo.INITIAL_SKILL_CLAIMS;
+export const INITIAL_ASSESSMENTS = demo.INITIAL_ASSESSMENTS;
+export const INITIAL_JOBS = demo.INITIAL_JOBS;
+export const INITIAL_APPLICATIONS = demo.INITIAL_APPLICATIONS;
+export const INITIAL_WORK_RECORDS = demo.INITIAL_WORK_RECORDS;
+export const INITIAL_REPORTS = demo.INITIAL_REPORTS;
+export const INITIAL_NOTIFICATIONS = demo.INITIAL_NOTIFICATIONS;
+export const INITIAL_ENDORSEMENTS = demo.INITIAL_ENDORSEMENTS;
+export const INITIAL_MENTOR_REVIEWS = demo.INITIAL_MENTOR_REVIEWS;
+export const INITIAL_UPGRADE_REQUESTS = demo.INITIAL_UPGRADE_REQUESTS;
+export const INITIAL_PRIVACY_DELETION_REQUESTS = demo.INITIAL_PRIVACY_DELETION_REQUESTS;

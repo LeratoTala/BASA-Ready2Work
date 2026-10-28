@@ -100,3 +100,13 @@ All 123 unit, domain, and integration tests pass with 0 failures:
 16. `workCompletionPayout.test.ts`: Work completion vs payout decoupling, candidate pipeline separation.
 17. `evidenceStorage.test.ts`: File upload MIME type and 5 MB size limit validation.
 18. `maskContact.test.ts`: POPIA phone and email masking.
+
+
+## 4. Dual Runtime Architecture & Demo Isolation
+
+- **Start Screen:** Unified landing page providing instant access to Real Accounts Mode and Quick Access Demo Mode.
+- **Quick Access Demo Mode:** Zero-setup on-device sandbox with 7 fixed personas (2 candidates, 3 employers, 2 assessors), local simulated AI CV drafting, and compact role-grouped persona switcher.
+- **Storage Isolation:** All demo state uses namespace prefix asa_demo_v1:, preserving shared UI preferences (asa_colorTheme, asa_lowDataMode, asa_runtime_mode).
+- **Security Hardening:** Server erifyIdToken middleware permanently enforces token verification with zero bypass flags (401 on missing/invalid tokens).
+- **Clean Code Splitting:** DemoApp and RealApp lazy-loaded via React.lazy + Suspense. Firebase SDK is never initialized in demo mode.
+- **Service Worker:** Cache version bumped to asa-shell-v2.

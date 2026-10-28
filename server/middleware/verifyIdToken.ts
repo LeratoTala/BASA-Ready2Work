@@ -1,46 +1,57 @@
 import type { NextFunction, Request, Response } from 'express';
-import { cert, getApps, initializeApp } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getFirestore } from 'firebase-admin/firestore';
+import type { Firestore } from 'firebase-admin/firestore';
 import { serverConfig } from '../config';
 
-/** Lazily initialise the Admin SDK once. Uses Application Default Credentials on Cloud Run,
- *  or a service-account key file path in GOOGLE_APPLICATION_CREDENTIALS locally. */
-function getAdminApp() {
-  if (getApps().length === 0) {
-    // If a service-account JSON path is provided via env, use it explicitly.
-    // Otherwise fall back to Application Default Credentials (Cloud Run / GCE).
-    const credentialPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-    initializeApp(
-      credentialPath
-        ? { credential: cert(credentialPath), projectId: serverConfig.firebaseProjectId }
-        : { projectId: serverConfig.firebaseProjectId }
-    );
+let adminAppInstance: any = null;
+let adminAuthInstance: any = null;
+let adminFirestoreInstance: Firestore | null = null;
+
+/** Lazily initialise the Admin SDK on first use. */
+async function getAdminApp() {
+  if (!adminAppInstance) {
+    const { cert, getApps, initializeApp } = await import('firebase-admin/app');
+    if (getApps().length === 0) {
+      const credentialPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      adminAppInstance = initializeApp(
+        credentialPath
+          ? { credential: cert(credentialPath), projectId: serverConfig.firebaseProjectId }
+          : { projectId: serverConfig.firebaseProjectId }
+      );
+    } else {
+      adminAppInstance = getApps()[0];
+    }
   }
-  return getApps()[0];
+  return adminAppInstance;
 }
 
-function getAdminAuth() {
-  return getAuth(getAdminApp());
+async function getAdminAuth() {
+  if (!adminAuthInstance) {
+    const { getAuth } = await import('firebase-admin/auth');
+    const app = await getAdminApp();
+    adminAuthInstance = getAuth(app);
+  }
+  return adminAuthInstance;
 }
 
-export function getAdminFirestore() {
-  return getFirestore(getAdminApp());
+export function getAdminFirestore(): Firestore {
+  if (!adminFirestoreInstance) {
+    // If Admin SDK app was initialized, retrieve firestore
+    const { getFirestore } = require('firebase-admin/firestore');
+    const { getApps } = require('firebase-admin/app');
+    adminFirestoreInstance = getFirestore(getApps()[0]) as Firestore;
+  }
+  return adminFirestoreInstance;
 }
 
 /**
  * Express middleware: verifies the Firebase ID token in `Authorization: Bearer <token>`.
  * Attaches the decoded UID to `req.uid` for downstream handlers.
  *
- * Skipped when VITE_ENABLE_DEMO_DATA=true so local dev without Firebase still works.
+ * The server must ALWAYS verify the Firebase ID token and reject missing/invalid tokens with 401.
+ * No environment flag may disable or bypass verification.
  * Reference: FR-14 / Phase 2b security requirement.
  */
 export async function verifyIdToken(req: Request, res: Response, next: NextFunction) {
-  // Demo mode — no Firebase project, skip verification entirely.
-  if (process.env.VITE_ENABLE_DEMO_DATA === 'true') {
-    return next();
-  }
-
   const authHeader = req.headers.authorization ?? '';
   if (!authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Authentication required. Please sign in and try again.' });
@@ -52,7 +63,8 @@ export async function verifyIdToken(req: Request, res: Response, next: NextFunct
   }
 
   try {
-    const decoded = await getAdminAuth().verifyIdToken(idToken, /* checkRevoked */ true);
+    const auth = await getAdminAuth();
+    const decoded = await auth.verifyIdToken(idToken, /* checkRevoked */ true);
     // Attach uid so route handlers can log or scope the request without re-decoding.
     (req as Request & { uid: string; tokenEmail?: string }).uid = decoded.uid;
     (req as Request & { uid: string; tokenEmail?: string }).tokenEmail = decoded.email;
@@ -75,8 +87,8 @@ export async function verifyIdToken(req: Request, res: Response, next: NextFunct
  * Reference: Firebase App Check — https://firebase.google.com/docs/app-check
  */
 export async function verifyAppCheck(req: Request, res: Response, next: NextFunction) {
-  // Skip in demo / development mode
-  if (process.env.VITE_ENABLE_DEMO_DATA === 'true' || process.env.NODE_ENV !== 'production') {
+  // Skip in development mode
+  if (process.env.NODE_ENV !== 'production') {
     return next();
   }
 
@@ -87,7 +99,8 @@ export async function verifyAppCheck(req: Request, res: Response, next: NextFunc
 
   try {
     const { getAppCheck } = await import('firebase-admin/app-check');
-    await getAppCheck(getAdminApp()).verifyToken(appCheckToken);
+    const app = await getAdminApp();
+    await getAppCheck(app).verifyToken(appCheckToken);
     return next();
   } catch {
     return res.status(401).json({ error: 'App integrity check failed. Please refresh and try again.' });

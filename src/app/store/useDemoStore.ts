@@ -44,6 +44,8 @@ import {
   INITIAL_NOTIFICATIONS,
   INITIAL_ENDORSEMENTS,
   INITIAL_MENTOR_REVIEWS,
+  INITIAL_UPGRADE_REQUESTS,
+  INITIAL_PRIVACY_DELETION_REQUESTS,
 } from '../../data/seed';
 import { calculateMatchScore } from '../../domain/matching';
 import { applicationId, isValidTransition, VALID_STATUS_TRANSITIONS } from '../../domain/applicationStatus';
@@ -53,8 +55,7 @@ import {
   createNotificationRecord,
   shouldDeliverNotification,
 } from '../../domain/notifications';
-import { NEW_ACCOUNT_DEFAULTS, STORAGE_KEYS } from '../../config/app';
-import { env } from '../../config/env';
+import { NEW_ACCOUNT_DEFAULTS, STORAGE_KEYS, DEMO_STORAGE_PREFIX, APP } from '../../config/app';
 import { SyncState } from '../../services/syncService';
 import { loadStored, saveStored, removeStored } from '../../services/localStorage';
 import { useLocalPrefs } from './useLocalPrefs';
@@ -62,65 +63,125 @@ import { useLocalPrefs } from './useLocalPrefs';
 export { VALID_STATUS_TRANSITIONS, isValidTransition };
 
 /**
- * Local-only store used when VITE_ENABLE_DEMO_DATA=true: fictional seed data in localStorage, no backend.
+ * Local-only store used when Quick Access Demo mode: fictional seed data in localStorage, no backend.
  * Production uses useFirestoreStore. Both expose the same BasaStore shape.
  */
+
+/** Helper to enforce the isolated demo namespace on every storage key */
+function demoKey(key: string): string {
+  if (key.startsWith(DEMO_STORAGE_PREFIX)) return key;
+  const suffix = key.startsWith(APP.storagePrefix)
+    ? key.slice(APP.storagePrefix.length)
+    : key;
+  return `${DEMO_STORAGE_PREFIX}${suffix}`;
+}
+
+function demoLoad<T>(key: string, fallback: T): T {
+  return loadStored<T>(demoKey(key), fallback);
+}
+
+function demoSave<T>(key: string, value: T): void {
+  saveStored(demoKey(key), value);
+}
+
+function demoRemove(key: string): void {
+  removeStored(demoKey(key));
+}
+
+/** Clean legacy unprefixed demo keys from older builds; never touch shared UI preferences */
+function cleanLegacyDemoKeys(): void {
+  if (typeof localStorage === 'undefined') return;
+  const legacyKeys = [
+    'basa_currentUser',
+    'basa_users',
+    'basa_candidateProfiles',
+    'basa_employerProfiles',
+    'basa_employer_profiles',
+    'basa_skillClaims',
+    'basa_assessments',
+    'basa_jobs',
+    'basa_applications',
+    'basa_workRecords',
+    'basa_reports',
+    'basa_privacyDeletionRequests',
+    'basa_notifications',
+    'basa_notificationPreferences',
+    'basa_endorsements',
+    'basa_mentorReviews',
+    'basa_feedback',
+    'basa_upgrade_requests',
+    'basa_downgrade_requests',
+    'basa_pulse_surveys',
+    'basa_profileDraft',
+  ];
+  for (const k of legacyKeys) {
+    try {
+      localStorage.removeItem(k);
+    } catch {
+      // Ignore
+    }
+  }
+}
+
 export function useDemoStore() {
-  const [users, setUsers] = useState<User[]>(() => loadStored(STORAGE_KEYS.users, INITIAL_USERS));
+  useEffect(() => {
+    cleanLegacyDemoKeys();
+  }, []);
+  const [users, setUsers] = useState<User[]>(() => demoLoad(STORAGE_KEYS.users, INITIAL_USERS));
   const [currentUser, setCurrentUser] = useState<User | null>(() =>
-    loadStored<User | null>(STORAGE_KEYS.currentUser, null)
+    demoLoad<User | null>(STORAGE_KEYS.currentUser, INITIAL_USERS[0])
   );
   const [candidateProfiles, setCandidateProfiles] = useState<Record<string, CandidateProfile>>(() =>
-    loadStored(STORAGE_KEYS.candidateProfiles, INITIAL_CANDIDATE_PROFILES)
+    demoLoad(STORAGE_KEYS.candidateProfiles, INITIAL_CANDIDATE_PROFILES)
   );
   const [employerProfiles, setEmployerProfiles] = useState<Record<string, EmployerProfile>>(() =>
-    loadStored(STORAGE_KEYS.employerProfiles, INITIAL_EMPLOYER_PROFILES)
+    demoLoad(STORAGE_KEYS.employerProfiles, INITIAL_EMPLOYER_PROFILES)
   );
   const [skillClaims, setSkillClaims] = useState<SkillClaim[]>(() =>
-    loadStored(STORAGE_KEYS.skillClaims, INITIAL_SKILL_CLAIMS)
+    demoLoad(STORAGE_KEYS.skillClaims, INITIAL_SKILL_CLAIMS)
   );
   const [assessments, setAssessments] = useState<AssessmentRecord[]>(() =>
-    loadStored(STORAGE_KEYS.assessments, INITIAL_ASSESSMENTS)
+    demoLoad(STORAGE_KEYS.assessments, INITIAL_ASSESSMENTS)
   );
-  const [jobs, setJobs] = useState<Job[]>(() => loadStored(STORAGE_KEYS.jobs, INITIAL_JOBS));
+  const [jobs, setJobs] = useState<Job[]>(() => demoLoad(STORAGE_KEYS.jobs, INITIAL_JOBS));
   const [applications, setApplications] = useState<Application[]>(() =>
-    loadStored(STORAGE_KEYS.applications, INITIAL_APPLICATIONS)
+    demoLoad(STORAGE_KEYS.applications, INITIAL_APPLICATIONS)
   );
   const [workRecords, setWorkRecords] = useState<WorkRecord[]>(() =>
-    loadStored(STORAGE_KEYS.workRecords, INITIAL_WORK_RECORDS)
+    demoLoad(STORAGE_KEYS.workRecords, INITIAL_WORK_RECORDS)
   );
   const [reports, setReports] = useState<ModerationReport[]>(() =>
-    loadStored(STORAGE_KEYS.reports, INITIAL_REPORTS)
+    demoLoad(STORAGE_KEYS.reports, INITIAL_REPORTS)
   );
   const [privacyDeletionRequests, setPrivacyDeletionRequests] = useState<PrivacyDeletionRequest[]>(() =>
-    loadStored(STORAGE_KEYS.privacyDeletionRequests, [])
+    demoLoad(STORAGE_KEYS.privacyDeletionRequests, INITIAL_PRIVACY_DELETION_REQUESTS)
   );
   const [notifications, setNotifications] = useState<InAppNotification[]>(() =>
-    loadStored(STORAGE_KEYS.notifications, INITIAL_NOTIFICATIONS)
+    demoLoad(STORAGE_KEYS.notifications, INITIAL_NOTIFICATIONS)
   );
   const [notificationPreferences, setNotificationPreferences] = useState<Record<string, NotificationPreferences>>(() =>
-    loadStored(STORAGE_KEYS.notificationPreferences, {})
+    demoLoad(STORAGE_KEYS.notificationPreferences, {})
   );
   const [endorsements, setEndorsements] = useState<PeerEndorsement[]>(() =>
-    loadStored(STORAGE_KEYS.endorsements, INITIAL_ENDORSEMENTS)
+    demoLoad(STORAGE_KEYS.endorsements, INITIAL_ENDORSEMENTS)
   );
   const [mentorReviews, setMentorReviews] = useState<MentorReview[]>(() =>
-    loadStored(STORAGE_KEYS.mentorReviews, INITIAL_MENTOR_REVIEWS)
+    demoLoad(STORAGE_KEYS.mentorReviews, INITIAL_MENTOR_REVIEWS)
   );
   const [feedbackList, setFeedbackList] = useState<FeedbackRecord[]>(() =>
-    loadStored('basa_feedback', [])
+    demoLoad('basa_feedback', [])
   );
   // Section 39: Employer Upgrade & Downgrade Requests & Pricing Pulse Surveys
   const [upgradeRequests, setUpgradeRequests] = useState<EmployerUpgradeRequest[]>(() =>
-    loadStored('basa_upgrade_requests', [])
+    demoLoad('basa_upgrade_requests', INITIAL_UPGRADE_REQUESTS)
   );
   const [downgradeRequests, setDowngradeRequests] = useState<EmployerDowngradeRequest[]>(() =>
-    loadStored('basa_downgrade_requests', [])
+    demoLoad('basa_downgrade_requests', [])
   );
   const [pulseSurveys, setPulseSurveys] = useState<PricingPulseSurveyResponse[]>(() =>
-    loadStored('basa_pulse_surveys', [])
+    demoLoad('basa_pulse_surveys', [])
   );
-  const { lowDataMode, setLowDataMode, profileDraft, saveDraft } = useLocalPrefs();
+  const { lowDataMode, setLowDataMode, profileDraft, saveDraft } = useLocalPrefs('demo');
   const syncStatus = 'synced' as SyncState;
   const pendingSyncCount = 0;
   const [isOnline, setIsOnline] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
@@ -136,22 +197,25 @@ export function useDemoStore() {
   }, []);
 
   // Synchronize state changes to localStorage
-  useEffect(() => saveStored(STORAGE_KEYS.users, users), [users]);
-  useEffect(() => saveStored(STORAGE_KEYS.currentUser, currentUser), [currentUser]);
-  useEffect(() => saveStored(STORAGE_KEYS.candidateProfiles, candidateProfiles), [candidateProfiles]);
-  useEffect(() => saveStored(STORAGE_KEYS.employerProfiles, employerProfiles), [employerProfiles]);
-  useEffect(() => saveStored(STORAGE_KEYS.skillClaims, skillClaims), [skillClaims]);
-  useEffect(() => saveStored(STORAGE_KEYS.assessments, assessments), [assessments]);
-  useEffect(() => saveStored(STORAGE_KEYS.jobs, jobs), [jobs]);
-  useEffect(() => saveStored(STORAGE_KEYS.applications, applications), [applications]);
-  useEffect(() => saveStored(STORAGE_KEYS.workRecords, workRecords), [workRecords]);
-  useEffect(() => saveStored(STORAGE_KEYS.reports, reports), [reports]);
-  useEffect(() => saveStored(STORAGE_KEYS.privacyDeletionRequests, privacyDeletionRequests), [privacyDeletionRequests]);
-  useEffect(() => saveStored(STORAGE_KEYS.notifications, notifications), [notifications]);
-  useEffect(() => saveStored(STORAGE_KEYS.notificationPreferences, notificationPreferences), [notificationPreferences]);
-  useEffect(() => saveStored(STORAGE_KEYS.endorsements, endorsements), [endorsements]);
-  useEffect(() => saveStored(STORAGE_KEYS.mentorReviews, mentorReviews), [mentorReviews]);
-  useEffect(() => saveStored('basa_feedback', feedbackList), [feedbackList]);
+  useEffect(() => demoSave(STORAGE_KEYS.users, users), [users]);
+  useEffect(() => demoSave(STORAGE_KEYS.currentUser, currentUser), [currentUser]);
+  useEffect(() => demoSave(STORAGE_KEYS.candidateProfiles, candidateProfiles), [candidateProfiles]);
+  useEffect(() => demoSave(STORAGE_KEYS.employerProfiles, employerProfiles), [employerProfiles]);
+  useEffect(() => demoSave(STORAGE_KEYS.skillClaims, skillClaims), [skillClaims]);
+  useEffect(() => demoSave(STORAGE_KEYS.assessments, assessments), [assessments]);
+  useEffect(() => demoSave(STORAGE_KEYS.jobs, jobs), [jobs]);
+  useEffect(() => demoSave(STORAGE_KEYS.applications, applications), [applications]);
+  useEffect(() => demoSave(STORAGE_KEYS.workRecords, workRecords), [workRecords]);
+  useEffect(() => demoSave(STORAGE_KEYS.reports, reports), [reports]);
+  useEffect(() => demoSave(STORAGE_KEYS.privacyDeletionRequests, privacyDeletionRequests), [privacyDeletionRequests]);
+  useEffect(() => demoSave(STORAGE_KEYS.notifications, notifications), [notifications]);
+  useEffect(() => demoSave(STORAGE_KEYS.notificationPreferences, notificationPreferences), [notificationPreferences]);
+  useEffect(() => demoSave(STORAGE_KEYS.endorsements, endorsements), [endorsements]);
+  useEffect(() => demoSave(STORAGE_KEYS.mentorReviews, mentorReviews), [mentorReviews]);
+  useEffect(() => demoSave('basa_feedback', feedbackList), [feedbackList]);
+  useEffect(() => demoSave('basa_upgrade_requests', upgradeRequests), [upgradeRequests]);
+  useEffect(() => demoSave('basa_downgrade_requests', downgradeRequests), [downgradeRequests]);
+  useEffect(() => demoSave('basa_pulse_surveys', pulseSurveys), [pulseSurveys]);
 
   const deliverNotification = useCallback(
     (
@@ -220,194 +284,54 @@ export function useDemoStore() {
   const clearError = () => {};
 
   const signInWithGoogle = async (): Promise<unknown> => {
-    // In demo mode, sign in as the Google demo persona (Nomvula Khumalo / gmail user) or candidate
-    const googleUser =
-      users.find((u) => u.email.toLowerCase().endsWith('@gmail.com')) ||
-      users.find((u) => u.role === 'candidate') ||
-      users[0];
-    if (googleUser) {
-      setCurrentUser(googleUser);
-      saveStored(STORAGE_KEYS.currentUser, googleUser);
-      return googleUser;
-    }
-    const newUid = `user-google-${Date.now()}`;
-    const newUser: User = {
-      uid: newUid,
-      displayName: 'Google Demo User',
-      email: 'user@gmail.com',
-      role: 'candidate',
-      createdAt: new Date().toISOString(),
-      accountStatus: 'active',
-      minimumAgeConfirmed: true,
-    };
-    const newProfile: CandidateProfile = {
-      uid: newUid,
-      fullName: newUser.displayName,
-      headline: 'Jobseeker',
-      experienceSummary: '',
-      skillIds: [],
-      locationArea: NEW_ACCOUNT_DEFAULTS.candidate.locationArea,
-      availability: NEW_ACCOUNT_DEFAULTS.candidate.availability,
-      popiaVisibility: NEW_ACCOUNT_DEFAULTS.candidate.popiaVisibility,
-      updatedAt: new Date().toISOString(),
-    };
-    setUsers((prev) => [...prev, newUser]);
-    setCandidateProfiles((prev) => ({ ...prev, [newUid]: newProfile }));
-    setCurrentUser(newUser);
-    saveStored(STORAGE_KEYS.currentUser, newUser);
-    return newUser;
+    throw new Error('The demo has fixed sample profiles. Use Quick Access.');
   };
 
-  let demoPendingPhone: string | null = null;
-
   const signInWithEmail = async (
-    email: string,
+    _email: string,
     _pass: string,
-    _isSignUp = false,
-    displayName?: string
+    _isSignUp?: boolean,
+    _displayName?: string
   ): Promise<unknown> => {
-    const existing = users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());
-    if (existing) {
-      setCurrentUser(existing);
-      saveStored(STORAGE_KEYS.currentUser, existing);
-      return existing;
-    }
-    const newUid = `user-${Date.now()}`;
-    const newUser: User = {
-      uid: newUid,
-      displayName: displayName || email.split('@')[0],
-      email: email.trim(),
-      role: 'candidate',
-      createdAt: new Date().toISOString(),
-      accountStatus: 'active',
-      minimumAgeConfirmed: true,
-    };
-    const newProfile: CandidateProfile = {
-      uid: newUid,
-      fullName: newUser.displayName,
-      headline: 'Jobseeker',
-      experienceSummary: '',
-      skillIds: [],
-      locationArea: NEW_ACCOUNT_DEFAULTS.candidate.locationArea,
-      availability: NEW_ACCOUNT_DEFAULTS.candidate.availability,
-      popiaVisibility: NEW_ACCOUNT_DEFAULTS.candidate.popiaVisibility,
-      updatedAt: new Date().toISOString(),
-    };
-    setUsers((prev) => [...prev, newUser]);
-    setCandidateProfiles((prev) => ({ ...prev, [newUid]: newProfile }));
-    setCurrentUser(newUser);
-    saveStored(STORAGE_KEYS.currentUser, newUser);
-    return newUser;
+    throw new Error('The demo has fixed sample profiles. Use Quick Access.');
   };
 
   const signInWithApple = async (): Promise<unknown> => {
-    const appleUser = users.find((u) => u.role === 'candidate') || users[0];
-    setCurrentUser(appleUser);
-    saveStored(STORAGE_KEYS.currentUser, appleUser);
-    return appleUser;
+    throw new Error('The demo has fixed sample profiles. Use Quick Access.');
   };
 
-  const sendPhoneOtp = async (phoneNumber: string): Promise<boolean> => {
-    demoPendingPhone = phoneNumber.trim();
-    return true;
+  const sendPhoneOtp = async (_phoneNumber: string): Promise<boolean> => {
+    throw new Error('The demo has fixed sample profiles. Use Quick Access.');
   };
 
   const verifyPhoneOtp = async (_code: string): Promise<unknown> => {
-    const phone = demoPendingPhone || '0820000000';
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    const existing = users.find((u) => u.email.includes(cleanPhone));
-    if (existing) {
-      setCurrentUser(existing);
-      saveStored(STORAGE_KEYS.currentUser, existing);
-      return existing;
-    }
-    const newUid = `user-phone-${Date.now()}`;
-    const newUser: User = {
-      uid: newUid,
-      displayName: `User (${phone})`,
-      email: `${cleanPhone}@phone.basa.app`,
-      role: 'candidate',
-      createdAt: new Date().toISOString(),
-      accountStatus: 'active',
-      minimumAgeConfirmed: true,
-    };
-    const newProfile: CandidateProfile = {
-      uid: newUid,
-      fullName: newUser.displayName,
-      headline: 'Jobseeker',
-      experienceSummary: '',
-      skillIds: [],
-      locationArea: NEW_ACCOUNT_DEFAULTS.candidate.locationArea,
-      availability: NEW_ACCOUNT_DEFAULTS.candidate.availability,
-      popiaVisibility: NEW_ACCOUNT_DEFAULTS.candidate.popiaVisibility,
-      updatedAt: new Date().toISOString(),
-    };
-    setUsers((prev) => [...prev, newUser]);
-    setCandidateProfiles((prev) => ({ ...prev, [newUid]: newProfile }));
-    setCurrentUser(newUser);
-    saveStored(STORAGE_KEYS.currentUser, newUser);
-    return newUser;
+    throw new Error('The demo has fixed sample profiles. Use Quick Access.');
   };
 
   const signOutUser = async () => {
     setCurrentUser(null);
-    removeStored(STORAGE_KEYS.currentUser);
+    demoRemove(STORAGE_KEYS.currentUser);
   };
 
-  // Switch role / active user
+  // Switch role / active user among the 7 fixed demo profiles
   const switchUser = (uid: string) => {
-    // Persona switching is a demo-only feature; it must never exist in production.
-    if (!env.enableDemoData) return;
     const found = users.find((u) => u.uid === uid);
     if (found) {
       setCurrentUser(found);
-      saveStored(STORAGE_KEYS.currentUser, found);
+      demoSave(STORAGE_KEYS.currentUser, found);
+    } else {
+      console.warn(`[DemoStore] Unknown demo UID rejected: ${uid}`);
     }
   };
 
-  // Register a new user
-  const registerUser = (displayName: string, email: string, role: Role) => {
-    const newUid = `${role}-${Date.now()}`;
-    const newUser: User = {
-      uid: newUid,
-      displayName,
-      email,
-      role,
-      createdAt: new Date().toISOString(),
-      accountStatus: 'active',
-    };
-
-    setUsers((prev) => [...prev, newUser]);
-    setCurrentUser(newUser);
-
-    if (role === 'candidate') {
-      const newProfile: CandidateProfile = {
-        uid: newUid,
-        fullName: displayName,
-        headline: NEW_ACCOUNT_DEFAULTS.candidate.headline,
-        experienceSummary: NEW_ACCOUNT_DEFAULTS.candidate.experienceSummary,
-        skillIds: [],
-        contactEmail: email,
-        locationArea: NEW_ACCOUNT_DEFAULTS.candidate.locationArea,
-        availability: NEW_ACCOUNT_DEFAULTS.candidate.availability,
-        popiaVisibility: NEW_ACCOUNT_DEFAULTS.candidate.popiaVisibility,
-        updatedAt: new Date().toISOString(),
-      };
-      setCandidateProfiles((prev) => ({ ...prev, [newUid]: newProfile }));
-    } else if (role === 'employer') {
-      const newEmployer: EmployerProfile = {
-        uid: newUid,
-        businessName: displayName,
-        industry: NEW_ACCOUNT_DEFAULTS.employer.industry,
-        description: NEW_ACCOUNT_DEFAULTS.employer.description,
-        locationArea: NEW_ACCOUNT_DEFAULTS.employer.locationArea,
-        verificationStatus: NEW_ACCOUNT_DEFAULTS.employer.verificationStatus,
-        contactEmail: email,
-        createdAt: new Date().toISOString(),
-      };
-      setEmployerProfiles((prev) => ({ ...prev, [newUid]: newEmployer }));
-    }
-    return newUser;
+  // Register a new user: disallowed in fixed demo mode
+  const registerUser = (
+    _displayName: string,
+    _email: string,
+    _role: Role,
+    _minimumAgeConfirmed?: boolean
+  ): User => {
+    throw new Error('The demo has fixed sample profiles. Use Quick Access.');
   };
 
   // Update candidate profile
@@ -642,7 +566,7 @@ export function useDemoStore() {
 
     setSkillClaims((prev) => {
       const next = prev.map((c) => (c.id === claimId ? updatedClaim : c));
-      saveStored(STORAGE_KEYS.skillClaims, next);
+      demoSave(STORAGE_KEYS.skillClaims, next);
       return next;
     });
 
@@ -1236,12 +1160,12 @@ export function useDemoStore() {
                 updatedAt: new Date().toISOString(),
               };
               const nextProfiles = { ...prevProfiles, [app.candidateId]: updatedProfile };
-              saveStored(STORAGE_KEYS.candidateProfiles, nextProfiles);
+              demoSave(STORAGE_KEYS.candidateProfiles, nextProfiles);
               return nextProfiles;
             });
           }
 
-          saveStored(STORAGE_KEYS.skillClaims, updateResult.updatedClaims);
+          demoSave(STORAGE_KEYS.skillClaims, updateResult.updatedClaims);
           return updateResult.updatedClaims;
         });
 
@@ -1370,12 +1294,12 @@ export function useDemoStore() {
                 updatedAt: new Date().toISOString(),
               };
               const nextProfiles = { ...prevProfiles, [targetApp.candidateId]: updatedProfile };
-              saveStored(STORAGE_KEYS.candidateProfiles, nextProfiles);
+              demoSave(STORAGE_KEYS.candidateProfiles, nextProfiles);
               return nextProfiles;
             });
           }
 
-          saveStored(STORAGE_KEYS.skillClaims, updateResult.updatedClaims);
+          demoSave(STORAGE_KEYS.skillClaims, updateResult.updatedClaims);
           return updateResult.updatedClaims;
         });
       }
@@ -1522,7 +1446,7 @@ export function useDemoStore() {
     };
 
     setUpgradeRequests((prev) => [newReq, ...prev]);
-    saveStored('basa_upgrade_requests', [newReq, ...upgradeRequests]);
+    demoSave('basa_upgrade_requests', [newReq, ...upgradeRequests]);
 
     // Section 39 Honest Flow: Requesting an upgrade does NOT change the plan unless demo shortcut is ON.
     // In standard pilot mode: plan stays the same, planStatus becomes 'upgrade_pending'.
@@ -1577,7 +1501,7 @@ export function useDemoStore() {
         }
         return r;
       });
-      saveStored('basa_upgrade_requests', updated);
+      demoSave('basa_upgrade_requests', updated);
       return updated;
     });
 
@@ -1595,7 +1519,7 @@ export function useDemoStore() {
             planExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
           },
         };
-        saveStored('basa_employer_profiles', updated);
+        demoSave(STORAGE_KEYS.employerProfiles, updated);
         return updated;
       });
     }
@@ -1625,7 +1549,7 @@ export function useDemoStore() {
         }
         return r;
       });
-      saveStored('basa_upgrade_requests', updated);
+      demoSave('basa_upgrade_requests', updated);
       return updated;
     });
 
@@ -1640,7 +1564,7 @@ export function useDemoStore() {
             planStatus: 'declined' as const,
           },
         };
-        saveStored('basa_employer_profiles', updated);
+        demoSave(STORAGE_KEYS.employerProfiles, updated);
         return updated;
       });
     }
@@ -1678,7 +1602,7 @@ export function useDemoStore() {
       };
       setDowngradeRequests((prev) => {
         const updated = [declinedReq, ...prev];
-        saveStored('basa_downgrade_requests', updated);
+        demoSave('basa_downgrade_requests', updated);
         return updated;
       });
 
@@ -1698,7 +1622,7 @@ export function useDemoStore() {
           planExpiresAt: undefined,
         },
       };
-      saveStored('basa_employer_profiles', updated);
+      demoSave(STORAGE_KEYS.employerProfiles, updated);
       return updated;
     });
 
@@ -1714,7 +1638,7 @@ export function useDemoStore() {
     };
     setDowngradeRequests((prev) => {
       const updated = [newReq, ...prev];
-      saveStored('basa_downgrade_requests', updated);
+      demoSave('basa_downgrade_requests', updated);
       return updated;
     });
   };
@@ -1727,26 +1651,57 @@ export function useDemoStore() {
       submittedAt: new Date().toISOString(),
     };
     setPulseSurveys((prev) => [newResp, ...prev]);
-    saveStored('basa_pulse_surveys', [newResp, ...pulseSurveys]);
+    demoSave('basa_pulse_surveys', [newResp, ...pulseSurveys]);
     return newResp;
   };
 
   // Reset to initial demo seed data anytime
   const resetDemoData = () => {
-    if (!env.enableDemoData) return;
-    setUsers(INITIAL_USERS);
-    setCurrentUser(INITIAL_USERS[0]);
-    setCandidateProfiles(INITIAL_CANDIDATE_PROFILES);
-    setEmployerProfiles(INITIAL_EMPLOYER_PROFILES);
-    setSkillClaims(INITIAL_SKILL_CLAIMS);
-    setAssessments(INITIAL_ASSESSMENTS);
-    setJobs(INITIAL_JOBS);
-    setApplications(INITIAL_APPLICATIONS);
-    setWorkRecords(INITIAL_WORK_RECORDS);
-    setReports(INITIAL_REPORTS);
-    setPrivacyDeletionRequests([]);
-    setNotifications(INITIAL_NOTIFICATIONS);
+    if (typeof localStorage !== 'undefined') {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(DEMO_STORAGE_PREFIX)) {
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+    }
+
+    const clonedUsers = structuredClone(INITIAL_USERS);
+    const clonedCandidates = structuredClone(INITIAL_CANDIDATE_PROFILES);
+    const clonedEmployers = structuredClone(INITIAL_EMPLOYER_PROFILES);
+    const clonedClaims = structuredClone(INITIAL_SKILL_CLAIMS);
+    const clonedAssessments = structuredClone(INITIAL_ASSESSMENTS);
+    const clonedJobs = structuredClone(INITIAL_JOBS);
+    const clonedApplications = structuredClone(INITIAL_APPLICATIONS);
+    const clonedWorkRecords = structuredClone(INITIAL_WORK_RECORDS);
+    const clonedReports = structuredClone(INITIAL_REPORTS);
+    const clonedNotifications = structuredClone(INITIAL_NOTIFICATIONS);
+    const clonedEndorsements = structuredClone(INITIAL_ENDORSEMENTS);
+    const clonedMentorReviews = structuredClone(INITIAL_MENTOR_REVIEWS);
+    const clonedUpgrades = structuredClone(INITIAL_UPGRADE_REQUESTS);
+    const clonedDeletions = structuredClone(INITIAL_PRIVACY_DELETION_REQUESTS);
+
+    setUsers(clonedUsers);
+    setCurrentUser(clonedUsers[0]);
+    setCandidateProfiles(clonedCandidates);
+    setEmployerProfiles(clonedEmployers);
+    setSkillClaims(clonedClaims);
+    setAssessments(clonedAssessments);
+    setJobs(clonedJobs);
+    setApplications(clonedApplications);
+    setWorkRecords(clonedWorkRecords);
+    setReports(clonedReports);
+    setPrivacyDeletionRequests(clonedDeletions);
+    setNotifications(clonedNotifications);
     setNotificationPreferences({});
+    setEndorsements(clonedEndorsements);
+    setMentorReviews(clonedMentorReviews);
+    setFeedbackList([]);
+    setUpgradeRequests(clonedUpgrades);
+    setDowngradeRequests([]);
+    setPulseSurveys([]);
   };
 
   return {

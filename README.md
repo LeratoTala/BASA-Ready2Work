@@ -114,10 +114,10 @@ Use this quick-reference directory to find the exact documentation file for your
   * **Strict Tier Rule Adherence:** If currently open active jobs exceed the target tier's capacity (Free: 1, Starter: 5, Business: 20), the system automatically declines the action and requires the employer to close excess jobs first.
   * **Zero Deletion Guarantee:** Downgrading or cancelling **never deletes** past jobs or applicant records.
   * **30-Day Billing Cycle Expiry:** Activated plans run for 30 days before next invoice renewal; unrenewed plans revert to Free tier access.
-* **Implementation Truth (Real vs. Demo vs. Unit-Tested):**
-  * **Demo Mode:** Fully functional on-device simulation with 3 pre-seeded demo accounts (see [`docs/DEMO_ACCOUNTS.md`](docs/DEMO_ACCOUNTS.md)).
-  * **Firestore Mode:** Client reads from Firestore; writes to plan fields are blocked by `firestore.rules` and routed through backend routes (`/api/employer/upgrade-request`, `/api/employer/change-plan`, `/api/admin/approve-upgrade`, `/api/jobs/create`). See [`docs/ENV.md`](docs/ENV.md) for required environment variables.
-  * **Backend Routes Status:** Server routes and plan gating logic are tested at unit level in `server/jobLimit.test.ts` and `server/employerPlanOps.test.ts`. End-to-end live deployment to cloud requires manual Firebase/GCP provisioning.
+* **Dual Runtime Architecture (Start Screen):**
+  * **Start Screen:** Clean landing screen offering one-click entry into either **Real Accounts Mode** or **Quick Access Demo Mode** (see [docs/DEMO_MODE.md](docs/DEMO_MODE.md)).
+  * **Quick Access Demo Mode:** Zero-setup on-device sandbox with 7 pre-configured personas (candidates, employers, assessors). Operates completely in browser localStorage with prefix asa_demo_v1:. Includes 1-click persona switching, simulated AI CV drafting, and an instant reset button. Requires **zero cloud credentials** (see [docs/DEMO_ACCOUNTS.md](docs/DEMO_ACCOUNTS.md)).
+  * **Real Accounts Mode:** Full Firestore mode with live Firebase Auth (Google, Email, Phone SMS), cloud Firestore data, and strict server-side ID token verification.
 
 ---
 
@@ -140,13 +140,14 @@ The platform provides multi-provider authentication ([`src/features/auth/compone
 2. **Apple Sign-In:** Powered by Firebase Apple OAuth (`apple.com`) across iOS, macOS, and web browsers.
 3. **Email & Password:** Standard login and account registration with full name, email, and password.
 4. **South African Cell Phone SMS OTP:** For candidates without an email address. Enter a South African mobile number (`082 123 4567` or `+27 82 123 4567`), complete the invisible background reCAPTCHA, and enter the 6-digit SMS verification code.
-5. **Quick Demo Personas (Pitch & Testing Mode):** When `VITE_ENABLE_DEMO_DATA=true`, evaluators can switch between pre-seeded personas with one click:
-   * ≡ƒæ╖ **Candidate:** Thabo Ndlovu (Jobseeker in Soweto ┬╖ Barista & Solar Assistant)
-   * ≡ƒæ╖ **Candidate:** Nomvula Khumalo (Jobseeker in Alexandra ┬╖ Digital Assistant)
-   * ≡ƒÅó **Employer:** Zola Artisan Caf├⌐ (Specialty Hospitality & Retail)
-   * ≡ƒÅó **Employer:** SunPower Solars Gauteng (Renewable Energy Employer)
-   * ≡ƒ¢í∩╕Å **Assessor:** Nomsa Dlamini (Practical Rubric Assessor)
-   * ≡ƒ¢í∩╕Å **Moderator:** Sipho Mthethwa (Platform Moderator & Compliance Officer)
+5. **Quick Access Demo Mode (Instant Sandbox):** Select "Quick Access Demo" on the Start Screen to explore with 7 sample profiles—no sign-up, passwords, or Firebase Auth required:
+   - **Candidate (Thabo Ndlovu):** Solar installer & barista with task-assessed and peer-endorsed claims.
+   - **Candidate (Nomvula Dlamini):** Youth barista & retail assistant with pending peer endorsement and active notifications.
+   - **Employer (Zola Sithole):** Township Cafe owner on Free Plan with 1 active job post and applicant pipeline.
+   - **Employer (Kagiso Molefe):** SunPower Solar Co. on Starter Plan with 2 open jobs and candidates.
+   - **Employer (Tshiamo Khumalo):** Tshiamo Logistics with pending business verification and pending Starter tier upgrade.
+   - **Admin (Nomsa Baloyi):** Lead Assessor & Mentor managing practical rubrics, business verification, and upgrade reviews.
+   - **Admin (Sipho Sithole):** Compliance & Moderation Officer managing fraud reports and pending POPIA deletion requests.
 
 ---
 

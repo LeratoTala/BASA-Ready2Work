@@ -13,37 +13,29 @@ const REQUIRED_KEYS = [
 
 type RequiredKey = (typeof REQUIRED_KEYS)[number];
 
-const raw = import.meta.env as Record<string, string | undefined>;
+const raw = (typeof import.meta !== 'undefined' && import.meta.env)
+  ? (import.meta.env as Record<string, string | undefined>)
+  : ((typeof process !== 'undefined' && process.env) ? (process.env as Record<string, string | undefined>) : {});
 
 function read(key: string): string {
-  return (raw[key] ?? '').trim();
+  return ((raw && raw[key]) ?? '').trim();
 }
 
-function flagValue(key: string): boolean {
-  const value = read(key).toLowerCase();
-  return value === 'true' || value === '1';
-}
+/** Check if Firebase credentials are fully configured for Real Mode. */
+export const isFirebaseConfigured: boolean = REQUIRED_KEYS.every((key) => read(key) !== '');
 
-// Demo mode runs entirely on-device with fictional data and needs no Firebase project.
-const demoMode = flagValue('VITE_ENABLE_DEMO_DATA');
-const missing: RequiredKey[] = demoMode ? [] : REQUIRED_KEYS.filter((key) => read(key) === '');
+export const envErrors: string[] = isFirebaseConfigured
+  ? []
+  : REQUIRED_KEYS.filter((key) => read(key) === '').map(
+      (key) => `Missing ${key}. Real mode requires Firebase credentials.`
+    );
 
-export const envErrors: string[] = missing.map(
-  (key) => `Missing ${key}. Copy .env.example to .env and fill it in.`
-);
-
-// Warn (but don't hard-fail) when storage bucket is absent — evidence uploads will silently fail.
-if (!demoMode && read('VITE_FIREBASE_STORAGE_BUCKET') === '') {
+// Warn (but don't hard-fail) when storage bucket is absent
+if (isFirebaseConfigured && read('VITE_FIREBASE_STORAGE_BUCKET') === '') {
   console.warn(
     '[BASA] VITE_FIREBASE_STORAGE_BUCKET is not set. ' +
     'Evidence image uploads (FR-04) will fail. Add the bucket name to your .env file.'
   );
-}
-
-function flag(key: string, fallback: boolean): boolean {
-  const value = read(key).toLowerCase();
-  if (value === '') return fallback;
-  return value === 'true' || value === '1';
 }
 
 function positiveInteger(key: string, fallback: number): number {
@@ -65,8 +57,8 @@ export const env = {
   apiBaseUrl: read('VITE_API_BASE_URL'),
   /** reCAPTCHA v3 site key for Firebase App Check. Empty = App Check disabled (dev/demo only). */
   recaptchaSiteKey: read('VITE_RECAPTCHA_SITE_KEY'),
-  /** Seed fictional demo data and expose the demo tour / persona switcher. Never enable in production. */
-  enableDemoData: flag('VITE_ENABLE_DEMO_DATA', false),
+  /** True when all required Firebase keys are present. */
+  isFirebaseConfigured,
   minimumUserAge: positiveInteger('VITE_MINIMUM_USER_AGE', 18),
-  isProduction: import.meta.env.PROD,
+  isProduction: Boolean(raw.PROD || (typeof process !== 'undefined' && process.env?.NODE_ENV === 'production')),
 } as const;
