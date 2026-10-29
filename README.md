@@ -1,20 +1,23 @@
-﻿# BASA: Ready2Work
+# BASA: Ready2Work
 
-**Skills ΓåÆ Evidence ΓåÆ Work.** A skills-first, low-data employment web platform that turns informal South African experience into credible, verifiable evidence and connects young people to real entry-level jobs, paid tasks, and short work.
+**Skills -> Evidence -> Work.** A skills-first, low-data employment web platform that turns informal South African experience into credible, verifiable evidence and connects young people to real entry-level jobs, paid tasks, and short work.
 
 *BASA = Bridge to Actual Skills & Access.*
+
+🔗 **Live Application:** [https://basa-ready2work-27af9.web.app](https://basa-ready2work-27af9.web.app)  
+📦 **Repository:** [https://github.com/LeratoTala/BASA-Ready2Work](https://github.com/LeratoTala/BASA-Ready2Work)
 
 Users can switch between light and dark appearance; their selection is saved on the device.
 
 ---
 
-## Quick Navigation: How to Use the Documentation
+## Quick Navigation: Documentation Directory
 
-Use this quick-reference directory to find the exact documentation file for your current task:
+Use this quick-reference directory to find the exact documentation file for your task:
 
 | If your task is to... | Navigate to... | What you will find |
 |---|---|---|
-| **Audit panel feedback & requirements** | [`docs/PANEL_FEEDBACK_STATUS.md`](docs/PANEL_FEEDBACK_STATUS.md) | Item-by-item verification audit for Sections 28ΓÇô35 (Core journey, honest labels, fraud protection, badges, metrics, feedback). |
+| **Audit panel feedback & requirements** | [`docs/PANEL_FEEDBACK_STATUS.md`](docs/PANEL_FEEDBACK_STATUS.md) | Item-by-item verification audit for Sections 28-35 (Core journey, honest labels, fraud protection, badges, metrics, feedback). |
 | **Understand system architecture & data schemas** | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | End-to-end data flow, state management, matching algorithm mathematics, and Firestore collection schemas. |
 | **Deploy to Google Cloud Run & Firebase** | [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) | Production Dockerfile, Google Cloud Run continuous deployment, Firebase App Check, and environment variables. |
 | **Verify POPIA privacy & security safeguards** | [`docs/SECURITY.md`](docs/SECURITY.md) | POPIA data handling, phone/email contact masking, security rules, and right-to-be-forgotten deletion procedures. |
@@ -22,11 +25,11 @@ Use this quick-reference directory to find the exact documentation file for your
 | **AI CV safeguards & anti-hallucination** | [`docs/AI_SAFEGUARDS.md`](docs/AI_SAFEGUARDS.md) | Server-side drafting, allow-list diffs, superlative blocklists, `{{NAME}}` placeholder (zero candidate name sent to LLM), and human truth confirmation. |
 | **Sustainable business model & economics** | [`docs/BUSINESS_MODEL.md`](docs/BUSINESS_MODEL.md) | Employer subscription architecture (R0, R199, R599), break-even thresholds (40 Starter SMMEs), candidate zero-fee guarantee, and plan-blind matching. |
 | **Employer willingness-to-pay validation** | [`docs/BUSINESS_MODEL_VALIDATION.md`](docs/BUSINESS_MODEL_VALIDATION.md) | Active job gating, in-app 4-question pricing pulse survey, objection responses, and revenue pilot tracking. |
-| **Conduct user validation interviews (Youth & SMMEs)** | [`docs/VALIDATION_PLAN.md`](docs/VALIDATION_PLAN.md) | 5-question interview protocols for 5ΓÇô10 job seekers and 3ΓÇô5 small businesses, with P1/P2 prioritization rubrics. |
+| **Conduct user validation interviews (Youth & SMMEs)** | [`docs/VALIDATION_PLAN.md`](docs/VALIDATION_PLAN.md) | 5-question interview protocols for 5-10 job seekers and 3-5 small businesses, with P1/P2 prioritization rubrics. |
 | **Record & synthesize validation findings** | [`docs/VALIDATION_FINDINGS.md`](docs/VALIDATION_FINDINGS.md) | Real-world pilot validation interview notes, quotes, usability pain points, and issue tracking. |
 | **Measure pilot outcomes & sustained income** | [`docs/SUCCESS_METRICS.md`](docs/SUCCESS_METRICS.md) | 5 core funnel indicators, 3-month sustained income follow-up methodology, and aggregate counting invariants. |
 | **Pitch to judges & conduct a live walkthrough** | [`docs/PILOT_GUIDE.md`](docs/PILOT_GUIDE.md) | 5-minute judge demo script, persona walkthrough steps, and FNB App of the Year evaluation rubric. |
-| **Check engineering roadmap & test coverage** | [`docs/PROGRESS.md`](docs/PROGRESS.md) | Comprehensive engineering changelog, functional requirements matrix (FR-01 to FR-22), and 180 automated tests. |
+| **Check engineering roadmap & test coverage** | [`docs/PROGRESS.md`](docs/PROGRESS.md) | Comprehensive engineering changelog, functional requirements matrix (FR-01 to FR-22), and 218 automated tests. |
 
 ---
 
@@ -59,7 +62,7 @@ Use this quick-reference directory to find the exact documentation file for your
 
 ### 4. Work Completion Decoupled from Payment Confirmation & Workplace Time Accounting
 * When work is completed, payout confirmation defaults to `false`.
-* The engagement shows `Work Completed ┬╖ Payment Pending Confirmation` until the employer explicitly clicks `[Confirm Payment Sent]`.
+* The engagement shows `Work Completed | Payment Pending Confirmation` until the employer explicitly clicks `[Confirm Payment Sent]`.
 * **Pay Rate Focus (No Total Lump Sum Display):** The platform intentionally avoids lump-sum payout totals on both candidate and employer dashboards. Instead, it prominently displays the transparent agreed pay rate in unit terms: **money/hour**, **money/day**, **money/week**, **money/fortnight**, or **money/month** (e.g., `Rate: R60 / hour`, `Rate: R450 / day`, `Rate: R1,500 / week`, `Rate: R3,200 / fortnight`, or `Rate: R6,500 / month`).
 * **Total Time Served in Institution (No Separate Day-Off Flags):** The pre-payout confirmation modal and completed work cards record the total time served at the institution (e.g., `20 days served (160 hrs)`). Any approved days off or leaves are not flagged or displayed separately as day offs; they contribute directly under the total amount of time served in that institution.
 * **Employment Start Date Guardrail:** When a candidate is actively employed at a workplace (`Selected` / in-progress), the interface **strictly displays only the employment start date** (e.g., `Started: 2026-10-15`), never displaying the end date or completion deadline until the duration is actually completed.
@@ -102,8 +105,8 @@ Use this quick-reference directory to find the exact documentation file for your
 
 ### 11. Employer Subscription Model & Pilot Pricing (Section 39)
 * **Candidates NEVER Pay:** Jobseekers never pay any fee to register, build a Skill Passport, get verified, or apply for opportunities.
-* **100% Plan-Blind Matching:** Candidate ranking algorithms are completely blind to an employer's subscription planΓÇöpaying more never elevates unverified applicants or inflates match scores.
-* **No Payment Provider (Manual Invoicing Only):** There is NO third-party card processing gateway or automated recurring debit provider (no Stripe, PayFast, or Ozow). Subscription tier upgrades operate strictly on a request-and-approval model: the employer submits a request with PO number/billing details $\to$ a BASA administrator invoices manually and approves $\to$ server Admin SDK updates the plan.
+* **100% Plan-Blind Matching:** Candidate ranking algorithms are completely blind to an employer's subscription plan—paying more never elevates unverified applicants or inflates match scores.
+* **No Payment Provider (Manual Invoicing Only):** There is NO third-party card processing gateway or automated recurring debit provider (no Stripe, PayFast, or Ozow). Subscription tier upgrades operate strictly on a request-and-approval model: the employer submits a request with PO number/billing details -> a BASA administrator invoices manually and approves -> server Admin SDK updates the plan.
 * **Calibrated Pilot Tiers (Assumptions to Validate):**
   * **Free (SMME Pilot):** 1 active job listing at a time, full applicant review, basic candidate profiles (permanently free for informal and micro-enterprises).
   * **Starter (R199/month):** Up to 5 active jobs, verified candidate filters & shortlists, applicant profile view.
@@ -114,10 +117,11 @@ Use this quick-reference directory to find the exact documentation file for your
   * **Strict Tier Rule Adherence:** If currently open active jobs exceed the target tier's capacity (Free: 1, Starter: 5, Business: 20), the system automatically declines the action and requires the employer to close excess jobs first.
   * **Zero Deletion Guarantee:** Downgrading or cancelling **never deletes** past jobs or applicant records.
   * **30-Day Billing Cycle Expiry:** Activated plans run for 30 days before next invoice renewal; unrenewed plans revert to Free tier access.
-* **Dual Runtime Architecture (Start Screen):**
-  * **Start Screen:** Clean landing screen offering one-click entry into either **Real Accounts Mode** or **Quick Access Demo Mode** (see [docs/DEMO_MODE.md](docs/DEMO_MODE.md)).
-  * **Quick Access Demo Mode:** Zero-setup on-device sandbox with 7 pre-configured personas (candidates, employers, assessors). Operates completely in browser localStorage with prefix asa_demo_v1:. Includes 1-click persona switching, simulated AI CV drafting, and an instant reset button. Requires **zero cloud credentials** (see [docs/DEMO_ACCOUNTS.md](docs/DEMO_ACCOUNTS.md)).
-  * **Real Accounts Mode:** Full Firestore mode with live Firebase Auth (Google, Email, Phone SMS), cloud Firestore data, and strict server-side ID token verification.
+
+### 12. Dual Runtime Architecture (Start Screen)
+* **Start Screen:** Clean landing screen offering one-click entry into either **Real Accounts Mode** or **Quick Access Demo Mode** (see [docs/DEMO_MODE.md](docs/DEMO_MODE.md)).
+* **Quick Access Demo Mode:** Zero-setup on-device sandbox with 7 pre-configured personas (candidates, employers, assessors). Operates completely in browser localStorage with prefix `basa_demo_v1:`. Includes 1-click persona switching, simulated AI CV drafting, and an instant reset button. Requires **zero cloud credentials** (see [docs/DEMO_ACCOUNTS.md](docs/DEMO_ACCOUNTS.md)).
+* **Real Accounts Mode:** Full Firestore mode with live Firebase Auth (Google, Email, Phone SMS), cloud Firestore data, and automatic client fallback for hosting-only environments.
 
 ---
 
@@ -156,16 +160,17 @@ The platform provides multi-provider authentication ([`src/features/auth/compone
 Verification labels are never conflated or forged:
 
 ```
-[ Candidate Claims Skill ] ΓöÇΓöÇ> Status: "Self-reported" (Default)
-                                  Γöé
-      ΓöîΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
-      Γû╝                           Γû╝                           Γû╝
-[ Peer Endorsement ]     [ Micro-Task Rubric ]      [ Designated Mentor ]
-Approved by coworker/    Graded >= 70/100 by        Assessed by accredited
-supervisor/contractor    practical assessor         master artisan
-      Γöé                           Γöé                           Γöé
-      Γû╝                           Γû╝                           Γû╝
-Status: "Peer-endorsed"   Status: "Task-assessed"    Status: "Mentor-reviewed"
+[ Candidate Claims Skill ] ---> Status: "Self-reported" (Default)
+                                       |
+          +----------------------------+---------------------------+
+          |                            |                           |
+          v                            v                           v
+[ Peer Endorsement ]         [ Micro-Task Rubric ]       [ Designated Mentor ]
+Approved by coworker/        Graded >= 70/100 by         Assessed by accredited
+supervisor/contractor        practical assessor          master artisan
+          |                            |                           |
+          v                            v                           v
+Status: "Peer-endorsed"      Status: "Task-assessed"     Status: "Mentor-reviewed"
 ```
 
 * **Self-reported:** Entered by the candidate; not independently confirmed.
@@ -198,7 +203,7 @@ $$\mathbf{M = 0.50 \cdot S + 0.25 \cdot E + 0.15 \cdot A + 0.10 \cdot L}$$
 
 ```bash
 # 1. Clone repository
-git clone <your-repo-url> && cd BASA-Ready2Work
+git clone https://github.com/LeratoTala/BASA-Ready2Work.git && cd BASA-Ready2Work
 
 # 2. Install dependencies
 npm install
@@ -222,7 +227,7 @@ Always run these commands before submitting changes:
 # TypeScript compiler check (must return 0 errors)
 npm run typecheck
 
-# Full test suite (180 tests across 48 suites)
+# Full test suite (218 tests across 56 suites)
 npm test
 
 # Production bundle build
@@ -236,7 +241,7 @@ npm run build
 | Command | Purpose |
 |---|---|
 | `npm run dev` | Start development server with hot module reloading (HMR) |
-| `npm test` | Run full automated test suite (180 tests across 48 suites) |
+| `npm test` | Run full automated test suite (218 tests across 56 suites) |
 | `npm run typecheck` | Verify TypeScript compilation with zero emitted errors |
 | `npm run build` | Build optimized client bundle for production to `dist/` |
 | `npm start` | Run server in production mode |
@@ -247,5 +252,5 @@ npm run build
 
 ## License & Intellectual Property
 
-Developed for the **FNB App of the Year** challenge under the **Bridge to Actual Skills & Access (BASA)** initiative.
-All rights reserved ┬⌐ 2026 BASA Ready2Work Team.
+Developed for the **FNB App of the Year** challenge under the **Bridge to Actual Skills & Access (BASA)** initiative.  
+All rights reserved © 2026 BASA Ready2Work Team.
