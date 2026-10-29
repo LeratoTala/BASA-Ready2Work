@@ -77,7 +77,17 @@ service cloud.firestore {
     // ---------- users ----------
     match /users/{uid} {
       allow read: if isOwner(uid) || isAdmin();
-      allow create: if false;
+      // Client fallback create (hosting-only mode): allowed only for authenticated owner,
+      // role in ['candidate', 'employer'] (never admin), active status, minimumAgeConfirmed, and exact permitted keys.
+      allow create: if isOwner(uid)
+        && incoming().uid == uid
+        && incoming().role in ['candidate', 'employer']
+        && incoming().accountStatus == 'active'
+        && incoming().displayName is string
+        && incoming().displayName.size() > 0
+        && incoming().displayName.size() <= 120
+        && incoming().minimumAgeConfirmed == true
+        && incoming().keys().hasOnly(['uid', 'displayName', 'email', 'role', 'createdAt', 'accountStatus', 'minimumAgeConfirmed']);
       // Role and account status are immutable for the user; only admins (server-side) change them.
       allow update: if (isOwner(uid) && changedKeys().hasOnly(['displayName', 'email'])) || isAdmin();
       allow delete: if isAdmin();
@@ -89,7 +99,8 @@ service cloud.firestore {
         || (!resource.data.keys().hasAny(['phone', 'contactEmail'])
           && hasEmployerCandidateAccess(uid)
           && resource.data.popiaVisibility in ['public_link', 'employers_only']);
-      allow create: if isOwner(uid) && hasRole('candidate')
+      allow create: if isOwner(uid)
+        && (hasRole('candidate') || (existsAfter(/databases/$(database)/documents/users/$(uid)) && getAfter(/databases/$(database)/documents/users/$(uid)).data.role == 'candidate'))
         && incoming().uid == uid
         && !incoming().keys().hasAny(['phone', 'contactEmail'])
         && incoming().popiaVisibility in ['public_link', 'employers_only', 'private'];
@@ -103,7 +114,8 @@ service cloud.firestore {
     // Contact details are stored separately because Firestore rules cannot redact document fields.
     match /candidatePrivateProfiles/{uid} {
       allow read: if isOwner(uid) || isAdmin() || hasShortlistContactAccess(uid);
-      allow create, update: if isOwner(uid) && hasRole('candidate')
+      allow create, update: if isOwner(uid)
+        && (hasRole('candidate') || (existsAfter(/databases/$(database)/documents/users/$(uid)) && getAfter(/databases/$(database)/documents/users/$(uid)).data.role == 'candidate'))
         && incoming().uid == uid
         && incoming().keys().hasOnly(['uid', 'phone', 'contactEmail'])
         && incoming().keys().hasAll(['uid'])
@@ -115,9 +127,10 @@ service cloud.firestore {
     // ---------- employer profiles ----------
     match /employerProfiles/{uid} {
       allow read: if signedIn();
-      allow create: if isOwner(uid) && hasRole('employer')
+      allow create: if isOwner(uid)
+        && (hasRole('employer') || (existsAfter(/databases/$(database)/documents/users/$(uid)) && getAfter(/databases/$(database)/documents/users/$(uid)).data.role == 'employer'))
         && incoming().uid == uid
-        && incoming().verificationStatus == 'pending'
+        && incoming().verificationStatus in ['pending', 'unverified']
         && (!('plan' in incoming()) || incoming().plan == 'free')
         && (!('planStatus' in incoming()) || incoming().planStatus in ['active', 'upgrade_pending'])
         && !('planSince' in incoming())

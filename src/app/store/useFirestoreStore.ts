@@ -577,7 +577,50 @@ export function useFirestoreStore(): BasaStore {
         throw fetchErr;
       }
       // Server is unreachable (network error or non-JSON HTML response).
-      console.warn('[BASA] Server /api/register unreachable:', fetchErr.message);
+      console.warn('[BASA] Server /api/register unreachable, falling back to direct Firestore creation:', fetchErr.message);
+    }
+
+    // Step 2f: Client-side Firestore fallback when server route is unreachable
+    if (!registrationSucceeded) {
+      const userRef = doc(db, COLLECTIONS.users, firebaseUser.uid);
+      const existingSnap = await getDoc(userRef);
+      if (!existingSnap.exists()) {
+        await setDoc(userRef, newUser);
+
+        if (newRole === 'candidate') {
+          const candidateRef = doc(db, COLLECTIONS.candidateProfiles, firebaseUser.uid);
+          const privateRef = doc(db, COLLECTIONS.candidatePrivateProfiles, firebaseUser.uid);
+          await setDoc(candidateRef, {
+            uid: firebaseUser.uid,
+            fullName: finalName,
+            headline: '',
+            experienceSummary: '',
+            skillIds: [],
+            locationArea: '',
+            availability: 'immediate',
+            popiaVisibility: 'private',
+            updatedAt: newUser.createdAt,
+          });
+          await setDoc(privateRef, {
+            uid: firebaseUser.uid,
+            contactEmail: finalEmail,
+          });
+        } else if (newRole === 'employer') {
+          const employerRef = doc(db, COLLECTIONS.employerProfiles, firebaseUser.uid);
+          await setDoc(employerRef, {
+            uid: firebaseUser.uid,
+            businessName: finalName,
+            industry: '',
+            description: '',
+            locationArea: '',
+            verificationStatus: 'pending',
+            plan: 'free',
+            planStatus: 'active',
+            contactEmail: finalEmail,
+            createdAt: newUser.createdAt,
+          });
+        }
+      }
     }
 
     // Step 2c: Reliable post-register transition — direct refetch with 1 retry

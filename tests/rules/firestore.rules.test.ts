@@ -144,10 +144,82 @@ describe('firestore rules', () => {
     await assertSucceeds(updateDoc(doc(db, 'jobs/j-ok'), { status: 'closed' }));
   });
 
-  it('clients cannot assign roles during registration', async () => {
-    const db = env.authenticatedContext('fresh').firestore();
-    await assertFails(setDoc(doc(db, 'users/fresh'), { uid: 'fresh', role: 'candidate', accountStatus: 'active' }));
-    await assertFails(setDoc(doc(db, 'users/fresh-admin'), { uid: 'fresh-admin', role: 'admin', accountStatus: 'active' }));
+  describe('client-side fallback registration rules (hosting-only mode)', () => {
+    it('can create own doc as candidate with valid defaults', async () => {
+      const db = env.authenticatedContext('fresh-cand').firestore();
+      await assertSucceeds(setDoc(doc(db, 'users/fresh-cand'), {
+        uid: 'fresh-cand',
+        displayName: 'Fresh Candidate',
+        email: 'cand@example.com',
+        role: 'candidate',
+        createdAt: '2026-10-29T12:00:00.000Z',
+        accountStatus: 'active',
+        minimumAgeConfirmed: true,
+      }));
+    });
+
+    it('can create own doc as employer with valid defaults', async () => {
+      const db = env.authenticatedContext('fresh-emp').firestore();
+      await assertSucceeds(setDoc(doc(db, 'users/fresh-emp'), {
+        uid: 'fresh-emp',
+        displayName: 'Fresh Employer',
+        email: 'emp@example.com',
+        role: 'employer',
+        createdAt: '2026-10-29T12:00:00.000Z',
+        accountStatus: 'active',
+        minimumAgeConfirmed: true,
+      }));
+    });
+
+    it('cannot create as admin', async () => {
+      const db = env.authenticatedContext('fresh-admin').firestore();
+      await assertFails(setDoc(doc(db, 'users/fresh-admin'), {
+        uid: 'fresh-admin',
+        displayName: 'Malicious Admin',
+        email: 'admin@example.com',
+        role: 'admin',
+        createdAt: '2026-10-29T12:00:00.000Z',
+        accountStatus: 'active',
+        minimumAgeConfirmed: true,
+      }));
+    });
+
+    it('cannot create for another uid', async () => {
+      const db = env.authenticatedContext('fresh-cand').firestore();
+      await assertFails(setDoc(doc(db, 'users/other-uid'), {
+        uid: 'other-uid',
+        displayName: 'Impersonator',
+        email: 'other@example.com',
+        role: 'candidate',
+        createdAt: '2026-10-29T12:00:00.000Z',
+        accountStatus: 'active',
+        minimumAgeConfirmed: true,
+      }));
+    });
+
+    it('cannot set paid plan fields on employer profile create', async () => {
+      const db = env.authenticatedContext('fresh-emp').firestore();
+      // Creating with non-free plan must fail
+      await assertFails(setDoc(doc(db, 'employerProfiles/fresh-emp'), {
+        uid: 'fresh-emp',
+        businessName: 'Unpaid Enterprise',
+        verificationStatus: 'pending',
+        plan: 'premium',
+        planStatus: 'active',
+        contactEmail: 'emp@example.com',
+        createdAt: '2026-10-29T12:00:00.000Z',
+      }));
+      // Creating with free plan succeeds
+      await assertSucceeds(setDoc(doc(db, 'employerProfiles/fresh-emp'), {
+        uid: 'fresh-emp',
+        businessName: 'Free Startup',
+        verificationStatus: 'pending',
+        plan: 'free',
+        planStatus: 'active',
+        contactEmail: 'emp@example.com',
+        createdAt: '2026-10-29T12:00:00.000Z',
+      }));
+    });
   });
 
   it('employer-only profiles and claims require an application access grant', async () => {
