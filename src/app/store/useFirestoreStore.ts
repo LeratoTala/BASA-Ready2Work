@@ -14,6 +14,7 @@ import {
 } from 'firebase/auth';
 import {
   collection,
+  getDoc,
   deleteDoc,
   deleteField,
   doc,
@@ -579,7 +580,34 @@ export function useFirestoreStore(): BasaStore {
       console.warn('[BASA] Server /api/register unreachable:', fetchErr.message);
     }
 
-    return newUser;
+    // Step 2c: Reliable post-register transition — direct refetch with 1 retry
+    const userRef = doc(db, COLLECTIONS.users, firebaseUser.uid);
+    let fetchedUser: User | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
+          fetchedUser = snap.data() as User;
+          break;
+        }
+      } catch (err) {
+        console.warn(`[BASA] Post-register getDoc attempt ${attempt + 1} failed:`, err);
+      }
+      if (attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 400));
+      }
+    }
+
+    if (fetchedUser) {
+      setUserDoc(fetchedUser);
+      setUserDocLoaded(true);
+    } else {
+      // Optimistically apply local user document to immediately resolve needsOnboarding
+      setUserDoc(newUser);
+      setUserDocLoaded(true);
+    }
+
+    return fetchedUser ?? newUser;
   };
 
   // ---- profiles ----
