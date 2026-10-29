@@ -2,14 +2,12 @@ import { Router } from 'express';
 import { getAdminFirestore, verifyIdToken } from '../middleware/verifyIdToken';
 import { buildRegistrationData } from '../registration';
 
-export const registerRouter = Router();
-
-registerRouter.post('/register', verifyIdToken, async (req, res) => {
+export async function handleRegister(req: any, res: any) {
   if (process.env.VITE_ENABLE_DEMO_DATA === 'true') {
     return res.status(403).json({ error: 'Account registration is unavailable in fictional demo mode.' });
   }
 
-  const { uid, tokenEmail } = req as typeof req & { uid?: string; tokenEmail?: string };
+  const { uid, tokenEmail } = req as { uid?: string; tokenEmail?: string };
   let data;
   try {
     data = buildRegistrationData(uid ?? '', tokenEmail ?? '', req.body, new Date().toISOString());
@@ -22,7 +20,7 @@ registerRouter.post('/register', verifyIdToken, async (req, res) => {
     let alreadyRegistered = false;
     let existingRole = '';
 
-    await db.runTransaction(async (transaction) => {
+    await db.runTransaction(async (transaction: any) => {
       const userRef = db.doc(`users/${data.user.uid}`);
       const userSnap = await transaction.get(userRef);
       if (userSnap.exists) {
@@ -48,4 +46,7 @@ registerRouter.post('/register', verifyIdToken, async (req, res) => {
     console.error('Account registration failed:', error);
     return res.status(500).json({ error: 'Could not create your account. Please try again.' });
   }
-});
+}
+
+export const registerRouter = Router();
+registerRouter.post('/register', verifyIdToken, handleRegister);

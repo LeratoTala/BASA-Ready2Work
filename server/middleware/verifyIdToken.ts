@@ -43,6 +43,10 @@ export function getAdminFirestore(): Firestore {
   return adminFirestoreInstance;
 }
 
+export function setAdminFirestoreForTesting(mock: any) {
+  adminFirestoreInstance = mock;
+}
+
 /**
  * Express middleware: verifies the Firebase ID token in `Authorization: Bearer <token>`.
  * Attaches the decoded UID to `req.uid` for downstream handlers.
