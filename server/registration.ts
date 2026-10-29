@@ -65,6 +65,8 @@ export function buildRegistrationData(
       description: '',
       locationArea: '',
       verificationStatus: 'pending',
+      plan: 'free',
+      planStatus: 'active',
       contactEmail: email,
       createdAt,
     },

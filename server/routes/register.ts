@@ -19,9 +19,17 @@ registerRouter.post('/register', verifyIdToken, async (req, res) => {
 
   try {
     const db = getAdminFirestore();
+    let alreadyRegistered = false;
+    let existingRole = '';
+
     await db.runTransaction(async (transaction) => {
       const userRef = db.doc(`users/${data.user.uid}`);
-      if ((await transaction.get(userRef)).exists) throw new Error('This account is already registered.');
+      const userSnap = await transaction.get(userRef);
+      if (userSnap.exists) {
+        alreadyRegistered = true;
+        existingRole = (userSnap.data() as any)?.role ?? data.user.role;
+        return;
+      }
       transaction.create(userRef, data.user);
       if (data.candidateProfile && data.candidatePrivateProfile) {
         transaction.create(db.doc(`candidateProfiles/${data.user.uid}`), data.candidateProfile);
@@ -31,13 +39,13 @@ registerRouter.post('/register', verifyIdToken, async (req, res) => {
         transaction.create(db.doc(`employerProfiles/${data.user.uid}`), data.employerProfile);
       }
     });
+
+    if (alreadyRegistered) {
+      return res.status(200).json({ uid: data.user.uid, role: existingRole || data.user.role, alreadyRegistered: true });
+    }
     return res.status(201).json({ uid: data.user.uid, role: data.user.role });
   } catch (error) {
-    const message = error instanceof Error ? error.message : '';
-    if (message === 'This account is already registered.') {
-      return res.status(409).json({ error: message });
-    }
-    console.error('Account registration failed.');
+    console.error('Account registration failed:', error);
     return res.status(500).json({ error: 'Could not create your account. Please try again.' });
   }
 });
