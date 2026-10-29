@@ -25,7 +25,7 @@ export function buildRegistrationData(
   const displayName = typeof body.displayName === 'string' ? body.displayName.trim().slice(0, 120) : '';
   const role = body.role;
 
-  if (!uid || !email || !displayName) throw new Error('A verified account and display name are required.');
+  if (!uid || !displayName) throw new Error('A verified account and display name are required.');
   if (body.minimumAgeConfirmed !== true) throw new Error('Confirm that you meet the minimum age to use BASA.');
   if (role !== 'candidate' && role !== 'employer') throw new Error('Choose candidate or employer access.');
 
