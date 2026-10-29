@@ -510,28 +510,75 @@ export function useFirestoreStore(): BasaStore {
   };
 
   /** Onboarding: signed-in person picks candidate or employer. Admin is never self-assignable. */
-  const registerUser = (displayName: string, email: string, newRole: Role, minimumAgeConfirmed = false): User => {
+  const registerUser = async (displayName: string, email: string, newRole: Role, minimumAgeConfirmed = false): Promise<User> => {
     if (!firebaseUser) throw new Error('Please sign in first.');
     if (newRole === 'admin') throw new Error('Admin access cannot be self-assigned.');
+    if (!minimumAgeConfirmed) throw new Error('Minimum age confirmation is required.');
+
+    const finalName = displayName.trim() || firebaseUser.displayName || firebaseUser.email || 'BASA User';
+    const finalEmail = firebaseUser.email ?? email ?? firebaseUser.phoneNumber ?? '';
+
     const newUser: User = {
       uid: firebaseUser.uid,
-      displayName: displayName || firebaseUser.displayName || firebaseUser.email || '',
-      email: firebaseUser.email ?? email,
+      displayName: finalName,
+      email: finalEmail,
       role: newRole,
       createdAt: nowIso(),
       accountStatus: 'active',
-      minimumAgeConfirmed,
+      minimumAgeConfirmed: true,
     };
-    fire((async () => {
-      const token = await firebaseUser.getIdToken();
+
+    // 1. Force refresh ID token before calling registration endpoint
+    const token = await firebaseUser.getIdToken(true);
+
+    // 2. Request timeout (15 s) with explicit AbortController
+    const controller = new AbortController();
+    const timeoutTimer = setTimeout(() => controller.abort(), 15_000);
+
+    let serverReachable = false;
+    let registrationSucceeded = false;
+
+    try {
       const response = await fetch(`${env.apiBaseUrl}/api/register`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ displayName: newUser.displayName, role: newRole, minimumAgeConfirmed }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ displayName: finalName, role: newRole, minimumAgeConfirmed: true }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutTimer);
+
+      const contentType = response.headers.get('content-type') || '';
+      // Non-JSON or HTML response indicates server is unreachable or served static SPA fallback
+      if (!contentType.includes('application/json')) {
+        throw new Error('SERVER_UNREACHABLE_NON_JSON');
+      }
+
       const result = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(result.error || 'Could not create your account. Please try again.');
-    })());
+      serverReachable = true;
+
+      // Idempotency: 409 or alreadyRegistered flag means account is already created
+      if (response.status === 409 || result.alreadyRegistered) {
+        registrationSucceeded = true;
+      } else if (!response.ok) {
+        throw new Error(result.error || `Registration failed with status ${response.status}`);
+      } else {
+        registrationSucceeded = true;
+      }
+    } catch (fetchErr: any) {
+      clearTimeout(timeoutTimer);
+      if (fetchErr.name === 'AbortError') {
+        throw new Error('Registration timed out. Please check your connection and try again.');
+      }
+      if (serverReachable) {
+        throw fetchErr;
+      }
+      // Server is unreachable (network error or non-JSON HTML response).
+      console.warn('[BASA] Server /api/register unreachable:', fetchErr.message);
+    }
+
     return newUser;
   };
 
